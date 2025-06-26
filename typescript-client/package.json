@@ -1,0 +1,17 @@
+{
+  "name": "x402-test",
+  "version": "1.0.0",
+  "description": "Test for x402-fetch integration",
+  "scripts": {
+    "test": "tsx testing.ts"
+  },
+  "dependencies": {
+    "apache-arrow": "^14.0.2",
+    "viem": "^2.7.9",
+    "x402-fetch": "^0.3.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
