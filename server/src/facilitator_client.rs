@@ -35,9 +35,7 @@ use std::time::Duration;
 use url::Url;
 use x402_rs::facilitator::Facilitator;
 use x402_rs::types::{SettleRequest, SettleResponse, VerifyRequest, VerifyResponse};
-
-#[cfg(feature = "telemetry")]
-use tracing::{Instrument, Span};
+use tracing::{Span, Instrument};
 
 /// A client for communicating with a remote x402 facilitator.
 ///
@@ -64,7 +62,6 @@ impl Facilitator for FacilitatorClient {
 
     /// Verifies a payment payload with the facilitator.
     /// Instruments a tracing span (only when telemetry feature is enabled).
-    #[cfg(feature = "telemetry")]
     async fn verify(
         &self,
         request: &VerifyRequest,
@@ -76,19 +73,8 @@ impl Facilitator for FacilitatorClient {
         .await
     }
 
-    /// Verifies a payment payload with the facilitator.
-    /// Instruments a tracing span (only when telemetry feature is enabled).
-    #[cfg(not(feature = "telemetry"))]
-    async fn verify(
-        &self,
-        request: &VerifyRequest,
-    ) -> Result<VerifyResponse, FacilitatorClientError> {
-        FacilitatorClient::verify(self, request).await
-    }
-
     /// Attempts to settle a verified payment with the facilitator.
     /// Instruments a tracing span (only when telemetry feature is enabled).
-    #[cfg(feature = "telemetry")]
     async fn settle(
         &self,
         request: &SettleRequest,
@@ -98,16 +84,6 @@ impl Facilitator for FacilitatorClient {
             tracing::info_span!("x402.facilitator_client.settle", timeout = ?self.timeout),
         )
         .await
-    }
-
-    /// Attempts to settle a verified payment with the facilitator.
-    /// Instruments a tracing span (only when telemetry feature is enabled).
-    #[cfg(not(feature = "telemetry"))]
-    async fn settle(
-        &self,
-        request: &SettleRequest,
-    ) -> Result<SettleResponse, FacilitatorClientError> {
-        FacilitatorClient::settle(self, request).await
     }
 }
 
@@ -307,7 +283,6 @@ impl TryFrom<&str> for FacilitatorClient {
 }
 
 /// Records the outcome of a request on a tracing span, including status and errors.
-#[cfg(feature = "telemetry")]
 fn record_result_on_span<R, E: Display>(result: &Result<R, E>) {
     let span = Span::current();
     match result {
@@ -322,13 +297,7 @@ fn record_result_on_span<R, E: Display>(result: &Result<R, E>) {
     }
 }
 
-/// Records the outcome of a request on a tracing span, including status and errors.
-/// Noop if telemetry feature is off.
-#[cfg(not(feature = "telemetry"))]
-fn record_result_on_span<R, E: Display>(_result: &Result<R, E>) {}
-
 /// Instruments a future with a given tracing span.
-#[cfg(feature = "telemetry")]
 fn with_span<F: Future>(fut: F, span: Span) -> impl Future<Output = F::Output> {
     fut.instrument(span)
 }

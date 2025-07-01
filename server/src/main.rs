@@ -17,9 +17,9 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 use x402_rs::network::{Network, USDCDeployment};
 use x402_rs::telemetry::Telemetry;
 use x402_rs::types::{
-    Base64Bytes, EvmAddress, PaymentPayload, PaymentRequiredResponse, 
+    Base64Bytes, PaymentPayload, PaymentRequiredResponse, 
     PaymentRequirements, Scheme, SettleRequest,
-    VerifyRequest, VerifyResponse, X402Version, MixedAddress,
+    VerifyRequest, VerifyResponse, X402Version
 };
 use std::sync::Arc;
 use duckdb::{Connection, Result as DuckResult};
@@ -35,7 +35,6 @@ use crate::duckdb_reader::create_duckdb_query;
 use std::collections::HashMap;
 use serde_json::json;
 use url::Url;
-use std::str::FromStr;
 use std::fmt::Debug;
 
 #[derive(Debug, Deserialize)]
@@ -191,7 +190,6 @@ async fn query_handler(
     let payment_header = headers.get("X-Payment");
     match payment_header {
         None => {
-            tracing::info!("No payment header, returning 402");
             // Phase 1: No payment header - return 402 with pricing info
             let payment_requirements = create_payment_requirements(
                 total_price,
@@ -199,9 +197,6 @@ async fn query_handler(
                 estimated_rows,
                 "/query",
             );
-            
-            // Debug: Print the exact PaymentRequirements being sent
-            tracing::info!("402 PaymentRequirements: {:?}", payment_requirements);
             
             let payment_required_response = PaymentRequiredResponse {
                 error: "Payment required".to_string(),
@@ -221,7 +216,6 @@ async fn query_handler(
                 .into_response()
         }
         Some(payment_header) => {
-            tracing::info!("Payment header present, verifying payment");
             // Phase 2: Payment header present - verify payment and return data
             match verify_and_settle_payment(
                 &state.facilitator,
@@ -339,7 +333,6 @@ fn create_payment_requirements(
     
     // Create USDC amount using the builder pattern
     let price_tag = usdc.pay_to(pay_to_address).amount(total_price).unwrap();
-    println!("price_tag: {:?}", price_tag);
     
     PaymentRequirements {
         scheme: Scheme::Exact,
@@ -371,7 +364,6 @@ async fn verify_and_settle_payment(
     // Parse payment payload
     let base64 = Base64Bytes::from(payment_header.as_bytes());
     let payment_payload = PaymentPayload::try_from(base64)?;
-    tracing::info!("Payment payload: {:?}", payment_payload);
     
     // Create payment requirements for verification
     let payment_requirements = create_payment_requirements(
@@ -380,19 +372,14 @@ async fn verify_and_settle_payment(
         estimated_rows,
         path,
     );
-    
-    // Debug: Print the exact PaymentRequirements being used for verification
-    tracing::info!("Verification PaymentRequirements: {:?}", payment_requirements);
-    
+        
     // Verify payment
     let verify_request = VerifyRequest {
         x402_version: payment_payload.x402_version,
         payment_payload,
         payment_requirements,
     };
-    tracing::info!("Verify request: {:?}", verify_request);
     let verify_response = facilitator.verify(&verify_request).await?;
-    tracing::info!("Verify response: {:?}", verify_response);
     match verify_response {
         VerifyResponse::Valid { .. } => {
             // Settle payment
