@@ -24,16 +24,20 @@ async function main() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        query: "SELECT * FROM swaps_df LIMIT 1;"
+        query: "SELECT * FROM swaps_df LIMIT 2;"
       })
     });
 
     if (!response.ok) {
       if (response.status === 402) {
+        console.log('402 Response headers:', Object.fromEntries(response.headers.entries()));
+        const responseText = await response.text();
+        console.log('402 Response body:', responseText);
         console.log(response);
         throw new Error('Payment required for this query. Please ensure you have sufficient funds.');
       } else if (response.status === 400) {
-        console.log(response);
+        console.log(response);        
+        console.log('402 Response body:', response.text());
         const errorData = await response.json().catch(() => null);
         throw new Error(`Bad request: ${errorData?.message || 'Invalid query or parameters'}`);
       } else {

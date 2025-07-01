@@ -2,12 +2,11 @@
 resolver = "2"
 members = [
   "server",
-  "x402-axum-middleware",
 ]
 
 [workspace.dependencies]
-x402-rs = { version = "0.6.2" }
-axum = { version = "0.8.4" }
+x402-rs = { version = "0.6.3" }
+axum = { version = "0.8.4", features = ["macros"] }
 serde_json = { version = "1.0.140" }
 tokio = { version = "1.45.0" }
 dotenvy = { version = "0.15.7" }

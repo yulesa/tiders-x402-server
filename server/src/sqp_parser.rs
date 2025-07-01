@@ -1,7 +1,5 @@
 use sqlparser::{ast::OrderByKind, dialect::AnsiDialect};
 use sqlparser::parser::Parser;
-use std::fs::File;
-use std::io::Write;
 use sqlparser::ast::{
     Expr, GroupByExpr, LimitClause, ObjectNamePart, SelectFlavor, SelectItem, SetExpr, Statement, TableFactor, TableWithJoins};
 use anyhow::{anyhow, Result};
@@ -270,9 +268,6 @@ pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
         
     }
     
-    // Save ast in a text file
-    let mut file = File::create("ast.txt").unwrap();
-    file.write_all(format!("{:#?}", ast).as_bytes()).unwrap();
     Ok(analyzed_query)
 }
 
