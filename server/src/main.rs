@@ -25,7 +25,7 @@ use std::sync::Arc;
 use duckdb::{Connection, Result as DuckResult};
 use arrow::record_batch::RecordBatch;
 use std::sync::Mutex;
-use axum::body::{Body, Bytes};
+use axum::body::Bytes;
 use arrow::ipc::writer::StreamWriter;
 use axum::extract::State;
 use crate::facilitator_client::{FacilitatorClient, FacilitatorClientError};
@@ -35,7 +35,6 @@ use crate::duckdb_reader::create_duckdb_query;
 use std::collections::HashMap;
 use serde_json::json;
 use url::Url;
-use std::fmt::Debug;
 
 #[derive(Debug, Deserialize)]
 struct QueryRequest {
@@ -154,8 +153,7 @@ async fn query_handler(
                 format!("Invalid query: {}", e),
             );
             tracing::info!("Request failed: {:?}", response);
-            return response
-            .into_response();
+            return response.into_response();
         }
     };
 
@@ -213,29 +211,13 @@ async fn query_handler(
             // Calculate total price
             let total_price = price_per_row * estimated_rows as f64;
 
-            let payment_requirements = create_payment_requirements(
+            let response = create_payment_required_response(
+                &format!("No crypto payment found. Implement x402 protocol (https://www.x402.org/) to pay for this API request."),
                 total_price,
                 table_name,
                 estimated_rows,
                 "/query",
             );
-            
-            let payment_required_response = PaymentRequiredResponse {
-                error: "Crypto payment required".to_string(),
-                accepts: vec![payment_requirements],
-                payer: None,
-                x402_version: X402Version::V1,
-            };
-
-            let response_body = serde_json::to_vec(&payment_required_response)
-                .expect("Failed to serialize payment response");
-
-            let response = (
-                StatusCode::PAYMENT_REQUIRED,
-                [("content-type", "application/json")],
-                Bytes::from(response_body),
-            )
-            .into_response();
             tracing::info!("Request failed: {:?}", response);
             return response;
         }
@@ -278,8 +260,7 @@ async fn query_handler(
     };
     
     // Verify actual row count matches estimated
-    // let actual_rows = batches.iter().map(|batch| batch.num_rows()).sum::<usize>();
-    let actual_rows = 1000;
+    let actual_rows = batches.iter().map(|batch| batch.num_rows()).sum::<usize>();
     let actual_price = price_per_row * actual_rows as f64;
 
     let verify_result = match verify_payment(
@@ -295,7 +276,7 @@ async fn query_handler(
             let response = (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 [("content-type", "text/plain")],
-                format!("Payment verification failed: {}", e),
+                format!("Payment verification failed due to facilitator error: {}", e),
             )
             .into_response();
             tracing::info!("Request failed: {:?}", response);
@@ -311,7 +292,7 @@ async fn query_handler(
         }
         VerifyResponse::Invalid { reason, .. } => {
             return create_payment_required_response(
-                &format!("Payment verification failed: {}", reason),
+                &format!("Payment provided is invalid, verification failed: {}", reason),
                 actual_price,
                 table_name,
                 actual_rows,
@@ -332,7 +313,7 @@ async fn query_handler(
         Err(e) => {
             // Payment settlement failed
             return create_payment_required_response(
-                &format!("Payment settlement failed: {}", e),
+                &format!("Settlement of the provided payment failed: {}", e),
                 actual_price,
                 table_name,
                 actual_rows,
@@ -440,9 +421,9 @@ async fn verify_payment(
 
 // Helper function to settle payment
 async fn settle_payment(
-verify_response: VerifyResponse,
-facilitator: &Arc<FacilitatorClient>,
-verify_request: VerifyRequest
+    verify_response: VerifyResponse,
+    facilitator: &Arc<FacilitatorClient>,
+    verify_request: VerifyRequest
 ) -> Result<(), Box<dyn std::error::Error>> {
     match verify_response {
         VerifyResponse::Valid { .. } => {
@@ -491,17 +472,11 @@ fn create_payment_required_response(
 
     let response_body = serde_json::to_vec(&payment_required_response)
         .expect("Failed to serialize payment response");
-
     let response = (
-        StatusCode::PAYMENT_REQUIRED,
-        [("content-type", "application/json")],
-        payment_required_response,
-    );
+            StatusCode::PAYMENT_REQUIRED,
+            [("content-type", "application/json")],
+            Bytes::from(response_body),
+        );
     tracing::info!("Request failed: {:?}", response);
-
-    Response::builder()
-        .status(StatusCode::PAYMENT_REQUIRED)
-        .header("content-type", "application/json")
-        .body(Body::from(response_body))
-        .expect("Failed to construct response")
+    return response.into_response();
 }
