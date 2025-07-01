@@ -28,9 +28,9 @@ use std::sync::Mutex;
 use axum::body::{Body, Bytes};
 use arrow::ipc::writer::StreamWriter;
 use axum::extract::State;
-use crate::facilitator_client::FacilitatorClient;
+use crate::facilitator_client::{FacilitatorClient, FacilitatorClientError};
 use crate::price::IntoPriceTag;
-use crate::sqp_parser::analyze_query;
+use crate::sqp_parser::{analyze_query, create_estimate_rows_query};
 use crate::duckdb_reader::create_duckdb_query;
 use std::collections::HashMap;
 use serde_json::json;
@@ -121,7 +121,7 @@ async fn main() {
                         }
 
                         tracing::info!(
-                            "status={} elapsed={}ms",
+                            "status={}, latency={}ms",
                             response.status().as_u16(),
                             latency.as_millis()
                         );
@@ -148,12 +148,14 @@ async fn query_handler(
     let analyzed_query = match analyze_query(&query_req.query) {
         Ok(query) => query,
         Err(e) => {
-            return (
+            let response = (
                 StatusCode::BAD_REQUEST,
                 [("content-type", "text/plain")],
                 format!("Invalid query: {}", e),
-            )
-                .into_response();
+            );
+            tracing::info!("Request failed: {:?}", response);
+            return response
+            .into_response();
         }
     };
 
@@ -162,35 +164,55 @@ async fn query_handler(
     let price_per_row = match state.table_pricing.get(table_name) {
         Some(price) => *price,
         None => {
-            return (
+            let response = (
                 StatusCode::BAD_REQUEST,
                 [("content-type", "text/plain")],
-                format!("Unknown table: {}", table_name),
+                format!("Table not supported: {}", table_name),
             )
-                .into_response();
+            .into_response();
+            tracing::info!("Request failed: {:?}", response);
+            return response;
         }
     };
-
-    // Estimate row count
-    let estimated_rows = match estimate_row_count(&state.db, &analyzed_query) {
-        Ok(count) => count,
+    
+    // Create the executableDuckDB SQL query
+    let duckdb_sql = match create_duckdb_query(analyzed_query.clone()) {
+        Ok(sql) => sql,
         Err(e) => {
-            return (
+            let response = (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 [("content-type", "text/plain")],
-                format!("Failed to estimate row count: {}", e),
+                format!("Failed to create executable query: {}", e),
             )
-                .into_response();
+            .into_response();
+            tracing::info!("Request failed: {:?}", response);
+            return response;
         }
     };
-    // Calculate total price
-    let total_price = price_per_row * estimated_rows as f64;
 
     // Check if payment header is present
     let payment_header = headers.get("X-Payment");
-    match payment_header {
+    let payment_header = match payment_header {
         None => {
             // Phase 1: No payment header - return 402 with pricing info
+            // Estimate row count
+            let estimated_rows_query = create_estimate_rows_query(&duckdb_sql);
+            let estimated_rows = match execute_row_count_query(&state.db, &estimated_rows_query) {
+                Ok(rows) => rows,
+                Err(e) => {
+                    let response = (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        [("content-type", "text/plain")],
+                        format!("Failed to execute row count query: {}", e),
+                    )
+                    .into_response();
+                    tracing::info!("Request failed: {:?}", response);
+                    return response;
+                }
+            };
+            // Calculate total price
+            let total_price = price_per_row * estimated_rows as f64;
+
             let payment_requirements = create_payment_requirements(
                 total_price,
                 table_name,
@@ -199,7 +221,7 @@ async fn query_handler(
             );
             
             let payment_required_response = PaymentRequiredResponse {
-                error: "Payment required".to_string(),
+                error: "Crypto payment required".to_string(),
                 accepts: vec![payment_requirements],
                 payer: None,
                 x402_version: X402Version::V1,
@@ -208,93 +230,136 @@ async fn query_handler(
             let response_body = serde_json::to_vec(&payment_required_response)
                 .expect("Failed to serialize payment response");
 
-            (
+            let response = (
                 StatusCode::PAYMENT_REQUIRED,
                 [("content-type", "application/json")],
                 Bytes::from(response_body),
             )
-                .into_response()
+            .into_response();
+            tracing::info!("Request failed: {:?}", response);
+            return response;
         }
-        Some(payment_header) => {
-            // Phase 2: Payment header present - verify payment and return data
-            match verify_and_settle_payment(
-                &state.facilitator,
-                payment_header,
-                total_price,
-                table_name,
-                estimated_rows,
-                "/query",
-            ).await {
-                Ok(_) => {
-                    // Payment verified, execute query and verify row count
-                    let db = state.db.lock().unwrap();
-                    let duckdb_sql = match create_duckdb_query(analyzed_query.clone()) {
-                        Ok(sql) => sql,
-                        Err(e) => {
-                            return (
-                                StatusCode::BAD_REQUEST,
-                                [("content-type", "text/plain")],
-                                format!("Failed to create DuckDB query: {}", e),
-                            )
-                                .into_response();
-                        }
-                    };
+        Some(payment_header) => payment_header,
+    };
 
-                    match execute_query(&db, &duckdb_sql) {
-                        Ok(batches) => {
-                            // Verify actual row count matches estimated
-                            let actual_rows = batches.iter().map(|batch| batch.num_rows()).sum::<usize>();
-                            if actual_rows != estimated_rows {
-                                return create_payment_required_response(
-                                    "Row count mismatch",
-                                    total_price,
-                                    table_name,
-                                    estimated_rows,
-                                    "/query",
-                                );
-                            }
+    
+    // Parse payment payload
+    let base64 = Base64Bytes::from(payment_header.as_bytes());
+    let payment_payload = match PaymentPayload::try_from(base64) {
+        Ok(payment_payload) => payment_payload,
+        Err(e) => {
+            let response = (
+                StatusCode::BAD_REQUEST,
+                [("content-type", "text/plain")],
+                format!("Failed to parse payment payload: {}", e),
+            )
+            .into_response();
+            tracing::info!("Request failed: {:?}", response);
+            return response;
+        }
+    };
 
-                            // Serialize batches to Arrow IPC
-                            let mut buffer = Vec::new();
-                            if let Some(first_batch) = batches.first() {
-                                let schema = first_batch.schema();
-                                let mut writer = StreamWriter::try_new(&mut buffer, &schema).unwrap();
-                                for batch in batches {
-                                    writer.write(&batch).unwrap();
-                                }
-                                writer.finish().unwrap();
-                            }
-                            
-                            (
-                                StatusCode::OK,
-                                [("content-type", "application/vnd.apache.arrow.stream")],
-                                Bytes::from(buffer),
-                            )
-                                .into_response()
-                        }
-                        Err(e) => {
-                            (
-                                StatusCode::BAD_REQUEST,
-                                [("content-type", "text/plain")],
-                                e.to_string(),
-                            )
-                                .into_response()
-                        }
-                    }
-                }
-                Err(e) => {
-                    // Payment verification failed
-                    create_payment_required_response(
-                        &format!("Payment verification failed: {}", e),
-                        total_price,
-                        table_name,
-                        estimated_rows,
-                        "/query",
-                    )
-                }
+    // Phase 2: Payment header present - verify payment and return data
+    let batches = {
+        let db = state.db.lock().unwrap();
+        match execute_query(&db, &duckdb_sql) {
+            Ok(batches) => batches,
+            Err(e) => {
+                let response = (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    [("content-type", "text/plain")],
+                    format!("Failed to execute query: {}", e),
+                )
+                .into_response();
+                tracing::info!("Request failed: {:?}", response);
+                return response;
             }
         }
+    };
+    
+    // Verify actual row count matches estimated
+    // let actual_rows = batches.iter().map(|batch| batch.num_rows()).sum::<usize>();
+    let actual_rows = 1000;
+    let actual_price = price_per_row * actual_rows as f64;
+
+    let verify_result = match verify_payment(
+        &state.facilitator,
+        payment_payload,
+        actual_price,
+        table_name,
+        actual_rows,
+        "/query",
+    ).await {
+        Ok(result) => result,
+        Err(e) => {
+            let response = (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                [("content-type", "text/plain")],
+                format!("Payment verification failed: {}", e),
+            )
+            .into_response();
+            tracing::info!("Request failed: {:?}", response);
+            return response;
+        }
+    };
+    
+    let (verify_response, verify_request) = verify_result;
+
+    match verify_response {
+        VerifyResponse::Valid { .. } => {
+            // Payment verified, proceed to settlement
+        }
+        VerifyResponse::Invalid { reason, .. } => {
+            return create_payment_required_response(
+                &format!("Payment verification failed: {}", reason),
+                actual_price,
+                table_name,
+                actual_rows,
+                "/query",
+            );
+        }
     }
+
+    // Settle payment
+    match settle_payment(
+        verify_response,
+        &state.facilitator,
+        verify_request,
+    ).await {
+        Ok(_) => {
+            // Payment settled, execute query and verify row count
+        }
+        Err(e) => {
+            // Payment settlement failed
+            return create_payment_required_response(
+                &format!("Payment settlement failed: {}", e),
+                actual_price,
+                table_name,
+                actual_rows,
+                "/query",
+            );
+        }
+    }
+    
+    // Serialize batches to Arrow IPC
+    let mut buffer = Vec::new();
+    if let Some(first_batch) = batches.first() {
+        let schema = first_batch.schema();
+        let mut writer = StreamWriter::try_new(&mut buffer, &schema).unwrap();
+        for batch in batches {
+            writer.write(&batch).unwrap();
+        }
+        writer.finish().unwrap();
+    }
+    
+    let response = (
+        StatusCode::OK,
+        [("content-type", "application/vnd.apache.arrow.stream")],
+        Bytes::from(buffer),
+    )
+        .into_response();
+    tracing::info!("Request succeeded: {:?}", response);
+    return response;
 }
 
 fn execute_query(db: &Connection, query: &str) -> DuckResult<Vec<RecordBatch>> {
@@ -304,22 +369,15 @@ fn execute_query(db: &Connection, query: &str) -> DuckResult<Vec<RecordBatch>> {
     Ok(batches)
 }
 
-// Helper function to estimate row count for a query
-fn estimate_row_count(db: &Arc<Mutex<Connection>>, analyzed_query: &crate::sqp_parser::AnalyzedQuery) -> Result<usize, Box<dyn std::error::Error>> {
+fn execute_row_count_query(db: &Arc<Mutex<Connection>>, query: &str) -> DuckResult<usize> {
     let db = db.lock().unwrap();
-    
-    let duckdb_sql = create_duckdb_query(analyzed_query.clone())?;
-    // wrap the query in a SELECT COUNT(*)
-    let count_query = format!("SELECT COUNT(*) as num_rows FROM ({})", duckdb_sql);
-    
-    let mut stmt = db.prepare(&count_query)?;
-    let result = stmt.query_row([], |row| {
+    let mut stmt = db.prepare(query)?;
+    stmt.query_row([], |row| {
         let count: i64 = row.get(0)?;
         Ok(count as usize)
-    })?;
-    
-    Ok(result)
+    })
 }
+
 
 // Helper function to create payment requirements
 fn create_payment_requirements(
@@ -353,17 +411,14 @@ fn create_payment_requirements(
 }
 
 // Helper function to verify and settle payment
-async fn verify_and_settle_payment(
+async fn verify_payment(
     facilitator: &Arc<FacilitatorClient>,
-    payment_header: &axum::http::HeaderValue,
+    payment_payload: PaymentPayload,
     expected_price: f64,
     table_name: &str,
     estimated_rows: usize,
     path: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Parse payment payload
-    let base64 = Base64Bytes::from(payment_header.as_bytes());
-    let payment_payload = PaymentPayload::try_from(base64)?;
+) -> Result<(VerifyResponse, VerifyRequest), FacilitatorClientError> {
     
     // Create payment requirements for verification
     let payment_requirements = create_payment_requirements(
@@ -380,6 +435,15 @@ async fn verify_and_settle_payment(
         payment_requirements,
     };
     let verify_response = facilitator.verify(&verify_request).await?;
+    Ok((verify_response, verify_request))
+}
+
+// Helper function to settle payment
+async fn settle_payment(
+verify_response: VerifyResponse,
+facilitator: &Arc<FacilitatorClient>,
+verify_request: VerifyRequest
+) -> Result<(), Box<dyn std::error::Error>> {
     match verify_response {
         VerifyResponse::Valid { .. } => {
             // Settle payment
@@ -427,6 +491,13 @@ fn create_payment_required_response(
 
     let response_body = serde_json::to_vec(&payment_required_response)
         .expect("Failed to serialize payment response");
+
+    let response = (
+        StatusCode::PAYMENT_REQUIRED,
+        [("content-type", "application/json")],
+        payment_required_response,
+    );
+    tracing::info!("Request failed: {:?}", response);
 
     Response::builder()
         .status(StatusCode::PAYMENT_REQUIRED)

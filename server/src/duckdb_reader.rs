@@ -36,9 +36,9 @@ pub fn create_duckdb_query(ast: AnalyzedQuery) -> Result<String> {
     // ORDER BY clause
     if let Some(order_by) = ast.order_by {
         query.push_str(" ORDER BY ");
-        let order_clauses: Vec<String> = order_by.iter()
+        let order_clauses = order_by.iter()
             .map(|order_by_expr| {
-                let mut clause = duckdb_display_expr(&order_by_expr.expr).unwrap();
+                let mut clause = duckdb_display_expr(&order_by_expr.expr)?;
                 if !order_by_expr.asc {
                     clause.push_str(" DESC");
                 }
@@ -49,9 +49,9 @@ pub fn create_duckdb_query(ast: AnalyzedQuery) -> Result<String> {
                         clause.push_str(" NULLS LAST");
                     }
                 }
-                clause
+                Ok(clause)
             })
-            .collect();
+            .collect::<Result<Vec<String>>>()?;
         query.push_str(&order_clauses.join(", "));
     }
     

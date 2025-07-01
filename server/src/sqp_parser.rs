@@ -271,6 +271,13 @@ pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
     Ok(analyzed_query)
 }
 
+
+// Helper function to create a query to estimate row count for a query
+pub fn create_estimate_rows_query(duckdb_sql: &str) -> String {
+    // wrap the query in a SELECT COUNT(*)
+    format!("SELECT COUNT(*) as num_rows FROM ({})", duckdb_sql)
+}
+
 // Trait for types that can be checked for being unsupported
 trait UnsupportedCheck {
     fn is_supported(&self) -> bool;
