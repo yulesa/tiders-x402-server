@@ -5,13 +5,13 @@ use x402_rs::types::{MoneyAmount, TokenAmount};
 
 /// A complete x402-compatible price tag, describing a required payment.
 ///
-/// A `PriceTag` specifies a target recipient (`pay_to`), a token-denominated amount,
+/// A `PriceTag` specifies a target recipient (`pay_to`), a token-denominated amount per item (row, cell, size, etc.),
 /// and an associated ERC-20 asset. It can be used by sellers to declare required payments
 /// or by facilitators to verify compliance.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PriceTag {
     pub pay_to: EvmAddress,
-    pub amount: TokenAmount,
+    pub amount_per_item: TokenAmount,
     pub token: TokenDeployment,
 }
 
@@ -19,12 +19,12 @@ impl PriceTag {
     /// Constructs a new `PriceTag` from raw inputs.
     pub fn new<P: Into<EvmAddress>, T: Into<TokenAmount>, A: Into<TokenDeployment>>(
         pay_to: P,
-        amount: T,
+        amount_per_item: T,
         token: A,
     ) -> Self {
         Self {
             pay_to: pay_to.into(),
-            amount: amount.into(),
+            amount_per_item: amount_per_item.into(),
             token: token.into(),
         }
     }
@@ -39,28 +39,28 @@ impl From<PriceTag> for Vec<PriceTag> {
 /// Intermediate builder struct for constructing a [`PriceTag`] using fluent chaining.
 ///
 /// Allows creation of price tags using either token amounts or human-readable values
-/// (e.g., `"1.5"` USDC). Generic over the amount and payee representations.
+/// (e.g., `"1.5"` USDC per item). Generic over the amount and payee representations.
 #[derive(Clone, Debug)]
 pub struct PriceTagBuilder<A, P> {
     token: TokenDeployment,
-    amount: Option<A>,
+    amount_per_item: Option<A>,
     pay_to: Option<P>,
 }
 
-/// Wrapper type used to distinguish [`PriceTagBuilder::amount`] created with human-friendly money values.
+/// Wrapper type used to distinguish [`PriceTagBuilder::amount_per_item`] created with human-friendly money values.
 ///
 /// These must be converted to token amounts using the associated asset's decimal precision.
 #[derive(Clone, Debug)]
-pub struct PriceTagMoneyAmount<A>(A);
+pub struct PriceTagMoneyAmountPerItem<A>(A);
 
-/// Wrapper type used to distinguish [`PriceTagBuilder::amount`] created with exact token-denominated values.
+/// Wrapper type used to distinguish [`PriceTagBuilder::amount_per_item`] created with exact token-denominated values.
 #[derive(Clone, Debug)]
-pub struct PriceTagTokenAmount<A>(A);
+pub struct PriceTagTokenAmountPerItem<A>(A);
 
 /// Converts the wrapped value into a [`TokenAmount`] using [`TryInto`].
 ///
 /// Used internally by [`PriceTagBuilder`] when the user provided a raw token value.
-impl<A> TryInto<TokenAmount> for PriceTagTokenAmount<A>
+impl<A> TryInto<TokenAmount> for PriceTagTokenAmountPerItem<A>
 where
     A: TryInto<TokenAmount>,
 {
@@ -73,8 +73,8 @@ where
 
 /// Converts the wrapped value into a [`MoneyAmount`] using [`TryInto`].
 ///
-/// Used by [`PriceTagBuilder`] to interpret human-readable values like `"1.5"` USDC.
-impl<A> TryInto<MoneyAmount> for PriceTagMoneyAmount<A>
+/// Used by [`PriceTagBuilder`] to interpret human-readable values like `"1.5"` USDC per item.
+impl<A> TryInto<MoneyAmount> for PriceTagMoneyAmountPerItem<A>
 where
     A: TryInto<MoneyAmount>,
 {
@@ -102,43 +102,43 @@ pub trait IntoPriceTag {
     fn token_amount<A: TryInto<TokenAmount>>(
         &self,
         token_amount: A,
-    ) -> PriceTagBuilder<PriceTagTokenAmount<A>, ()>;
+    ) -> PriceTagBuilder<PriceTagTokenAmountPerItem<A>, ()>;
     fn amount<A: TryInto<MoneyAmount>>(
         &self,
         amount: A,
-    ) -> PriceTagBuilder<PriceTagMoneyAmount<A>, ()>;
+    ) -> PriceTagBuilder<PriceTagMoneyAmountPerItem<A>, ()>;
     fn pay_to<P: TryInto<EvmAddress>>(&self, address: P) -> PriceTagBuilder<(), P>;
 }
 
 /// Errors that may occur when building a [`PriceTag`] using a [`PriceTagBuilder`].
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum PriceTagBuilderError {
-    #[error("No amount provided")]
-    NoAmount,
-    #[error("Invalid amount value")]
-    InvalidAmount,
+    #[error("No amount per item provided")]
+    NoAmountPerItem,
+    #[error("Invalid amount per item value")]
+    InvalidAmountPerItem,
     #[error("No pay_to address provided")]
     NoPayTo,
     #[error("Invalid pay_to address")]
     InvalidPayTo,
 }
 
-impl<A, P> PriceTagBuilder<PriceTagTokenAmount<A>, P>
+impl<A, P> PriceTagBuilder<PriceTagTokenAmountPerItem<A>, P>
 where
     A: TryInto<TokenAmount>,
     P: TryInto<EvmAddress>,
 {
-    /// Builds a [`PriceTag`] using a token-denominated amount.
+    /// Builds a [`PriceTag`] using a token-denominated amount per item.
     ///
-    /// Returns an error if the amount or payee are missing or invalid.
+    /// Returns an error if the amount per item or payee are missing or invalid.
     #[allow(dead_code)] // Public for consumption by downstream crates.
     pub fn build(self) -> Result<PriceTag, PriceTagBuilderError> {
         let token = self.token;
-        let amount = self.amount.ok_or(PriceTagBuilderError::NoAmount)?;
-        let amount = amount
+        let amount_per_item = self.amount_per_item.ok_or(PriceTagBuilderError::NoAmountPerItem)?;
+        let amount_per_item = amount_per_item
             .try_into()
             .ok()
-            .ok_or(PriceTagBuilderError::InvalidAmount)?;
+            .ok_or(PriceTagBuilderError::InvalidAmountPerItem)?;
         let pay_to = self.pay_to.ok_or(PriceTagBuilderError::NoPayTo)?;
         let pay_to = pay_to
             .try_into()
@@ -146,7 +146,7 @@ where
             .ok_or(PriceTagBuilderError::InvalidPayTo)?;
         let price_tag = PriceTag {
             token,
-            amount,
+            amount_per_item,
             pay_to,
         };
         Ok(price_tag)
@@ -159,25 +159,25 @@ where
     }
 }
 
-impl<A, P> PriceTagBuilder<PriceTagMoneyAmount<A>, P>
+impl<A, P> PriceTagBuilder<PriceTagMoneyAmountPerItem<A>, P>
 where
     A: TryInto<MoneyAmount>,
     P: TryInto<EvmAddress>,
 {
-    /// Builds a [`PriceTag`] from a human-readable money amount (e.g., `"1.50"`).
+    /// Builds a [`PriceTag`] from a human-readable money amount per item (e.g., `"1.50"`).
     ///
     /// Converts the money amount to a [`TokenAmount`] using the asset's decimal precision.
     pub fn build(self) -> Result<PriceTag, PriceTagBuilderError> {
         let token = self.token;
-        let amount = self.amount.ok_or(PriceTagBuilderError::NoAmount)?;
-        let money_amount: MoneyAmount = amount
+        let amount_per_item = self.amount_per_item.ok_or(PriceTagBuilderError::NoAmountPerItem)?;
+        let money_amount: MoneyAmount = amount_per_item
             .try_into()
             .ok()
-            .ok_or(PriceTagBuilderError::InvalidAmount)?;
-        let amount = money_amount
+            .ok_or(PriceTagBuilderError::InvalidAmountPerItem)?;
+        let amount_per_item = money_amount
             .as_token_amount(token.decimals as u32)
             .ok()
-            .ok_or(PriceTagBuilderError::InvalidAmount)?;
+            .ok_or(PriceTagBuilderError::InvalidAmountPerItem)?;
         let pay_to = self.pay_to.ok_or(PriceTagBuilderError::NoPayTo)?;
         let pay_to = pay_to
             .try_into()
@@ -185,7 +185,7 @@ where
             .ok_or(PriceTagBuilderError::InvalidPayTo)?;
         let price_tag = PriceTag {
             token,
-            amount,
+            amount_per_item,
             pay_to,
         };
         Ok(price_tag)
@@ -206,7 +206,7 @@ where
     pub fn pay_to<P1: TryInto<EvmAddress>>(&self, address: P1) -> PriceTagBuilder<A, P1> {
         PriceTagBuilder {
             token: self.token.clone(),
-            amount: self.amount.clone(),
+            amount_per_item: self.amount_per_item.clone(),
             pay_to: Some(address),
         }
     }
@@ -216,27 +216,27 @@ impl<A, P> PriceTagBuilder<A, P>
 where
     P: Clone,
 {
-    /// Sets the human-readable money amount in the builder.
+    /// Sets the human-readable money amount per item in the builder.
     pub fn amount<A1: TryInto<MoneyAmount>>(
         &self,
         amount: A1,
-    ) -> PriceTagBuilder<PriceTagMoneyAmount<A1>, P> {
+    ) -> PriceTagBuilder<PriceTagMoneyAmountPerItem<A1>, P> {
         PriceTagBuilder {
             token: self.token.clone(),
-            amount: Some(PriceTagMoneyAmount(amount)),
+            amount_per_item: Some(PriceTagMoneyAmountPerItem(amount)),
             pay_to: self.pay_to.clone(),
         }
     }
 
-    /// Sets the token-denominated amount in the builder (e.g., `1500000` for 1.5 USDC with 6 decimals).
+    /// Sets the token-denominated amount per item in the builder (e.g., `1500000` for 1.5 USDC with 6 decimals).
     #[allow(dead_code)] // Public for consumption by downstream crates.
     pub fn token_amount<A1: TryInto<TokenAmount>>(
         &self,
         token_amount: A1,
-    ) -> PriceTagBuilder<PriceTagTokenAmount<A1>, P> {
+    ) -> PriceTagBuilder<PriceTagTokenAmountPerItem<A1>, P> {
         PriceTagBuilder {
             token: self.token.clone(),
-            amount: Some(PriceTagTokenAmount(token_amount)),
+            amount_per_item: Some(PriceTagTokenAmountPerItem(token_amount)),
             pay_to: self.pay_to.clone(),
         }
     }
@@ -246,11 +246,11 @@ impl IntoPriceTag for TokenDeployment {
     fn token_amount<A: TryInto<TokenAmount>>(
         &self,
         token_amount: A,
-    ) -> PriceTagBuilder<PriceTagTokenAmount<A>, ()> {
+    ) -> PriceTagBuilder<PriceTagTokenAmountPerItem<A>, ()> {
         let token = self.clone();
         PriceTagBuilder {
             token,
-            amount: Some(PriceTagTokenAmount(token_amount)),
+            amount_per_item: Some(PriceTagTokenAmountPerItem(token_amount)),
             pay_to: None,
         }
     }
@@ -258,11 +258,11 @@ impl IntoPriceTag for TokenDeployment {
     fn amount<A: TryInto<MoneyAmount>>(
         &self,
         amount: A,
-    ) -> PriceTagBuilder<PriceTagMoneyAmount<A>, ()> {
+    ) -> PriceTagBuilder<PriceTagMoneyAmountPerItem<A>, ()> {
         let token = self.clone();
         PriceTagBuilder {
             token,
-            amount: Some(PriceTagMoneyAmount(amount)),
+            amount_per_item: Some(PriceTagMoneyAmountPerItem(amount)),
             pay_to: None,
         }
     }
@@ -271,26 +271,26 @@ impl IntoPriceTag for TokenDeployment {
         let token = self.clone();
         PriceTagBuilder {
             token,
-            amount: None,
+            amount_per_item: None,
             pay_to: Some(address),
         }
     }
 }
 
 impl IntoPriceTag for USDCDeployment {
-    /// Sets the exact token-denominated amount in the builder.
+    /// Sets the exact token-denominated amount per item in the builder.
     fn token_amount<A: TryInto<TokenAmount>>(
         &self,
         token_amount: A,
-    ) -> PriceTagBuilder<PriceTagTokenAmount<A>, ()> {
+    ) -> PriceTagBuilder<PriceTagTokenAmountPerItem<A>, ()> {
         self.0.token_amount(token_amount)
     }
 
-    /// Sets the human-readable money amount in the builder.
+    /// Sets the human-readable money amount per item in the builder.
     fn amount<A: TryInto<MoneyAmount>>(
         &self,
         amount: A,
-    ) -> PriceTagBuilder<PriceTagMoneyAmount<A>, ()> {
+    ) -> PriceTagBuilder<PriceTagMoneyAmountPerItem<A>, ()> {
         self.0.amount(amount)
     }
 

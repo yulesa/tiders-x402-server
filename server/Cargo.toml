@@ -22,3 +22,4 @@ sqlparser = { workspace = true }
 http = { workspace = true }
 reqwest = { workspace = true }
 thiserror = { workspace = true }
+alloy = { workspace = true }

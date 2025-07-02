@@ -102,12 +102,9 @@ pub async fn query_handler(
                     return response;
                 }
             };
-            // Calculate total price
-            let total_price = price_per_row * estimated_rows as f64;
-
             let response = create_payment_required_response(
                 &format!("No crypto payment found. Implement x402 protocol (https://www.x402.org/) to pay for this API request."),
-                total_price,
+                price_per_row,
                 table_name,
                 estimated_rows,
                 "/query",
@@ -155,11 +152,10 @@ pub async fn query_handler(
     
     // Verify actual row count matches payment
     let actual_rows = batches.iter().map(|batch| batch.num_rows()).sum::<usize>();
-    let actual_price = price_per_row * actual_rows as f64;
 
     // Create payment requirements for verification
     let payment_requirements = create_payment_requirements(
-        actual_price,
+        price_per_row,
         table_name,
         actual_rows,
         "/query",
@@ -198,7 +194,7 @@ pub async fn query_handler(
         x402_rs::types::VerifyResponse::Invalid { reason, .. } => {
             return create_payment_required_response(
                 &format!("Payment provided is invalid, verification failed: {}", reason),
-                actual_price,
+                price_per_row,
                 table_name,
                 actual_rows,
                 "/query",
@@ -219,7 +215,7 @@ pub async fn query_handler(
             // Payment settlement failed
             return create_payment_required_response(
                 &format!("Settlement of the provided payment failed: {}", e),
-                actual_price,
+                price_per_row,
                 table_name,
                 actual_rows,
                 "/query",
