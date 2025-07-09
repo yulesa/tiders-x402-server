@@ -19,12 +19,11 @@ use std::sync::Arc;
 use duckdb::Connection;
 use std::sync::Mutex;
 use url::Url;
-use std::collections::HashMap;
 
 use crate::facilitator_client::FacilitatorClient;
 use crate::query_handler::{AppState, query_handler};
-use crate::payment_config::{GlobalPaymentConfig, TablePaymentOffers};
-use crate::price::PriceTag;
+use crate::payment_config::GlobalPaymentConfig;
+use crate::price::{PriceTag, TablePaymentOffers};
 
 #[tokio::main]
 async fn main() {
@@ -45,22 +44,14 @@ async fn main() {
     // Initialize payment configuration
     let base_url = Url::parse("http://localhost:4021").expect("Failed to parse base URL");
 
-    let mut global_payment_config = GlobalPaymentConfig{
-        facilitator: facilitator.clone(),
-        base_url: base_url,
-        mime_type: "application/json".to_string(),
-        max_timeout_seconds: 3600,
-        default_description: "Default description".to_string(),
-        table_offers: HashMap::new(),
-    };
-
+    let mut global_payment_config = GlobalPaymentConfig::default(facilitator, base_url);
     
     // Create a default USDC price tag for swaps_df table
     let usdc = x402_rs::network::USDCDeployment::by_network(x402_rs::network::Network::BaseSepolia);
 
     let swap_price_tag = PriceTag{
         pay_to: EvmAddress::from_str("0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7").unwrap(),
-        amount_per_item: MoneyAmount::from_str("0.001").unwrap().as_token_amount(usdc.decimals as u32).unwrap(),
+        amount_per_item: MoneyAmount::from_str("0.002").unwrap().as_token_amount(usdc.decimals as u32).unwrap(),
         token: usdc.into(),
         min_total_amount: None,
         min_rows: None,
@@ -69,9 +60,15 @@ async fn main() {
         is_default: true
     };
 
+    // Create table payment offer
+    let swaps_offer = TablePaymentOffers::new(
+        "swaps_df".to_string(),
+        vec![swap_price_tag],
+    );
+
     let swap_price_tag_2 = PriceTag{
         pay_to: EvmAddress::from_str("0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7").unwrap(),
-        amount_per_item: MoneyAmount::from_str("0.002").unwrap().as_token_amount(usdc.decimals as u32).unwrap(),
+        amount_per_item: MoneyAmount::from_str("0.001").unwrap().as_token_amount(usdc.decimals as u32).unwrap(),
         token: usdc.into(),
         min_total_amount: None,
         min_rows: Some(2),
@@ -80,12 +77,7 @@ async fn main() {
         is_default: false
     };
 
-    // Create table payment offer
-    let swaps_offer = TablePaymentOffers::new(
-        "swaps_df".to_string(),
-        vec![swap_price_tag, swap_price_tag_2],
-    );
-
+    let swaps_offer = swaps_offer.with_payment_offer(swap_price_tag_2);
     global_payment_config.add_table_offer(swaps_offer);
 
     // Initialize DuckDB connection 

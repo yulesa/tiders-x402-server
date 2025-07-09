@@ -7,46 +7,7 @@ use x402_rs::types::{
 };
 
 use crate::facilitator_client::FacilitatorClient;
-use crate::price::PriceTag;
-
-/// Payment offer configuration for a specific table
-#[derive(Clone, Debug)]
-pub struct TablePaymentOffers {
-    /// Table name
-    pub table_name: String,
-    /// Available payment options for this table
-    pub price_tags: Vec<PriceTag>,
-    /// Whether this table requires payment
-    pub requires_payment: bool,
-    /// Custom description for this table's payment requirements
-    pub description: Option<String>,
-}
-
-impl TablePaymentOffers {
-    /// Creates a new TablePaymentOffer
-    pub fn new(table_name: String, payment_offers: Vec<PriceTag>) -> Self {
-        let requires_payment = !payment_offers.is_empty();
-        Self {
-            table_name,
-            price_tags: payment_offers,
-            requires_payment,
-            description: None,
-        }
-    }
-
-    /// Adds a payment offer to this table
-    pub fn with_payment_offer(mut self, offer: PriceTag) -> Self {
-        self.price_tags.push(offer);
-        self.requires_payment = true;
-        self
-    }
-
-    /// Sets a custom description for this table
-    pub fn with_description(mut self, description: String) -> Self {
-        self.description = Some(description);
-        self
-    }
-}
+use crate::price::{PriceTag, TablePaymentOffers};
 
 /// Global configuration for the payment system
 #[derive(Clone, Debug)]
@@ -210,11 +171,4 @@ impl GlobalPaymentConfig {
             output_schema: None,
         })
     }
-
-    // /// Calculates the total price for a table and item count
-    // pub fn calculate_total_price(&self, table_name: &str, item_count: usize) -> Option<TokenAmount> {
-    //     let table_offer = self.get_table_offer(table_name)?;
-    //     let offer = table_offer.find_applicable_offer(item_count)?;
-    //     Some(offer.calculate_total_price(item_count))
-    // }
 }

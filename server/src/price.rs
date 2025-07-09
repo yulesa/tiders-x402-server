@@ -73,3 +73,36 @@ impl From<PriceTag> for Vec<PriceTag> {
         vec![value]
     }
 }
+
+/// Payment offer configuration for a specific table
+#[derive(Clone, Debug)]
+pub struct TablePaymentOffers {
+    /// Table name
+    pub table_name: String,
+    /// Available payment options for this table
+    pub price_tags: Vec<PriceTag>,
+    /// Whether this table requires payment
+    pub requires_payment: bool,
+    /// Custom description for this table's payment requirements
+    pub description: Option<String>,
+}
+
+impl TablePaymentOffers {
+    /// Creates a new TablePaymentOffer
+    pub fn new(table_name: String, payment_offers: Vec<PriceTag>) -> Self {
+        let requires_payment = !payment_offers.is_empty();
+        Self {
+            table_name,
+            price_tags: payment_offers,
+            requires_payment,
+            description: None,
+        }
+    }
+
+    /// Adds a payment offer to this table
+    pub fn with_payment_offer(mut self, offer: PriceTag) -> Self {
+        self.price_tags.push(offer);
+        self.requires_payment = true;
+        self
+    }
+}
