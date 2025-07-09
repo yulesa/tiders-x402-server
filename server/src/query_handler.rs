@@ -6,17 +6,18 @@ use axum::body::Bytes;
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use duckdb::{Connection, Result as DuckResult};
-use x402_rs::types::VerifyRequest;
+use http::Uri;
+use x402_rs::types::{PaymentRequirements, VerifyRequest};
 use std::sync::{Arc, Mutex};
 use serde::Deserialize;
 use tracing::instrument;
 
-use crate::facilitator_client::FacilitatorClient;
 use crate::sqp_parser::{analyze_query, create_estimate_rows_query};
 use crate::duckdb_reader::create_duckdb_query;
 use crate::payment_processing::{
-    create_payment_required_response, create_payment_requirements, settle_payment, verify_payment
+    settle_payment, verify_payment
 };
+use crate::payment_config::GlobalPaymentConfig;
 
 #[derive(Debug, Deserialize)]
 pub struct QueryRequest {
@@ -25,17 +26,20 @@ pub struct QueryRequest {
 
 pub struct AppState {
     pub db: Arc<Mutex<Connection>>,
-    pub facilitator: Arc<FacilitatorClient>,
-    pub table_pricing: std::collections::HashMap<String, f64>, // price per row in USDC
+    pub payment_config: Arc<GlobalPaymentConfig>,
 }
 
 #[axum::debug_handler]
 #[instrument(skip_all)]
 pub async fn query_handler(
     State(state): State<Arc<AppState>>,
+    uri: Uri,
     headers: HeaderMap,
     Json(query_req): Json<QueryRequest>,
 ) -> impl IntoResponse {
+    // Extract the path from the request URI
+    let path = uri.path();
+    
     // Parse and validate query first
     tracing::info!("Received query: {}", query_req.query);
     let analyzed_query = match analyze_query(&query_req.query) {
@@ -51,22 +55,6 @@ pub async fn query_handler(
         }
     };
 
-    // Extract table name and get pricing
-    let table_name = &analyzed_query.body.from;
-    let price_per_row = match state.table_pricing.get(table_name) {
-        Some(price) => *price,
-        None => {
-            let response = (
-                StatusCode::BAD_REQUEST,
-                [("content-type", "text/plain")],
-                format!("Table not supported: {}", table_name),
-            )
-            .into_response();
-            tracing::info!("Request failed: {:?}", response);
-            return response;
-        }
-    };
-    
     // Create the executable DuckDB SQL query
     let duckdb_sql = match create_duckdb_query(analyzed_query.clone()) {
         Ok(sql) => sql,
@@ -75,12 +63,58 @@ pub async fn query_handler(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 [("content-type", "text/plain")],
                 format!("Failed to create executable query: {}", e),
-            )
-            .into_response();
+            );
             tracing::info!("Request failed: {:?}", response);
-            return response;
+            return response.into_response();
         }
     };
+
+    // Extract table name and check if payment is required 
+    let table_name = &analyzed_query.body.from;
+    // LOGIC IS WRONG, CHANGE PLACE
+    match state.payment_config.table_requires_payment(table_name) {
+        None => {
+            let response = (
+                StatusCode::BAD_REQUEST,
+                [("content-type", "text/plain")],
+                format!("Table not supported: {}", table_name),
+            );
+            tracing::info!("Request failed: {:?}", response);
+            return response.into_response();
+        },
+        Some(false) => {
+            // Execute query and return data
+            let batches = {
+                let db = state.db.lock().unwrap();
+                match execute_query(&db, &duckdb_sql) {
+                    Ok(batches) => batches,
+                    Err(e) => {
+                        let response = (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            [("content-type", "text/plain")],
+                            format!("Failed to execute query: {}", e),
+                        );
+                        tracing::info!("Request failed: {:?}", response);
+                        return response.into_response();
+                    }
+                }
+            };
+    
+            let buffer = serialize_batches_to_arrow_ipc(&batches);
+            
+            let response = (
+                StatusCode::OK,
+                [("content-type", "application/vnd.apache.arrow.stream")],
+                Bytes::from(buffer),
+            )
+                .into_response();
+            tracing::info!("Request succeeded: {:?}", response);
+            return response;
+        }
+        Some(true) => {
+            // Payment required, continue to payment processing
+        }
+    }
 
     // Check if payment header is present
     let payment_header = headers.get("X-Payment");
@@ -96,21 +130,36 @@ pub async fn query_handler(
                         StatusCode::INTERNAL_SERVER_ERROR,
                         [("content-type", "text/plain")],
                         format!("Failed to execute row count query: {}", e),
-                    )
-                    .into_response();
+                    );
                     tracing::info!("Request failed: {:?}", response);
-                    return response;
+                    return response.into_response();
                 }
             };
-            let response = create_payment_required_response(
+            let response = match state.payment_config.create_payment_required_response(
                 &format!("No crypto payment found. Implement x402 protocol (https://www.x402.org/) to pay for this API request."),
-                price_per_row,
                 table_name,
                 estimated_rows,
-                "/query",
-            );
+                path,
+            ) {
+                Some(payment_response) => {
+                    let response_body = serde_json::to_vec(&payment_response)
+                        .expect("Failed to serialize payment response");
+                    (
+                        StatusCode::PAYMENT_REQUIRED,
+                        [("content-type", "application/json")],
+                        axum::body::Bytes::from(response_body),
+                    )
+                }
+                None => {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        [("content-type", "text/plain")],
+                        axum::body::Bytes::from("Failed to find payment options for the table request"),
+                    )
+                }
+            };
             tracing::info!("Request failed: {:?}", response);
-            return response;
+            return response.into_response();
         }
         Some(payment_header) => payment_header,
     };
@@ -125,10 +174,9 @@ pub async fn query_handler(
                 StatusCode::BAD_REQUEST,
                 [("content-type", "text/plain")],
                 format!("Failed to parse payment payload: {}", e),
-            )
-            .into_response();
+            );
             tracing::info!("Request failed: {:?}", response);
-            return response;
+            return response.into_response();
         }
     };
 
@@ -142,70 +190,117 @@ pub async fn query_handler(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     [("content-type", "text/plain")],
                     format!("Failed to pre-execute query: {}", e),
-                )
-                .into_response();
+                );
                 tracing::info!("Request failed: {:?}", response);
-                return response;
+                return response.into_response();
             }
         }
     };
-    
-    // Verify actual row count matches payment
     let actual_rows = batches.iter().map(|batch| batch.num_rows()).sum::<usize>();
 
-    // Create payment requirements for verification
-    let payment_requirements = create_payment_requirements(
-        price_per_row,
+    // Find matching payment requirements for the provided payment payload.
+    let payment_requirements = state.payment_config.find_matching_payment_requirements(
         table_name,
         actual_rows,
-        "/query",
+        path,
+        &payment_payload,
     );
-        
-    // Verify payment
-    let verify_request = VerifyRequest {
-        x402_version: payment_payload.x402_version,
-        payment_payload,
-        payment_requirements,
-    };
+    if payment_requirements.is_empty() {
+        let response = (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            [("content-type", "text/plain")],
+            axum::body::Bytes::from("No payment offer was found matching the provided payment payload"),
+        );
+        tracing::info!("Request failed: {:?}", response);
+        return response.into_response();
+    }
 
-    let verify_response = match verify_payment(
-        &state.facilitator,
-        &verify_request,
-    ).await {
-        Ok(result) => result,
-        //An Error here doesn't mean the payment is invalid, it means the connection to the facilitator, or the facilitator is having issues
-        Err(e) => {
-            let response = (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                [("content-type", "text/plain")],
-                format!("Payment verification failed due to facilitator error: {}", e),
-            )
-            .into_response();
-            tracing::info!("Request failed: {:?}", response);
-            return response;
-        }
-    };
-    
-    // Verify the payment is valid based on the facilitator's response
-    match verify_response {
-        x402_rs::types::VerifyResponse::Valid { .. } => {
-            // Payment verified, proceed to settlement
-        }
-        x402_rs::types::VerifyResponse::Invalid { reason, .. } => {
-            return create_payment_required_response(
-                &format!("Payment provided is invalid, verification failed: {}", reason),
-                price_per_row,
-                table_name,
-                actual_rows,
-                "/query",
-            );
+    // Verify payment for each payment requirement, this is where the actual payment is verified, but we need to interact with the facilitator.
+    let mut verify_responses = Vec::new();
+    let mut verify_requests = Vec::new();
+    for payment_requirement in payment_requirements {
+        let verify_request = VerifyRequest {
+            x402_version: payment_payload.x402_version,
+            payment_payload,
+            payment_requirements: payment_requirement,
+        };
+        verify_requests.push(verify_request.clone());
+        let verify_response = match verify_payment(
+            &state.payment_config.facilitator,
+            &verify_request,
+        ).await {
+            Ok(result) => result,
+            //An Error here doesn't mean the payment is invalid, it means the connection to the facilitator, or the facilitator is having issues
+            Err(e) => {
+                let response = (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    [("content-type", "text/plain")],
+                    format!("Payment verification failed due to facilitator error: {}", e),
+                );
+                tracing::info!("Request failed: {:?}", response);
+                return response.into_response();
+            }
+        };
+        verify_responses.push(verify_response);
+    }
+
+    let mut invalid_reasons = Vec::new();
+    let mut valid_verify_requests = Vec::new();
+    let mut valid_verify_responses = Vec::new();
+
+    // Check if there is at least one valid verify response collecting the invalid reasons for an eventual 402 response if all are invalid.
+    for (index, response) in verify_responses.iter().enumerate() {
+        match response {
+            x402_rs::types::VerifyResponse::Valid { .. } => {
+                valid_verify_requests.push(verify_requests[index].clone());
+                valid_verify_responses.push(response);
+            },
+            x402_rs::types::VerifyResponse::Invalid { reason, .. } => {
+                invalid_reasons.push(reason);
+            },
         }
     }
 
+    // If no valid verify responses, return a 402 with the invalid reasons
+    if valid_verify_responses.is_empty() {
+        let response = match state.payment_config.create_payment_required_response(
+            &format!("Payment provided is invalid, verification failed: {}", invalid_reasons.iter().map(|reason| reason.to_string()).collect::<Vec<String>>().join(", ")),
+            table_name,
+            actual_rows,
+            path,
+        ) {
+            Some(payment_response) => {
+                let response_body = serde_json::to_vec(&payment_response)
+                    .expect("Failed to serialize payment response");
+                (
+                    StatusCode::PAYMENT_REQUIRED,
+                    [("content-type", "application/json")],
+                    axum::body::Bytes::from(response_body),
+                )
+            }
+            None => {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    [("content-type", "text/plain")],
+                    axum::body::Bytes::from("Failed to find payment options for the table request"),
+                )
+            }
+        };
+        tracing::info!("Request failed: {:?}", response);
+        return response.into_response();
+    }
+
+    if valid_verify_responses.len() > 1 {
+        tracing::error!("Multiple payment offers were found matching a provided payment payload, duplicate payment offers exist: {:?}", valid_verify_requests.iter().map(|request| &request.payment_requirements).collect::<Vec<&PaymentRequirements>>());
+    }
+
+    // Get the first valid verify response and requirement
+    let verify_response = valid_verify_responses[0].clone();
+    let verify_request = valid_verify_requests[0].clone();
     // Settle payment
     match settle_payment(
         verify_response,
-        &state.facilitator,
+        &state.payment_config.facilitator,
         verify_request,
     ).await {
         Ok(_) => {
@@ -213,26 +308,34 @@ pub async fn query_handler(
         }
         Err(e) => {
             // Payment settlement failed
-            return create_payment_required_response(
+            let response = match state.payment_config.create_payment_required_response(
                 &format!("Settlement of the provided payment failed: {}", e),
-                price_per_row,
                 table_name,
                 actual_rows,
-                "/query",
-            );
+                path,
+            ) {
+                Some(payment_response) => {
+                    let response_body = serde_json::to_vec(&payment_response)
+                        .expect("Failed to serialize payment response");
+                    (
+                        StatusCode::PAYMENT_REQUIRED,
+                        [("content-type", "application/json")],
+                        axum::body::Bytes::from(response_body),
+                    )
+                }
+                None => {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        [("content-type", "text/plain")],
+                        axum::body::Bytes::from("Failed to create payment requirements"),
+                    )
+                }
+            };
+            return response.into_response();
         }
     }
     
-    // Serialize batches to Arrow IPC
-    let mut buffer = Vec::new();
-    if let Some(first_batch) = batches.first() {
-        let schema = first_batch.schema();
-        let mut writer = StreamWriter::try_new(&mut buffer, &schema).unwrap();
-        for batch in batches {
-            writer.write(&batch).unwrap();
-        }
-        writer.finish().unwrap();
-    }
+    let buffer = serialize_batches_to_arrow_ipc(&batches);
     
     let response = (
         StatusCode::OK,
@@ -259,3 +362,16 @@ pub fn execute_row_count_query(db: &Arc<Mutex<Connection>>, query: &str) -> Duck
         Ok(count as usize)
     })
 } 
+
+pub fn serialize_batches_to_arrow_ipc(batches: &Vec<RecordBatch>) -> Vec<u8> {
+    let mut buffer = Vec::new();
+    if let Some(first_batch) = batches.first() {
+        let schema = first_batch.schema();
+        let mut writer = StreamWriter::try_new(&mut buffer, &schema).unwrap();
+        for batch in batches {
+            writer.write(&batch).unwrap();
+        }
+        writer.finish().unwrap();
+    }
+    buffer
+}

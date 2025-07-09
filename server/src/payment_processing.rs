@@ -1,58 +1,16 @@
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use axum::body::Bytes;
-use std::sync::Arc;
-use serde_json::json;
-use url::Url;
-use alloy::primitives::U256;
+//! Payment processing module for facilitator interactions.
+//! 
+//! This module handles the low-level communication with the x402 facilitator
+//! for payment verification and settlement. The payment configuration and
+//! requirements creation are handled by the `payment_config` module.
 
-use x402_rs::network::{Network, USDCDeployment};
+use std::sync::Arc;
 use x402_rs::types::{
-    PaymentRequiredResponse, 
-    PaymentRequirements, Scheme, SettleRequest,
-    VerifyRequest, VerifyResponse, X402Version, TokenAmount
+    SettleRequest, VerifyRequest, VerifyResponse
 };
 use crate::facilitator_client::{FacilitatorClient, FacilitatorClientError};
-use crate::price::IntoPriceTag;
 
-// Helper function to create payment requirements
-pub fn create_payment_requirements(
-    amount_per_item: f64,
-    table_name: &str,
-    estimated_rows: usize,
-    path: &str,
-) -> PaymentRequirements {
-    let usdc = USDCDeployment::by_network(Network::BaseSepolia);
-    let pay_to_address = "0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7";
-    
-    // Create USDC amount per item using the builder pattern
-    let price_tag = usdc.pay_to(pay_to_address).amount(amount_per_item).unwrap();
-    
-    // Calculate total price for verification
-    // Convert TokenAmount to U256, multiply by estimated_rows, then convert back to TokenAmount
-    let amount_u256: U256 = price_tag.amount_per_item.into();
-    let rows_u256 = U256::from(estimated_rows);
-    let total_price = TokenAmount(amount_u256 * rows_u256);
-    
-    PaymentRequirements {
-        scheme: Scheme::Exact,
-        network:  price_tag.token.network(),
-        max_amount_required: total_price,
-        resource: Url::parse(&format!("http://localhost:4021{}", path)).unwrap(),
-        description: format!("Query on table '{}' returning {} rows", table_name, estimated_rows),
-        mime_type: "application/vnd.apache.arrow.stream".to_string(),
-        pay_to: price_tag.pay_to.into(),
-        max_timeout_seconds: 300,
-        asset: price_tag.token.asset.address.into(),
-        extra: Some(json!({
-            "name": price_tag.token.eip712.name,
-            "version": price_tag.token.eip712.version
-        })),
-        output_schema: None,
-    }
-}
-
-// Helper function to verify and settle payment
+/// Helper function to verify payment with the facilitator
 pub async fn verify_payment(
     facilitator: &Arc<FacilitatorClient>,
     verify_request: &VerifyRequest,
@@ -61,7 +19,7 @@ pub async fn verify_payment(
     Ok(verify_response)
 }
 
-// Helper function to settle payment
+/// Helper function to settle payment with the facilitator
 pub async fn settle_payment(
     verify_response: VerifyResponse,
     facilitator: &Arc<FacilitatorClient>,
@@ -88,37 +46,4 @@ pub async fn settle_payment(
             Err(format!("Payment verification failed: {}", reason).into())
         }
     }
-}
-
-// Helper function to create payment required response
-pub fn create_payment_required_response(
-    error: &str,
-    amount_per_item: f64,
-    table_name: &str,
-    estimated_rows: usize,
-    path: &str,
-) -> Response {
-    let payment_requirements = create_payment_requirements(
-        amount_per_item,
-        table_name,
-        estimated_rows,
-        path,
-    );
-    
-    let payment_required_response = PaymentRequiredResponse {
-        error: error.to_string(),
-        accepts: vec![payment_requirements],
-        payer: None,
-        x402_version: X402Version::V1,
-    };
-
-    let response_body = serde_json::to_vec(&payment_required_response)
-        .expect("Failed to serialize payment response");
-    let response = (
-            StatusCode::PAYMENT_REQUIRED,
-            [("content-type", "application/json")],
-            Bytes::from(response_body),
-        );
-    tracing::info!("Request failed: {:?}", response);
-    return response.into_response();
 } 
