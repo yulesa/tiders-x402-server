@@ -14,8 +14,8 @@ pub struct PriceTag {
     pub amount_per_item: TokenAmount,
     pub token: TokenDeployment,
     pub min_total_amount: Option<TokenAmount>,
-    pub min_rows: Option<usize>,
-    pub max_rows: Option<usize>,
+    pub min_items: Option<usize>,
+    pub max_items: Option<usize>,
     pub description: Option<String>,
     pub is_default: bool,
 }
@@ -27,8 +27,8 @@ impl PriceTag {
         amount_per_item: T,
         token: A,
         min_total_amount: Option<T>,
-        min_rows: Option<usize>,
-        max_rows: Option<usize>,
+        min_items: Option<usize>,
+        max_items: Option<usize>,
         description: Option<String>,
         is_default: bool,
     ) -> Self {
@@ -37,8 +37,8 @@ impl PriceTag {
             amount_per_item: amount_per_item.into(),
             token: token.into(),
             min_total_amount: min_total_amount.map(|t| t.into()),
-            min_rows: min_rows,
-            max_rows: max_rows,
+            min_items,
+            max_items,
             description: description,
             is_default: is_default,
         }
@@ -46,12 +46,12 @@ impl PriceTag {
 
     /// Checks if this pricing tier is in range for the given item count
     pub fn is_in_range(&self, item_count: usize) -> bool {
-        if let Some(min) = self.min_rows {
+        if let Some(min) = self.min_items {
             if item_count < min {
                 return false;
             }
         }
-        if let Some(max) = self.max_rows {
+        if let Some(max) = self.max_items {
             if item_count > max {
                 return false;
             }

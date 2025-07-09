@@ -3,12 +3,10 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
 use axum::body::Bytes;
-use arrow::ipc::writer::StreamWriter;
-use arrow::record_batch::RecordBatch;
-use duckdb::{Connection, Result as DuckResult};
+use duckdb::Connection;
 use http::Uri;
 use x402_rs::types::{PaymentRequirements, VerifyRequest};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use serde::Deserialize;
 use tracing::instrument;
 
@@ -18,6 +16,7 @@ use crate::payment_processing::{
     settle_payment, verify_payment
 };
 use crate::payment_config::GlobalPaymentConfig;
+use crate::database::{execute_query, execute_row_count_query, serialize_batches_to_arrow_ipc};
 
 #[derive(Debug, Deserialize)]
 pub struct QueryRequest {
@@ -248,39 +247,30 @@ pub async fn query_handler(
     return QueryResponse::success(buffer).into_response();
 }
 
-pub fn execute_query(db: &Connection, query: &str) -> DuckResult<Vec<RecordBatch>> {
-    let mut stmt = db.prepare(query)?;
-    let batches= stmt.query_arrow([])?.collect::<Vec<RecordBatch>>();
-    
-    Ok(batches)
-}
-
-pub fn execute_row_count_query(db: &MutexGuard<Connection>, query: &str) -> DuckResult<usize> {
-    let mut stmt = db.prepare(query)?;
-    stmt.query_row([], |row| {
-        let count: i64 = row.get(0)?;
-        Ok(count as usize)
-    })
-} 
-
-pub fn serialize_batches_to_arrow_ipc(batches: &Vec<RecordBatch>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let mut buffer = Vec::new();
-    if let Some(first_batch) = batches.first() {
-        let schema = first_batch.schema();
-        let mut writer = StreamWriter::try_new(&mut buffer, &schema)?;
-        for batch in batches {
-            writer.write(&batch)?;
-        }
-        writer.finish()?;
-    }
-    Ok(buffer)
-}
-
 #[derive(Debug)]
 pub struct QueryResponse {
     status: StatusCode,
     content_type: &'static str,
     body: Bytes,
+}
+
+// Helper function to create payment required responses
+fn create_payment_response(
+    payment_config: &GlobalPaymentConfig,
+    message: &str,
+    table_name: &str,
+    row_count: usize,
+    path: &str,
+) -> QueryResponse {
+    match payment_config.create_payment_required_response(message, table_name, row_count, path) {
+        Some(payment_response) => {
+            let response_body = serde_json::to_vec(&payment_response).expect("Failed to serialize payment response");
+            QueryResponse::payment_required(Bytes::from(response_body))
+        }
+        None => QueryResponse::internal_error(
+            "Failed to find payment options for the table request".to_string(),
+        ),
+    }
 }
 
 impl QueryResponse {
@@ -326,24 +316,5 @@ impl QueryResponse {
             [("content-type", self.content_type)],
             self.body,
         )
-    }
-}
-
-// Helper function to create payment required responses
-fn create_payment_response(
-    payment_config: &GlobalPaymentConfig,
-    message: &str,
-    table_name: &str,
-    row_count: usize,
-    path: &str,
-) -> QueryResponse {
-    match payment_config.create_payment_required_response(message, table_name, row_count, path) {
-        Some(payment_response) => {
-            let response_body = serde_json::to_vec(&payment_response).expect("Failed to serialize payment response");
-            QueryResponse::payment_required(Bytes::from(response_body))
-        }
-        None => QueryResponse::internal_error(
-            "Failed to find payment options for the table request".to_string(),
-        ),
     }
 }

@@ -85,10 +85,10 @@ impl GlobalPaymentConfig {
         &self,
         error: &str,
         table_name: &str,
-        estimated_rows: usize,
+        estimated_items: usize,
         path: &str,
     ) -> Option<PaymentRequiredResponse> {
-        let payment_requirements = self.get_all_payment_requirements(table_name, estimated_rows, path);
+        let payment_requirements = self.get_all_payment_requirements(table_name, estimated_items, path);
         if payment_requirements.is_empty() {
             return None;
         }
@@ -104,7 +104,7 @@ impl GlobalPaymentConfig {
     pub fn get_all_payment_requirements(
         &self,
         table_name: &str,
-        estimated_rows: usize,
+        estimated_items: usize,
         path: &str,
     ) -> Vec<PaymentRequirements> {
         let mut requirements = Vec::new();
@@ -115,10 +115,10 @@ impl GlobalPaymentConfig {
         let table_offer = table_offer.unwrap();
         
         for offer in &table_offer.price_tags {
-            if offer.is_in_range(estimated_rows) {
+            if offer.is_in_range(estimated_items) {
                 if let Some(req) = self.create_payment_requirements_for_offer(
                     table_name,
-                    estimated_rows,
+                    estimated_items,
                     path,
                     offer,
                 ) {

@@ -5172,9 +5172,9 @@ dependencies = [
 
 [[package]]
 name = "x402-rs"
-version = "0.6.3"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9375c1327345f5368496824789c803f3dab512ccb70209a51f2dcf4e8931ff1a"
+checksum = "ebb299ffb3a80ac187ccfb9215cdbf7d25236fc01dcc2f5348bddd14ef321059"
 dependencies = [
  "alloy",
  "axum",

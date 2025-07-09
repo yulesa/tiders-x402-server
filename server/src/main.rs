@@ -5,6 +5,7 @@ mod facilitator_client;
 mod query_handler;
 mod payment_processing;
 mod payment_config;
+mod database;
 
 use axum::routing::post;
 use axum::Router;
@@ -54,8 +55,8 @@ async fn main() {
         amount_per_item: MoneyAmount::from_str("0.002").unwrap().as_token_amount(usdc.decimals as u32).unwrap(),
         token: usdc.into(),
         min_total_amount: None,
-        min_rows: None,
-        max_rows: None,
+        min_items: None,
+        max_items: None,
         description: None,
         is_default: true
     };
@@ -71,8 +72,8 @@ async fn main() {
         amount_per_item: MoneyAmount::from_str("0.001").unwrap().as_token_amount(usdc.decimals as u32).unwrap(),
         token: usdc.into(),
         min_total_amount: None,
-        min_rows: Some(2),
-        max_rows: None,
+        min_items: Some(2),
+        max_items: None,
         description: None,
         is_default: false
     };
