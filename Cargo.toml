@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
   "server",
+  "python"
 ]
 
 [workspace.dependencies]
@@ -27,3 +28,5 @@ axum-core = { version = "0.5.2" }
 reqwest = { version = "0.12.20" }
 thiserror = { version = "2.0.12" }
 alloy = { version = "1.0.7" }
+pyo3 = { version = "0.25", features = ["anyhow"]}
+faster-hex = { version = "0.10.0" }

@@ -23,3 +23,8 @@ http = { workspace = true }
 reqwest = { workspace = true }
 thiserror = { workspace = true }
 alloy = { workspace = true }
+pyo3 = { workspace = true, features = ["anyhow"], optional = true }
+faster-hex = { workspace = true }
+
+[features]
+pyo3 = ["dep:pyo3"]

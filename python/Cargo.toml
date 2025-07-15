@@ -1,0 +1,16 @@
+[package]
+name = "cherry-402-python"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pyo3 = { workspace = true, features = ["anyhow"] }
+cherry-402 = { path = "../server", features = ["pyo3"] }
+x402-rs = { workspace = true }
+url = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+alloy = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+duckdb = { workspace = true, features = ["bundled"] }
+
