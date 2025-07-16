@@ -86,6 +86,7 @@ pub struct TablePaymentOffers {
     pub description: Option<String>,
 }
 
+#[allow(dead_code)]
 impl TablePaymentOffers {
     /// Creates a new TablePaymentOffer
     pub fn new(table_name: String, payment_offers: Vec<PriceTag>) -> Self {

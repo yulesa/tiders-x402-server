@@ -26,6 +26,7 @@ pub struct GlobalPaymentConfig {
     pub table_offers: HashMap<String, TablePaymentOffers>,
 }
 
+#[allow(dead_code)]
 impl GlobalPaymentConfig {
     /// Creates a default configuration with common values
     pub fn default(facilitator: Arc<FacilitatorClient>, base_url: Url) -> Self {

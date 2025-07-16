@@ -32,6 +32,7 @@ pub struct AppState {
 
 #[axum::debug_handler]
 #[instrument(skip_all)]
+#[allow(dead_code)] // Used by axum router via function pointer
 pub async fn query_handler(
     State(state): State<Arc<AppState>>,
     uri: Uri,
