@@ -1382,7 +1382,7 @@ dependencies = [
 
 [[package]]
 name = "cherry-402-python"
-version = "0.1.2"
+version = "0.1.0"
 dependencies = [
  "alloy",
  "cherry-402",

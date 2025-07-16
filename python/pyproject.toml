@@ -3,8 +3,8 @@ requires = ["maturin>=1.8,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "cherry-402-python"
-version = "0.1.2"
+name = "cherry-402-core"
+version = "0.1.0"
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Rust",
@@ -14,4 +14,4 @@ classifiers = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-module-name = "cherry_402_python"
+module-name = "cherry_402_core"

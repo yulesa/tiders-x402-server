@@ -48,11 +48,13 @@ async fn main() {
         is_default: true
     };
 
+
     // Create table payment offer
     let swaps_offer = TablePaymentOffers::new(
         "swaps_df".to_string(),
         vec![swap_price_tag],
-    );
+    ).with_description("Payment offers for the uniswap v2 swaps".to_string());
+
 
     let swap_price_tag_2 = PriceTag{
         pay_to: EvmAddress::from_str("0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7").unwrap(),

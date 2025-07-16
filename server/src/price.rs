@@ -98,6 +98,20 @@ impl TablePaymentOffers {
         }
     }
 
+    pub fn new_free_table(table_name: String) -> Self {
+        Self {
+            table_name,
+            price_tags: vec![],
+            requires_payment: false,
+            description: None,
+        }
+    }
+
+    pub fn with_description(mut self, description: String) -> Self {
+        self.description = Some(description);
+        self
+    }
+
     /// Adds a payment offer to this table
     pub fn with_payment_offer(mut self, offer: PriceTag) -> Self {
         self.price_tags.push(offer);
