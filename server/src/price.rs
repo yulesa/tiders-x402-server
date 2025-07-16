@@ -61,10 +61,9 @@ impl PriceTag {
 
     /// Calculates the total price for the given item count
     pub fn calculate_total_price(&self, item_count: usize) -> TokenAmount {
-        let amount_u256: U256 = self.amount_per_item.into();
         let items_u256 = U256::from(item_count);
-        let total = amount_u256 * items_u256;
-        TokenAmount(total)
+        let total = self.amount_per_item * items_u256;
+        total
     }
 }
 

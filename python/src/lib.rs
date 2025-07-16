@@ -1,12 +1,11 @@
 use pyo3::prelude::*;
-use pyo3::wrap_pyfunction;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use url::Url;
 use tokio::runtime::Runtime;
 
-use cherry_402::{PriceTag, TablePaymentOffers, GlobalPaymentConfig, FacilitatorClient};
+use cherry_402::{PriceTag, TablePaymentOffers, GlobalPaymentConfig, AppState, FacilitatorClient};
 use x402_rs::types::{EvmAddress, MoneyAmount};
 use x402_rs::network::{Network, USDCDeployment};
 use duckdb::Connection;
@@ -17,13 +16,14 @@ fn cherry_402_python(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PyPriceTag>()?;
     m.add_class::<PyTablePaymentOffers>()?;
     m.add_class::<PyGlobalPaymentConfig>()?;
+    m.add_class::<PyAppState>()?;
     m.add_class::<PyFacilitatorClient>()?;
     m.add_class::<PyServer>()?;
-    m.add_function(wrap_pyfunction!(start_server, m)?)?;
     Ok(())
 }
 
-#[pyclass]
+// Rename PyPriceTag in python so the class is called PriceTag
+#[pyclass(name="PriceTag")]
 #[derive(Clone)]
 pub struct PyPriceTag {
     inner: PriceTag,
@@ -86,7 +86,7 @@ impl PyPriceTag {
     }
 }
 
-#[pyclass]
+#[pyclass(name="TablePaymentOffers")]
 #[derive(Clone)]
 pub struct PyTablePaymentOffers {
     inner: TablePaymentOffers,
@@ -107,7 +107,7 @@ impl PyTablePaymentOffers {
     }
 }
 
-#[pyclass]
+#[pyclass(name="FacilitatorClient")]
 #[derive(Clone)]
 pub struct PyFacilitatorClient {
     inner: FacilitatorClient,
@@ -125,7 +125,7 @@ impl PyFacilitatorClient {
     }
 }
 
-#[pyclass]
+#[pyclass(name="GlobalPaymentConfig")]
 pub struct PyGlobalPaymentConfig {
     inner: GlobalPaymentConfig,
 }
@@ -151,7 +151,26 @@ impl PyGlobalPaymentConfig {
     }
 }
 
-#[pyclass]
+#[pyclass(name="AppState")]
+pub struct PyAppState {
+    inner: AppState,
+}
+
+#[pymethods]
+impl PyAppState {
+    #[new]
+    fn new(db_path: &str, payment_config: &PyGlobalPaymentConfig) -> PyResult<Self> {
+        let db = Connection::open(db_path)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        let state = AppState {
+            db: Arc::new(Mutex::new(db)),
+            payment_config: Arc::new(payment_config.inner.clone()),
+        };
+        Ok(Self { inner: state })
+    }
+}
+
+#[pyclass(name="Server")]
 pub struct PyServer {
     runtime: Runtime,
     state: Option<Arc<cherry_402::query_handler::AppState>>,
@@ -160,13 +179,13 @@ pub struct PyServer {
 #[pymethods]
 impl PyServer {
     #[new]
-    fn new() -> PyResult<Self> {
+    fn new(state: &PyAppState) -> PyResult<Self> {
         let runtime = Runtime::new()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         
         Ok(Self {
             runtime,
-            state: None,
+            state: Some(Arc::new(state.inner.clone())),
         })
     }
 
@@ -219,12 +238,4 @@ impl PyServer {
             Ok(())
         })
     }
-}
-
-#[pyfunction]
-fn start_server() -> PyResult<()> {
-    // This is a placeholder - in a real implementation, you'd want to start the server
-    // For now, we'll just print a message
-    println!("Server would start here");
-    Ok(())
 }

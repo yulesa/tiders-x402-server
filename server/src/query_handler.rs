@@ -23,6 +23,8 @@ pub struct QueryRequest {
     pub query: String,
 }
 
+#[derive(Debug, Clone)]
+
 pub struct AppState {
     pub db: Arc<Mutex<Connection>>,
     pub payment_config: Arc<GlobalPaymentConfig>,

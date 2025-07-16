@@ -3,5 +3,5 @@ requires-python = ">=3.8"
 
 [[package]]
 name = "cherry-402-python"
-version = "0.1.0"
+version = "0.1.2"
 source = { editable = "." }

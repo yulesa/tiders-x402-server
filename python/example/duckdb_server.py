@@ -1,15 +1,13 @@
 import cherry_402_python
 
 def main():
-    # Create a server instance
-    server = cherry_402_python.PyServer()
     
     # Create facilitator client
-    facilitator = cherry_402_python.PyFacilitatorClient("http://localhost:4022")
+    facilitator = cherry_402_python.FacilitatorClient("http://localhost:4022")
     
     # Create price tags similar to the Rust example
     # First price tag: 0.002 USDC per item (default)
-    price_tag_1 = cherry_402_python.PyPriceTag(
+    price_tag_1 = cherry_402_python.PriceTag(
         pay_to="0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7",
         amount_per_item="0.002",
         token="0x0000000000000000000000000000000000000000",  # Will use USDC
@@ -21,7 +19,7 @@ def main():
     )
     
     # Second price tag: 0.001 USDC per item for 2+ items
-    price_tag_2 = cherry_402_python.PyPriceTag(
+    price_tag_2 = cherry_402_python.PriceTag(
         pay_to="0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7",
         amount_per_item="0.001",
         token="0x0000000000000000000000000000000000000000",  # Will use USDC
@@ -33,15 +31,31 @@ def main():
     )
     
     # Create table payment offers
-    swaps_offer = cherry_402_python.PyTablePaymentOffers("swaps_df", [price_tag_1])
+    swaps_offer = cherry_402_python.TablePaymentOffers("swaps_df", [price_tag_1])
     swaps_offer.with_payment_offer(price_tag_2)
     
     # Setup the server with database and payment configuration
-    server.setup_server(
-        facilitator_url="http://localhost:4022",
+    # server.setup_server(
+    #     facilitator_url="http://localhost:4022",
+    #     base_url="http://localhost:4021",
+    #     db_path="../data/uni_v2_swaps.db",
+    #     table_offers=[swaps_offer]
+    # )
+
+    global_payment_config = cherry_402_python.GlobalPaymentConfig(
+        facilitator,
         base_url="http://localhost:4021",
+    )
+
+    global_payment_config.add_table_offer(swaps_offer)
+
+    state = cherry_402_python.AppState(
         db_path="../data/uni_v2_swaps.db",
-        table_offers=[swaps_offer]
+        payment_config=global_payment_config,
+    )
+
+    server = cherry_402_python.Server(
+        state,
     )
     
     print("Starting server on http://localhost:4021")

@@ -1382,7 +1382,7 @@ dependencies = [
 
 [[package]]
 name = "cherry-402-python"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "alloy",
  "cherry-402",
@@ -5314,9 +5314,9 @@ dependencies = [
 
 [[package]]
 name = "x402-rs"
-version = "0.6.5"
+version = "0.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebb299ffb3a80ac187ccfb9215cdbf7d25236fc01dcc2f5348bddd14ef321059"
+checksum = "a8f6f4ac91c08bfd903a9d1dda858ba4e875c5490364deb8c55b49601f832577"
 dependencies = [
  "alloy",
  "axum",

@@ -9,23 +9,23 @@ pub mod database;
 
 use std::sync::Arc;
 
+use axum::routing::post;
+use axum::Router;
+use dotenvy::dotenv;
+use opentelemetry::trace::Status;
+use tower_http::trace::TraceLayer;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
+use x402_rs::telemetry::Telemetry;
+use tokio::signal;
+
+use crate::query_handler::query_handler;
 pub use price::{PriceTag, TablePaymentOffers};
 pub use payment_config::GlobalPaymentConfig;
 pub use facilitator_client::FacilitatorClient;
-
-// Re-export the start_server function from main.rs
 pub use crate::query_handler::AppState;
 
 // We need to create a separate function for the server startup since main.rs is not a module
 pub async fn start_server(state: Arc<AppState>) {
-    use axum::routing::post;
-    use axum::Router;
-    use dotenvy::dotenv;
-    use opentelemetry::trace::Status;
-    use tower_http::trace::TraceLayer;
-    use tracing_opentelemetry::OpenTelemetrySpanExt;
-    use x402_rs::telemetry::Telemetry;
-    use crate::query_handler::query_handler;
 
     dotenv().ok();
 
@@ -89,5 +89,31 @@ pub async fn start_server(state: Arc<AppState>) {
         .await
         .expect("Can not start server");
     tracing::info!("Listening on {}", listener.local_addr().unwrap());
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c().await.expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+    tracing::info!("Shutdown signal received, starting graceful shutdown");
 } 

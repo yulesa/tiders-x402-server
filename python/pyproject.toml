@@ -4,13 +4,13 @@ build-backend = "maturin"
 
 [project]
 name = "cherry-402-python"
+version = "0.1.2"
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dynamic = ["version"]
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
