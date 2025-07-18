@@ -1,5 +1,5 @@
 from enum import Enum
-from cherry_402_python import *
+from .cherry_402_core import *
 
 class Network(str, Enum):
     BASE_SEPOLIA = "base_sepolia"

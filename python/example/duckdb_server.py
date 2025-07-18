@@ -31,21 +31,17 @@ def main():
         is_default=False
     )
     
+    swap_schema = cherry_402_core.get_duckdb_table_schema_py("../data/uni_v2_swaps.db", "swaps_df")
+
     # Create table payment offers
-    swaps_offer = cherry_402_core.TablePaymentOffers("swaps_df", [price_tag_1])
+    swaps_offer = cherry_402_core.TablePaymentOffers("swaps_df", [price_tag_1], swap_schema)
     swaps_offer.with_payment_offer(price_tag_2)
     
-    # Setup the server with database and payment configuration
-    # server.setup_server(
-    #     facilitator_url="http://localhost:4022",
-    #     base_url="http://localhost:4021",
-    #     db_path="../data/uni_v2_swaps.db",
-    #     table_offers=[swaps_offer]
-    # )
+    base_url = "http://0.0.0.0:4021"
 
     global_payment_config = cherry_402_core.GlobalPaymentConfig(
         facilitator,
-        base_url="http://localhost:4021",
+        base_url=base_url,
     )
 
     global_payment_config.add_table_offer(swaps_offer)
@@ -65,7 +61,7 @@ def main():
     print("Table 'swaps_df' requires payment")
     
     # Start the server (this will block)
-    server.start_server()
+    server.start_server(base_url)
 
 if __name__ == "__main__":
     main()

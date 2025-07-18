@@ -19,20 +19,25 @@ use cherry_402::query_handler::AppState;
 use cherry_402::payment_config::GlobalPaymentConfig;
 use cherry_402::price::{PriceTag, TablePaymentOffers};
 use cherry_402::start_server;
+use cherry_402::duckdb_reader::get_duckdb_table_schema;
 
 #[tokio::main]
 async fn main() {
     // Initialize facilitator client
     let facilitator = Arc::new(
-        // FacilitatorClient::try_from("https://facilitator.x402.rs")
-        FacilitatorClient::try_from("http://localhost:4022")
+        FacilitatorClient::try_from("https://facilitator.x402.rs")
+        // FacilitatorClient::try_from("http://localhost:4022")
             .expect("Failed to create facilitator client")
     );
 
     // Initialize payment configuration
-    let base_url = Url::parse("http://localhost:4021").expect("Failed to parse base URL");
+    let base_url = Url::parse("http://0.0.0.0:4021").expect("Failed to parse base URL");
+    // let base_url = Url::parse("http://localhost:4021").expect("Failed to parse base URL");
 
-    let mut global_payment_config = GlobalPaymentConfig::default(facilitator, base_url);
+    
+    let db = Connection::open("data/uni_v2_swaps.db").expect("Failed to open DuckDB connection");
+
+    let mut global_payment_config = GlobalPaymentConfig::default(facilitator, base_url.clone());
     
     // Create a default USDC price tag for swaps_df table
     let usdc = x402_rs::network::USDCDeployment::by_network(x402_rs::network::Network::BaseSepolia);
@@ -50,10 +55,12 @@ async fn main() {
 
 
     // Create table payment offer
+    let swaps_schema = get_duckdb_table_schema(&db, "swaps_df").unwrap();
     let swaps_offer = TablePaymentOffers::new(
         "swaps_df".to_string(),
         vec![swap_price_tag],
-    ).with_description("Payment offers for the uniswap v2 swaps".to_string());
+        Some(swaps_schema),
+    ).with_description("Uniswap v2 swaps".to_string());
 
 
     let swap_price_tag_2 = PriceTag{
@@ -70,12 +77,10 @@ async fn main() {
     let swaps_offer = swaps_offer.with_payment_offer(swap_price_tag_2);
     global_payment_config.add_table_offer(swaps_offer);
 
-    // Initialize DuckDB connection 
-    let db = Connection::open("data/uni_v2_swaps.db").expect("Failed to open DuckDB connection");
     let state = Arc::new(AppState {
         db: Arc::new(Mutex::new(db)),
         payment_config: Arc::new(global_payment_config),
     });
 
-    start_server(state).await;
+    start_server(state, base_url).await;
 }

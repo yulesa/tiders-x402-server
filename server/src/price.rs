@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use arrow::datatypes::Schema;
 use x402_rs::types::{EvmAddress, TokenDeployment};
 use x402_rs::types::TokenAmount;
 use alloy::primitives::U256;
@@ -84,27 +85,31 @@ pub struct TablePaymentOffers {
     pub requires_payment: bool,
     /// Custom description for this table's payment requirements
     pub description: Option<String>,
+    /// Table schema: Option<Schema>
+    pub schema: Option<Schema>,
 }
 
 #[allow(dead_code)]
 impl TablePaymentOffers {
     /// Creates a new TablePaymentOffer
-    pub fn new(table_name: String, payment_offers: Vec<PriceTag>) -> Self {
+    pub fn new(table_name: String, payment_offers: Vec<PriceTag>, schema: Option<Schema>) -> Self {
         let requires_payment = !payment_offers.is_empty();
         Self {
             table_name,
             price_tags: payment_offers,
             requires_payment,
             description: None,
+            schema,
         }
     }
 
-    pub fn new_free_table(table_name: String) -> Self {
+    pub fn new_free_table(table_name: String, schema: Option<Schema>) -> Self {
         Self {
             table_name,
             price_tags: vec![],
             requires_payment: false,
             description: None,
+            schema,
         }
     }
 

@@ -13,4 +13,5 @@ serde_json = { workspace = true }
 alloy = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 duckdb = { workspace = true, features = ["bundled"] }
+arrow = { workspace = true, features = ["pyarrow"] }
 

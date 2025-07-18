@@ -1,6 +1,8 @@
+use duckdb::Connection;
 use sqlparser::ast::{
     Expr, Value, CastKind, TrimWhereField
 };
+use arrow::datatypes::Schema;
 use anyhow::{anyhow, Result};
 use crate::sqp_parser::AnalyzedQuery;
 
@@ -322,6 +324,19 @@ fn format_value(value: &Value) -> Result<String> {
     }
 }
 
+#[allow(dead_code)]
+pub fn get_duckdb_table_schema(db: &Connection, table_name: &str) -> Result<Schema> {
+    // Query with LIMIT 0 to get a record batch with schema without data
+    let query = format!("SELECT * FROM {} LIMIT 0", table_name);
+    let mut stmt = db.prepare(&query)?;
+    
+    // Execute and get the arrow record batch
+    let arrow_result = stmt.query_arrow([])?;
+    
+    let schema = arrow_result.get_schema();
+    // Return a clone of the Schema (not Arc)
+    Ok(schema.as_ref().clone())
+}
 
 #[cfg(test)]
 mod tests {

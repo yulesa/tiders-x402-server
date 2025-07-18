@@ -15,17 +15,18 @@ use dotenvy::dotenv;
 use opentelemetry::trace::Status;
 use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
+use url::Url;
 use x402_rs::telemetry::Telemetry;
 use tokio::signal;
 
-use crate::query_handler::query_handler;
+use crate::query_handler::{query_handler, root_handler};
 pub use price::{PriceTag, TablePaymentOffers};
 pub use payment_config::GlobalPaymentConfig;
 pub use facilitator_client::FacilitatorClient;
 pub use crate::query_handler::AppState;
 
-// We need to create a separate function for the server startup since main.rs is not a module
-pub async fn start_server(state: Arc<AppState>) {
+
+pub async fn start_server(state: Arc<AppState>, base_url: Url) {
 
     dotenv().ok();
 
@@ -34,11 +35,9 @@ pub async fn start_server(state: Arc<AppState>) {
         .with_version(env!("CARGO_PKG_VERSION"))
         .register();
     let app = Router::new()
-        .route(
-            "/query",
-            post(query_handler)
-                .with_state(state),
-        )
+        .route("/query", post(query_handler))
+        .route("/", axum::routing::get(root_handler))
+        .with_state(state)
         .layer(
             // Usual HTTP tracing
             TraceLayer::new_for_http()
@@ -84,8 +83,12 @@ pub async fn start_server(state: Arc<AppState>) {
                     },
                 ),
         );
+        
+    let host = base_url.host_str().unwrap();
+    let port = base_url.port().unwrap();
+    let bind_addr = format!("{}:{}", host, port);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:4021")
+    let listener = tokio::net::TcpListener::bind(bind_addr)
         .await
         .expect("Can not start server");
     tracing::info!("Listening on {}", listener.local_addr().unwrap());

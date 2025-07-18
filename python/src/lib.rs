@@ -16,16 +16,19 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use url::Url;
 use tokio::runtime::Runtime;
+use duckdb::arrow::datatypes::Schema;
 
 use cherry_402::{PriceTag, TablePaymentOffers, GlobalPaymentConfig, AppState, FacilitatorClient};
 use x402_rs::types::{EvmAddress, MoneyAmount, TokenAmount, TokenDeployment};
 use x402_rs::network::{Network, USDCDeployment};
 use duckdb::Connection;
 use alloy::primitives::U256;
+use arrow::pyarrow::{FromPyArrow, ToPyArrow};
+use cherry_402::duckdb_reader::get_duckdb_table_schema;
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn cherry_402_python(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
+fn cherry_402_core(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PyPriceTag>()?;
     m.add_class::<PyTablePaymentOffers>()?;
     m.add_class::<PyGlobalPaymentConfig>()?;
@@ -33,6 +36,8 @@ fn cherry_402_python(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PyUSDCDeployment>()?;
     m.add_class::<PyFacilitatorClient>()?;
     m.add_class::<PyServer>()?;
+    m.add_class::<PySchema>()?;
+    m.add_function(wrap_pyfunction!(get_duckdb_table_schema_py, m)?)?;
     Ok(())
 }
 
@@ -176,6 +181,59 @@ impl PyUSDCDeployment {
     }
 }
 
+#[pyclass(name="Schema")]
+pub struct PySchema {
+    pub inner: Schema,
+}
+
+#[pymethods]
+impl PySchema {
+    /// Create a new PySchema from a pyarrow.Schema.
+    ///
+    /// Args:
+    ///     py_schema (pyarrow.Schema): The pyarrow.Schema to convert to a PySchema.
+    ///
+    /// Returns:
+    ///     PySchema: A new PySchema object.
+    #[new]
+    fn new(py_schema: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let schema = Schema::from_pyarrow_bound(py_schema)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(Self { inner: schema })
+    }
+
+    /// Convert the PySchema to a pyarrow.Schema.
+    ///
+    /// Args:
+    ///     py (Python): The Python interpreter.
+    ///
+    /// Returns:
+    ///     pyarrow.Schema: The pyarrow.Schema representation of the PySchema.
+    fn to_pyarrow<'py>(&self, py: Python<'py>) -> PyResult<Py<PyAny>> {
+        self.inner.to_pyarrow(py)
+    }
+}
+
+
+/// Get the schema of a table in a DuckDB database.
+///
+/// Args:
+///     db_path (str): Path to the DuckDB database file.
+///     table_name (str): Name of the table to get the schema of.
+///
+/// Returns:
+///     PySchema: The schema of the table.
+#[pyfunction]
+fn get_duckdb_table_schema_py(db_path: &str, table_name: &str) -> PyResult<PySchema> {
+    let db = Connection::open(db_path)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+    let schema = get_duckdb_table_schema(&db, table_name)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+    db.close().map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Error closing database: {:?}", e)))?;
+    Ok(PySchema { inner: schema })
+}
+
+
 /// Holds payment offers for a table.
 #[pyclass(name="TablePaymentOffers")]
 #[derive(Clone)]
@@ -194,10 +252,11 @@ impl PyTablePaymentOffers {
     /// Returns:
     ///     TablePaymentOffers: A new TablePaymentOffers object.
     #[new]
-    fn new(table_name: String, price_tags: Vec<PyPriceTag>) -> Self {
+    fn new(table_name: String, price_tags: Vec<PyPriceTag>, schema: Option<&PySchema>) -> Self {
         let price_tags: Vec<PriceTag> = price_tags.into_iter().map(|pt| pt.inner).collect();
+        let schema_inner = schema.map(|s| s.inner.clone());
         Self {
-            inner: TablePaymentOffers::new(table_name, price_tags),
+            inner: TablePaymentOffers::new(table_name, price_tags, schema_inner),
         }
     }
 
@@ -209,9 +268,10 @@ impl PyTablePaymentOffers {
     /// Returns:
     ///     TablePaymentOffers: A new TablePaymentOffers object.
     #[staticmethod]
-    fn new_free_table(table_name: String) -> Self {
+    fn new_free_table(table_name: String, schema: Option<&PySchema>) -> Self {
+        let schema_inner = schema.map(|s| s.inner.clone());
         Self {
-            inner: TablePaymentOffers::new_free_table(table_name),
+            inner: TablePaymentOffers::new_free_table(table_name, schema_inner),
         }
     }
 
@@ -414,13 +474,15 @@ impl PyServer {
     }
 
     /// Start the server (blocking call).
-    fn start_server(&self) -> PyResult<()> {
+    fn start_server(&self, base_url: &str) -> PyResult<()> {
+        let base_url = Url::parse(base_url)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         let state = self.state.as_ref()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Server not set up. Call setup_server first."))?;
         
         let state_clone = state.clone();
         self.runtime.block_on(async {
-            cherry_402::start_server(state_clone).await;
+            cherry_402::start_server(state_clone, base_url).await;
             Ok(())
         })
     }
