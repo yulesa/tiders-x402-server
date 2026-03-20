@@ -170,8 +170,14 @@ pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
                             check_unsupported_field(&index_hints)?;
                             // Table name
                             if name.0.len() == 1 {
-                                let ObjectNamePart::Identifier(ident) = &name.0[0];
-                                analyzed_query.body.from = ident.value.clone();
+                                match &name.0[0] {
+                                    ObjectNamePart::Identifier(ident) => {
+                                        analyzed_query.body.from = ident.value.clone();
+                                    }
+                                    _ => {
+                                        return Err(anyhow!("Simplified SQL only supports simple table identifiers in the FROM clause"));
+                                    }
+                                }
                             } else {
                                 return Err(anyhow!("Simplified SQL only supports simple table in the FROM clause. No support compound table name: {}", name));
                             }
@@ -363,14 +369,15 @@ fn check_unsupported_expr(expr: Option<Expr>) -> Result<Option<Expr>> {
                 | Expr::QualifiedWildcard(_, _)
                 | Expr::OuterJoin(_)
                 | Expr::Prior(_)
-                | Expr::Lambda(_) => {
+                | Expr::Lambda(_)
+                | Expr::MemberOf(_) => {
                     return Err(anyhow!("Simplified SQL does not support the use of {} expressions", expr));
                 }
                 
                 // Simple expressions that don't need recursive checking
                 Expr::Identifier(_)
                 | Expr::Value(_)
-                | Expr::TypedString { .. } => {
+                | Expr::TypedString(_) => {
                     Ok(Some(expr))
                 }
                 
@@ -455,10 +462,10 @@ fn check_unsupported_expr(expr: Option<Expr>) -> Result<Option<Expr>> {
                     check_unsupported_expr(Some(*expr_clone))?;
                     Ok(Some(Expr::UnaryOp { op, expr }))
                 }
-                Expr::Cast { kind, expr, data_type, format } => {
+                Expr::Cast { kind, expr, data_type, format, array } => {
                     let expr_clone = expr.clone();
                     check_unsupported_expr(Some(*expr_clone))?;
-                    Ok(Some(Expr::Cast { kind, expr, data_type, format }))
+                    Ok(Some(Expr::Cast { kind, expr, data_type, format, array }))
                 }
                 Expr::AtTimeZone { timestamp, time_zone } => {
                     let timestamp_clone = timestamp.clone();

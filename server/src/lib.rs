@@ -16,7 +16,7 @@ use opentelemetry::trace::Status;
 use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use url::Url;
-use x402_rs::telemetry::Telemetry;
+use x402_rs::util::Telemetry;
 use tokio::signal;
 
 use crate::query_handler::{query_handler, root_handler};

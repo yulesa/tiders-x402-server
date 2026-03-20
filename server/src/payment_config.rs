@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use url::Url;
 use serde_json::json;
-use x402_rs::types::{
-    MixedAddress, PaymentPayload, PaymentRequiredResponse, PaymentRequirements, Scheme, X402Version
+use x402_rs::proto::v1::{
+    PaymentPayload, PaymentRequired, PaymentRequirements, X402Version1,
 };
 
 use crate::facilitator_client::FacilitatorClient;
@@ -65,19 +65,26 @@ impl GlobalPaymentConfig {
         path: &str,
         payment_payload: &PaymentPayload,
     ) ->  Vec<PaymentRequirements> {
-    
+
         let payment_requirements = self.get_all_payment_requirements(table_name, item_count, path);
+        // Parse the raw payload to extract authorization fields
+        let payload_json: serde_json::Value = serde_json::from_str(payment_payload.payload.get())
+            .unwrap_or(serde_json::Value::Null);
+
         let matching_payment_requirements = payment_requirements.iter().filter(|requirement| {
             requirement.scheme == payment_payload.scheme
                 && requirement.network == payment_payload.network
-                && match &requirement.pay_to {
-                    MixedAddress::Evm(address) => address == &payment_payload.payload.authorization.to,
-                    MixedAddress::Offchain(_address) => true // assume valid if offchain
-                }
-                && requirement.max_amount_required == payment_payload.payload.authorization.value
+                && requirement.pay_to == payload_json.get("authorization")
+                    .and_then(|auth| auth.get("to"))
+                    .and_then(|to| to.as_str())
+                    .unwrap_or("")
+                && requirement.max_amount_required == payload_json.get("authorization")
+                    .and_then(|auth| auth.get("value"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
 
         }).cloned().collect::<Vec<_>>();
-        
+
         matching_payment_requirements
     }
 
@@ -88,19 +95,18 @@ impl GlobalPaymentConfig {
         table_name: &str,
         estimated_items: usize,
         path: &str,
-    ) -> Option<PaymentRequiredResponse> {
+    ) -> Option<PaymentRequired> {
         let payment_requirements = self.get_all_payment_requirements(table_name, estimated_items, path);
         if payment_requirements.is_empty() {
             return None;
         }
-        Some(PaymentRequiredResponse {
-            error: error.to_string(),
+        Some(PaymentRequired {
+            error: Some(error.to_string()),
             accepts: payment_requirements,
-            payer: None,
-            x402_version: X402Version::V1,
+            x402_version: X402Version1,
         })
     }
-    
+
     /// Gets all available payment requirements for a table (for 402 responses)
     pub fn get_all_payment_requirements(
         &self,
@@ -114,7 +120,7 @@ impl GlobalPaymentConfig {
             return requirements;
         }
         let table_offer = table_offer.unwrap();
-        
+
         for offer in &table_offer.price_tags {
             if offer.is_in_range(estimated_items) {
                 if let Some(req) = self.create_payment_requirements_for_offer(
@@ -127,7 +133,7 @@ impl GlobalPaymentConfig {
                 }
             }
         }
-        
+
         requirements
     }
 
@@ -142,32 +148,38 @@ impl GlobalPaymentConfig {
         let calculated_price = offer.calculate_total_price(item_count);
         let total_price = match offer.min_total_amount {
             Some(min_total_amount) => {
-                std::cmp::max(calculated_price, min_total_amount)
+                if calculated_price.0 > min_total_amount.0 {
+                    calculated_price
+                } else {
+                    min_total_amount
+                }
             }
             None => calculated_price,
         };
-        
+
         let resource_url = self.base_url.join(path).ok()?;
-        
+
         let table_offer = self.get_table_offer(table_name)?;
         let description = table_offer.description
             .as_ref()
             .unwrap_or(&self.default_description)
             .clone();
-        
+
+        let network = format!("eip155:{}", offer.token.chain_reference.inner());
+
         Some(PaymentRequirements {
-            scheme: Scheme::Exact,
-            network: offer.token.network(),
-            max_amount_required: total_price,
-            resource: resource_url,
+            scheme: "exact".to_string(),
+            network,
+            max_amount_required: total_price.0.to_string(),
+            resource: resource_url.to_string(),
             description: format!("{} - {} rows", description, item_count),
             mime_type: self.mime_type.clone(),
-            pay_to: offer.pay_to.into(),
+            pay_to: offer.pay_to.to_string(),
             max_timeout_seconds: self.max_timeout_seconds,
-            asset: offer.token.address().into(),
-            extra: Some(json!({
-                "name": offer.token.eip712.name,
-                "version": offer.token.eip712.version,
+            asset: format!("{}", offer.token.address),
+            extra: offer.token.eip712.as_ref().map(|eip712| json!({
+                "name": eip712.name,
+                "version": eip712.version,
             })),
             output_schema: None,
         })

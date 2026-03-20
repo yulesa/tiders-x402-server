@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use arrow::datatypes::Schema;
-use x402_rs::types::{EvmAddress, TokenDeployment};
-use x402_rs::types::TokenAmount;
+use x402_rs::chain::eip155::{ChecksummedAddress, Eip155TokenDeployment, TokenAmount};
 use alloy::primitives::U256;
 
 /// A complete x402-compatible price tag, describing a required payment.
@@ -9,11 +8,11 @@ use alloy::primitives::U256;
 /// A `PriceTag` specifies a target recipient (`pay_to`), a token-denominated amount per item (row, cell, size, etc.),
 /// and an associated ERC-20 asset. It can be used by sellers to declare required payments
 /// or by facilitators to verify compliance.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PriceTag {
-    pub pay_to: EvmAddress,
+    pub pay_to: ChecksummedAddress,
     pub amount_per_item: TokenAmount,
-    pub token: TokenDeployment,
+    pub token: Eip155TokenDeployment,
     pub min_total_amount: Option<TokenAmount>,
     pub min_items: Option<usize>,
     pub max_items: Option<usize>,
@@ -22,29 +21,6 @@ pub struct PriceTag {
 }
 
 impl PriceTag {
-    /// Constructs a new `PriceTag` from raw inputs.
-    pub fn new<P: Into<EvmAddress>, T: Into<TokenAmount>, A: Into<TokenDeployment>>(
-        pay_to: P,
-        amount_per_item: T,
-        token: A,
-        min_total_amount: Option<T>,
-        min_items: Option<usize>,
-        max_items: Option<usize>,
-        description: Option<String>,
-        is_default: bool,
-    ) -> Self {
-        Self {
-            pay_to: pay_to.into(),
-            amount_per_item: amount_per_item.into(),
-            token: token.into(),
-            min_total_amount: min_total_amount.map(|t| t.into()),
-            min_items,
-            max_items,
-            description: description,
-            is_default: is_default,
-        }
-    }
-
     /// Checks if this pricing tier is in range for the given item count
     pub fn is_in_range(&self, item_count: usize) -> bool {
         if let Some(min) = self.min_items {
@@ -63,8 +39,8 @@ impl PriceTag {
     /// Calculates the total price for the given item count
     pub fn calculate_total_price(&self, item_count: usize) -> TokenAmount {
         let items_u256 = U256::from(item_count);
-        let total = self.amount_per_item * items_u256;
-        total
+        let total = self.amount_per_item.0 * items_u256;
+        TokenAmount(total)
     }
 }
 

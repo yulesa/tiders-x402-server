@@ -75,8 +75,8 @@ fn duckdb_display_expr(expr: &Expr) -> Result<String> {
         // Simple expressions
         Expr::Identifier(ident) => Ok(ident.value.clone()),
         Expr::Value(value_with_span) => format_value(&value_with_span.value),
-        Expr::TypedString { data_type, value } => {
-            Ok(format!("{}::{}", format_value(value)?, data_type))
+        Expr::TypedString(ts) => {
+            Ok(format!("{}::{}", format_value(&ts.value.value)?, ts.data_type))
         }
         
         // Boolean expressions
@@ -164,7 +164,7 @@ fn duckdb_display_expr(expr: &Expr) -> Result<String> {
         }
         
         // CAST expressions
-        Expr::Cast { kind, expr, data_type, format:_ } => {
+        Expr::Cast { kind, expr, data_type, format:_, array:_ } => {
             let expr_str = duckdb_display_expr(expr)?;
             let data_type_str = format!("{}", data_type);
             match kind {

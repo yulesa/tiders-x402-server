@@ -7,7 +7,8 @@ mod payment_processing;
 mod payment_config;
 mod database;
 
-use x402_rs::types::{EvmAddress, MoneyAmount};
+use x402_rs::chain::eip155::{ChecksummedAddress, TokenAmount};
+use x402_rs::networks::{KnownNetworkEip155, USDC};
 use std::str::FromStr;
 use std::sync::Arc;
 use duckdb::Connection;
@@ -34,18 +35,18 @@ async fn main() {
     let base_url = Url::parse("http://0.0.0.0:4021").expect("Failed to parse base URL");
     // let base_url = Url::parse("http://localhost:4021").expect("Failed to parse base URL");
 
-    
+
     let db = Connection::open("data/uni_v2_swaps.db").expect("Failed to open DuckDB connection");
 
     let mut global_payment_config = GlobalPaymentConfig::default(facilitator, base_url.clone());
-    
+
     // Create a default USDC price tag for swaps_df table
-    let usdc = x402_rs::network::USDCDeployment::by_network(x402_rs::network::Network::BaseSepolia);
+    let usdc = USDC::base_sepolia();
 
     let swap_price_tag = PriceTag{
-        pay_to: EvmAddress::from_str("0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7").unwrap(),
-        amount_per_item: MoneyAmount::from_str("0.002").unwrap().as_token_amount(usdc.decimals as u32).unwrap(),
-        token: usdc.into(),
+        pay_to: ChecksummedAddress::from_str("0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7").unwrap(),
+        amount_per_item: TokenAmount(usdc.parse("0.002").unwrap().amount),
+        token: usdc.clone(),
         min_total_amount: None,
         min_items: None,
         max_items: None,
@@ -64,9 +65,9 @@ async fn main() {
 
 
     let swap_price_tag_2 = PriceTag{
-        pay_to: EvmAddress::from_str("0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7").unwrap(),
-        amount_per_item: MoneyAmount::from_str("0.001").unwrap().as_token_amount(usdc.decimals as u32).unwrap(),
-        token: usdc.into(),
+        pay_to: ChecksummedAddress::from_str("0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7").unwrap(),
+        amount_per_item: TokenAmount(usdc.parse("0.001").unwrap().amount),
+        token: usdc.clone(),
         min_total_amount: None,
         min_items: Some(2),
         max_items: None,

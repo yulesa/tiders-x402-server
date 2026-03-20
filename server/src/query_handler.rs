@@ -5,7 +5,8 @@ use axum::Json;
 use axum::body::Bytes;
 use duckdb::Connection;
 use http::Uri;
-use x402_rs::types::{PaymentRequirements, VerifyRequest};
+use x402_rs::proto::v1::{PaymentPayload, VerifyResponse};
+use x402_rs::util::Base64Bytes;
 use std::sync::{Arc, Mutex};
 use serde::Deserialize;
 use tracing::instrument;
@@ -77,7 +78,7 @@ pub async fn query_handler(
 ) -> impl IntoResponse {
     // Extract the path from the request URI
     let path = uri.path();
-    
+
     // Parse and validate query first
     tracing::info!("Received query: {}", query_req.query);
     let analyzed_query = match analyze_query(&query_req.query) {
@@ -95,7 +96,7 @@ pub async fn query_handler(
         }
     };
 
-    // Extract table name and check if payment is required 
+    // Extract table name and check if payment is required
     let table_name = &analyzed_query.body.from;
     match state.payment_config.table_requires_payment(table_name) {
         None => {
@@ -117,7 +118,7 @@ pub async fn query_handler(
                     }
                 }
             };
-    
+
             let buffer = match serialize_batches_to_arrow_ipc(&batches) {
                 Ok(buffer) => buffer,
                 Err(e) => {
@@ -158,12 +159,18 @@ pub async fn query_handler(
             ).into_response();
         }
     };
-    
+
     // Phase 2: Payment header present - verify payment and return data
     // Parse payment payload
-    let base64 = x402_rs::types::Base64Bytes::from(payment_header.as_bytes());
-    let payment_payload = match x402_rs::types::PaymentPayload::try_from(base64) {
-        Ok(payment_payload) => payment_payload,
+    let base64 = Base64Bytes::from(payment_header.as_bytes());
+    let decoded = match base64.decode() {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            return QueryResponse::bad_request(format!("Failed to decode payment header: {}", e)).into_response();
+        }
+    };
+    let payment_payload: PaymentPayload = match serde_json::from_slice(&decoded) {
+        Ok(payload) => payload,
         Err(e) => {
             return QueryResponse::bad_request(format!("Failed to parse payment payload: {}", e)).into_response();
         }
@@ -201,15 +208,22 @@ pub async fn query_handler(
     let mut verify_responses = Vec::new();
     let mut verify_requests = Vec::new();
     for payment_requirement in payment_requirements {
-        let verify_request = VerifyRequest {
-            x402_version: payment_payload.x402_version,
-            payment_payload,
+        // Construct a v1 VerifyRequest and convert to proto
+        let v1_verify_request = x402_rs::proto::v1::VerifyRequest {
+            x402_version: x402_rs::proto::v1::X402Version1,
+            payment_payload: payment_payload.clone(),
             payment_requirements: payment_requirement,
         };
-        verify_requests.push(verify_request.clone());
+        let proto_verify_request: x402_rs::proto::VerifyRequest = match v1_verify_request.try_into() {
+            Ok(req) => req,
+            Err(e) => {
+                return QueryResponse::internal_error(format!("Failed to construct verify request: {}", e)).into_response();
+            }
+        };
+        verify_requests.push(proto_verify_request.clone());
         let verify_response = match verify_payment(
             &state.payment_config.facilitator,
-            &verify_request,
+            &proto_verify_request,
         ).await {
             Ok(result) => result,
             //An Error here doesn't mean the payment is invalid, it means the connection to the facilitator, or the facilitator is having issues
@@ -221,45 +235,42 @@ pub async fn query_handler(
     }
 
     let mut invalid_reasons = Vec::new();
-    let mut valid_verify_requests = Vec::new();
-    let mut valid_verify_responses = Vec::new();
+    let mut valid_indices = Vec::new();
 
     // Check if there is at least one valid verify response collecting the invalid reasons for an eventual 402 response if all are invalid.
     for (index, response) in verify_responses.iter().enumerate() {
         match response {
-            x402_rs::types::VerifyResponse::Valid { .. } => {
-                valid_verify_requests.push(verify_requests[index].clone());
-                valid_verify_responses.push(response);
+            VerifyResponse::Valid { .. } => {
+                valid_indices.push(index);
             },
-            x402_rs::types::VerifyResponse::Invalid { reason, .. } => {
-                invalid_reasons.push(reason);
+            VerifyResponse::Invalid { reason, .. } => {
+                invalid_reasons.push(reason.clone());
             },
         }
     }
 
     // If no valid verify responses, return a 402 with the invalid reasons
-    if valid_verify_responses.is_empty() {
+    if valid_indices.is_empty() {
         return create_payment_response(
             &state.payment_config,
-            &format!("Payment provided is invalid, verification failed: {}", invalid_reasons.iter().map(|reason| reason.to_string()).collect::<Vec<String>>().join(", ")),
+            &format!("Payment provided is invalid, verification failed: {}", invalid_reasons.join(", ")),
             table_name,
             actual_rows,
             path,
         ).into_response()
     }
 
-    if valid_verify_responses.len() > 1 {
-        tracing::error!("Multiple payment offers were found matching a provided payment payload, duplicate payment offers exist: {:?}", valid_verify_requests.iter().map(|request| &request.payment_requirements).collect::<Vec<&PaymentRequirements>>());
+    if valid_indices.len() > 1 {
+        tracing::error!("Multiple payment offers were found matching a provided payment payload, duplicate payment offers exist");
     }
 
     // Get the first valid verify response and requirement
-    let verify_response = valid_verify_responses[0].clone();
-    let verify_request = valid_verify_requests[0].clone();
+    let first_valid = valid_indices[0];
     // Settle payment
     match settle_payment(
-        verify_response,
+        verify_responses.remove(first_valid),
         &state.payment_config.facilitator,
-        verify_request,
+        verify_requests.remove(first_valid),
     ).await {
         Ok(_) => {
             // Payment settled, execute query and verify row count
@@ -275,14 +286,14 @@ pub async fn query_handler(
             ).into_response();
         }
     }
-    
+
     let buffer = match serialize_batches_to_arrow_ipc(&batches) {
         Ok(buffer) => buffer,
         Err(e) => {
             return QueryResponse::internal_error(format!("Failed to serialize batches to Arrow IPC: {}", e)).into_response();
         }
     };
-    
+
     return QueryResponse::success(buffer).into_response();
 }
 

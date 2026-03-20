@@ -34,12 +34,12 @@ use std::fmt::Display;
 use std::time::Duration;
 use url::Url;
 use x402_rs::facilitator::Facilitator;
-use x402_rs::types::{SettleRequest, SettleResponse, VerifyRequest, VerifyResponse};
+use x402_rs::proto;
 use tracing::{Span, Instrument};
 
 /// A client for communicating with a remote x402 facilitator.
 ///
-/// Handles `/verify` and `/settle` endpoints via JSON HTTP POST.
+/// Handles `/verify`, `/settle`, and `/supported` endpoints via JSON HTTP POST/GET.
 #[derive(Clone, Debug)]
 pub struct FacilitatorClient {
     /// Base URL of the facilitator (e.g. `https://facilitator.example/`)
@@ -49,6 +49,8 @@ pub struct FacilitatorClient {
     verify_url: Url,
     /// Full URL to `POST /settle` requests
     settle_url: Url,
+    /// Full URL to `GET /supported` requests
+    supported_url: Url,
     /// Shared Reqwest HTTP client
     client: Client,
     /// Optional custom headers sent with each request
@@ -61,11 +63,10 @@ impl Facilitator for FacilitatorClient {
     type Error = FacilitatorClientError;
 
     /// Verifies a payment payload with the facilitator.
-    /// Instruments a tracing span (only when telemetry feature is enabled).
     async fn verify(
         &self,
-        request: &VerifyRequest,
-    ) -> Result<VerifyResponse, FacilitatorClientError> {
+        request: &proto::VerifyRequest,
+    ) -> Result<proto::VerifyResponse, FacilitatorClientError> {
         with_span(
             FacilitatorClient::verify(self, request),
             tracing::info_span!("x402.facilitator_client.verify", timeout = ?self.timeout),
@@ -74,14 +75,24 @@ impl Facilitator for FacilitatorClient {
     }
 
     /// Attempts to settle a verified payment with the facilitator.
-    /// Instruments a tracing span (only when telemetry feature is enabled).
     async fn settle(
         &self,
-        request: &SettleRequest,
-    ) -> Result<SettleResponse, FacilitatorClientError> {
+        request: &proto::SettleRequest,
+    ) -> Result<proto::SettleResponse, FacilitatorClientError> {
         with_span(
             FacilitatorClient::settle(self, request),
             tracing::info_span!("x402.facilitator_client.settle", timeout = ?self.timeout),
+        )
+        .await
+    }
+
+    /// Queries the facilitator for supported payment kinds.
+    async fn supported(
+        &self,
+    ) -> Result<proto::SupportedResponse, FacilitatorClientError> {
+        with_span(
+            FacilitatorClient::supported(self),
+            tracing::info_span!("x402.facilitator_client.supported", timeout = ?self.timeout),
         )
         .await
     }
@@ -155,7 +166,7 @@ impl FacilitatorClient {
 
     /// Constructs a new [`FacilitatorClient`] from a base URL.
     ///
-    /// This sets up `./verify` and `./settle` endpoint URLs relative to the base.
+    /// This sets up `./verify`, `./settle`, and `./supported` endpoint URLs relative to the base.
     pub fn try_new(base_url: Url) -> Result<Self, FacilitatorClientError> {
         let client = Client::new();
         let verify_url =
@@ -172,11 +183,19 @@ impl FacilitatorClient {
                     context: "Failed to construct ./settle URL",
                     source: e,
                 })?;
+        let supported_url =
+            base_url
+                .join("./supported")
+                .map_err(|e| FacilitatorClientError::UrlParse {
+                    context: "Failed to construct ./supported URL",
+                    source: e,
+                })?;
         Ok(Self {
             client,
             base_url,
             verify_url,
             settle_url,
+            supported_url,
             headers: HeaderMap::new(),
             timeout: None,
         })
@@ -201,8 +220,8 @@ impl FacilitatorClient {
     /// Sends a `POST /verify` request to the facilitator.
     pub async fn verify(
         &self,
-        request: &VerifyRequest,
-    ) -> Result<VerifyResponse, FacilitatorClientError> {
+        request: &proto::VerifyRequest,
+    ) -> Result<proto::VerifyResponse, FacilitatorClientError> {
         self.post_json(&self.verify_url, "POST /verify", request)
             .await
     }
@@ -210,16 +229,53 @@ impl FacilitatorClient {
     /// Sends a `POST /settle` request to the facilitator.
     pub async fn settle(
         &self,
-        request: &SettleRequest,
-    ) -> Result<SettleResponse, FacilitatorClientError> {
+        request: &proto::SettleRequest,
+    ) -> Result<proto::SettleResponse, FacilitatorClientError> {
         self.post_json(&self.settle_url, "POST /settle", request)
             .await
     }
 
+    /// Sends a `GET /supported` request to the facilitator.
+    pub async fn supported(
+        &self,
+    ) -> Result<proto::SupportedResponse, FacilitatorClientError> {
+        let mut req = self.client.get(self.supported_url.clone());
+        for (key, value) in self.headers.iter() {
+            req = req.header(key, value);
+        }
+        if let Some(timeout) = self.timeout {
+            req = req.timeout(timeout);
+        }
+        let http_response = req
+            .send()
+            .await
+            .map_err(|e| FacilitatorClientError::Http { context: "GET /supported", source: e })?;
+
+        let result = if http_response.status() == StatusCode::OK {
+            http_response
+                .json::<proto::SupportedResponse>()
+                .await
+                .map_err(|e| FacilitatorClientError::JsonDeserialization { context: "GET /supported", source: e })
+        } else {
+            let status = http_response.status();
+            let body = http_response
+                .text()
+                .await
+                .map_err(|e| FacilitatorClientError::ResponseBodyRead { context: "GET /supported", source: e })?;
+            Err(FacilitatorClientError::HttpStatus {
+                context: "GET /supported",
+                status,
+                body,
+            })
+        };
+
+        record_result_on_span(&result);
+
+        result
+    }
+
     /// Generic POST helper that handles JSON serialization, error mapping,
     /// timeout application, and telemetry integration.
-    ///
-    /// `context` is a human-readable identifier used in tracing and error messages (e.g. `"POST /verify"`).
     async fn post_json<T, R>(
         &self,
         url: &Url,
