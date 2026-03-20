@@ -36,7 +36,7 @@ pub struct AppState {
 #[allow(dead_code)]
 pub async fn root_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let mut response = String::new();
-    writeln!(response, "Welcome to the Cherry-402 API!\n").unwrap();
+    writeln!(response, "Welcome to the Tiders-x402 API!\n").unwrap();
     writeln!(response, "Usage:").unwrap();
     writeln!(response, "- Send a POST request to /query with a JSON body: {{ \"query\": \"SELECT ... FROM ...\" }}").unwrap();
     writeln!(response, "- You must implement the x402 payment protocol to access paid tables.").unwrap();

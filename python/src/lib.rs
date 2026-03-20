@@ -1,4 +1,4 @@
-/// cherry_402_python: Python bindings for the cherry_402 Rust library.
+/// tiders_x402_python: Python bindings for the tiders_x402 Rust library.
 ///
 /// This module exposes payment, server, and configuration primitives for use in Python.
 ///
@@ -18,17 +18,17 @@ use url::Url;
 use tokio::runtime::Runtime;
 use duckdb::arrow::datatypes::Schema;
 
-use cherry_402::{PriceTag, TablePaymentOffers, GlobalPaymentConfig, AppState, FacilitatorClient};
+use tiders_x402::{PriceTag, TablePaymentOffers, GlobalPaymentConfig, AppState, FacilitatorClient};
 use x402_rs::chain::eip155::{ChecksummedAddress, Eip155TokenDeployment, TokenAmount};
 use x402_rs::networks::{KnownNetworkEip155, USDC};
 use duckdb::Connection;
 use alloy::primitives::U256;
 use arrow::pyarrow::{FromPyArrow, ToPyArrow};
-use cherry_402::duckdb_reader::get_duckdb_table_schema;
+use tiders_x402::duckdb_reader::get_duckdb_table_schema;
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn cherry_402_core(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
+fn tiders_x402_server(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PyPriceTag>()?;
     m.add_class::<PyTablePaymentOffers>()?;
     m.add_class::<PyGlobalPaymentConfig>()?;
@@ -402,7 +402,7 @@ impl PyAppState {
 #[pyclass(name="Server")]
 pub struct PyServer {
     runtime: Runtime,
-    state: Option<Arc<cherry_402::query_handler::AppState>>,
+    state: Option<Arc<tiders_x402::query_handler::AppState>>,
 }
 
 #[pymethods]
@@ -461,7 +461,7 @@ impl PyServer {
             let db = Connection::open(db_path)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
 
-            let state = Arc::new(cherry_402::query_handler::AppState {
+            let state = Arc::new(tiders_x402::query_handler::AppState {
                 db: Arc::new(Mutex::new(db)),
                 payment_config: Arc::new(global_payment_config),
             });
@@ -480,7 +480,7 @@ impl PyServer {
 
         let state_clone = state.clone();
         self.runtime.block_on(async {
-            cherry_402::start_server(state_clone, base_url).await;
+            tiders_x402::start_server(state_clone, base_url).await;
             Ok(())
         })
     }

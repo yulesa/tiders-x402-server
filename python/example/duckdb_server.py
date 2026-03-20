@@ -1,14 +1,14 @@
-import cherry_402_core
+import tiders_x402_server
 
 def main():
     
     # Create facilitator client
-    facilitator = cherry_402_core.FacilitatorClient("http://localhost:4022")
+    facilitator = tiders_x402_server.FacilitatorClient("http://localhost:4022")
 
-    usdc = cherry_402_core.USDCDeployment.by_network(cherry_402_core.Network.BASE_SEPOLIA)
+    usdc = tiders_x402_server.USDCDeployment.by_network(tiders_x402_server.Network.BASE_SEPOLIA)
     # Create price tags similar to the Rust example
     # First price tag: 0.002 USDC per item (default)
-    price_tag_1 = cherry_402_core.PriceTag(
+    price_tag_1 = tiders_x402_server.PriceTag(
         pay_to="0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7",
         amount_per_item="$0.002",
         token=usdc,
@@ -20,7 +20,7 @@ def main():
     )
     
     # Second price tag: 0.001 USDC per item for 2+ items
-    price_tag_2 = cherry_402_core.PriceTag(
+    price_tag_2 = tiders_x402_server.PriceTag(
         pay_to="0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7",
         amount_per_item="0.001",
         token=usdc,
@@ -31,27 +31,27 @@ def main():
         is_default=False
     )
     
-    swap_schema = cherry_402_core.get_duckdb_table_schema_py("../data/uni_v2_swaps.db", "swaps_df")
+    swap_schema = tiders_x402_server.get_duckdb_table_schema_py("../data/uni_v2_swaps.db", "swaps_df")
 
     # Create table payment offers
-    swaps_offer = cherry_402_core.TablePaymentOffers("swaps_df", [price_tag_1], swap_schema)
+    swaps_offer = tiders_x402_server.TablePaymentOffers("swaps_df", [price_tag_1], swap_schema)
     swaps_offer.with_payment_offer(price_tag_2)
     
     base_url = "http://0.0.0.0:4021"
 
-    global_payment_config = cherry_402_core.GlobalPaymentConfig(
+    global_payment_config = tiders_x402_server.GlobalPaymentConfig(
         facilitator,
         base_url=base_url,
     )
 
     global_payment_config.add_table_offer(swaps_offer)
 
-    state = cherry_402_core.AppState(
+    state = tiders_x402_server.AppState(
         db_path="../data/uni_v2_swaps.db",
         payment_config=global_payment_config,
     )
 
-    server = cherry_402_core.Server(
+    server = tiders_x402_server.Server(
         state,
     )
     

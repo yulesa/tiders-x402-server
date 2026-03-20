@@ -15,12 +15,12 @@ use duckdb::Connection;
 use std::sync::Mutex;
 use url::Url;
 
-use cherry_402::facilitator_client::FacilitatorClient;
-use cherry_402::query_handler::AppState;
-use cherry_402::payment_config::GlobalPaymentConfig;
-use cherry_402::price::{PriceTag, TablePaymentOffers};
-use cherry_402::start_server;
-use cherry_402::duckdb_reader::get_duckdb_table_schema;
+use tiders_x402::facilitator_client::FacilitatorClient;
+use tiders_x402::query_handler::AppState;
+use tiders_x402::payment_config::GlobalPaymentConfig;
+use tiders_x402::price::{PriceTag, TablePaymentOffers};
+use tiders_x402::start_server;
+use tiders_x402::duckdb_reader::get_duckdb_table_schema;
 
 #[tokio::main]
 async fn main() {

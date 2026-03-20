@@ -1,11 +1,11 @@
 [package]
-name = "cherry-402-python"
+name = "tiders-x402-python"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 pyo3 = { workspace = true, features = ["anyhow"] }
-cherry-402 = { path = "../server", features = ["pyo3"] }
+tiders-x402 = { path = "../server", features = ["pyo3"] }
 x402-rs = { workspace = true }
 url = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
