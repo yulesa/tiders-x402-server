@@ -165,7 +165,10 @@ impl GlobalPaymentConfig {
             .unwrap_or(&self.default_description)
             .clone();
 
-        let network = format!("eip155:{}", offer.token.chain_reference.inner());
+        let chain_id: x402_rs::chain::ChainId = offer.token.chain_reference.into();
+        let network = chain_id.as_network_name()
+            .unwrap_or_else(|| panic!("Unknown network for chain reference: {}", offer.token.chain_reference))
+            .to_string();
 
         Some(PaymentRequirements {
             scheme: "exact".to_string(),

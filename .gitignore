@@ -51,8 +51,12 @@ __pycache__/
 .env.production.local
 
 # Data and temporary files
-/data
+
+**/data
 **/tmp/
 **/temp/
 **/*.log
 **/*.tmp
+
+# Book
+docs/book

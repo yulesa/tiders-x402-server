@@ -24,7 +24,7 @@ async function main() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        query: "SELECT * FROM swaps_df LIMIT 2;"
+        query: "SELECT * FROM uniswap_v3_pool_swap LIMIT 2;"
       })
     });
 

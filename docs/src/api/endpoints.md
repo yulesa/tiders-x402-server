@@ -1,0 +1,118 @@
+# API Endpoints
+
+The server exposes two endpoints:
+
+## `GET /`
+
+Returns server information as plain text.
+
+### Response
+
+```
+Welcome to the Tiders-x402 API!
+
+Usage:
+- Send a POST request to /query with a JSON body: { "query": "SELECT ... FROM ..." }
+- You must implement the x402 payment protocol to access paid tables.
+- See x402 protocol docs: https://x402.gitbook.io/x402
+
+Supported tables:
+- Table: swaps_df
+  Schema:
+    - block_number: Int64
+    - tx_hash: Utf8
+    ...
+  Description: Uniswap v2 swaps
+  Payment required: true
+
+SQL parser rules:
+- Only SELECT statements are supported.
+- Only one statement per request.
+- Only one table in the FROM clause.
+- No GROUP BY, HAVING, JOIN, or subqueries.
+- Only simple field names in SELECT, no expressions.
+- WHERE, ORDER BY, and LIMIT are supported with restrictions.
+```
+
+## `POST /query`
+
+Executes a SQL query against the database.
+
+### Request
+
+```bash
+curl -X POST http://localhost:4021/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT * FROM my_table LIMIT 10"}'
+```
+
+### Request Body
+
+```json
+{
+  "query": "SELECT * FROM my_table WHERE col1 = 'value' LIMIT 10"
+}
+```
+
+### Response: 200 OK (Success)
+
+Binary Arrow IPC stream.
+
+```
+Content-Type: application/vnd.apache.arrow.stream
+```
+
+Parse with any Arrow library (PyArrow, `apache-arrow` in JS, `arrow` crate in Rust).
+
+### Response: 402 Payment Required
+
+Returned when the table requires payment and no valid `X-Payment` header is present.
+
+```json
+{
+  "x402Version": 1,
+  "error": "No crypto payment found. Implement x402 protocol...",
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "base-sepolia",
+      "max_amount_required": "4000",
+      "resource": "http://localhost:4021/query",
+      "description": "Uniswap v2 swaps - 2 rows",
+      "mime_type": "application/vnd.apache.arrow.stream",
+      "pay_to": "0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7",
+      "max_timeout_seconds": 300,
+      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "extra": {
+        "name": "USDC",
+        "version": "2"
+      }
+    }
+  ]
+}
+```
+
+### Response: 400 Bad Request
+
+```
+Content-Type: text/plain
+
+Invalid query: Simplified SQL does not support the use of 'GroupByExpr'
+```
+
+### Response: 500 Internal Server Error
+
+```
+Content-Type: text/plain
+
+Failed to execute query: ...
+```
+
+### Headers
+
+| Header | Direction | Description |
+|--------|-----------|-------------|
+| `Content-Type: application/json` | Request | Required for POST body |
+| `X-Payment` | Request | Base64-encoded payment payload (Phase 2) |
+| `Content-Type: application/vnd.apache.arrow.stream` | Response | Arrow IPC data on success |
+| `Content-Type: application/json` | Response | Payment requirements on 402 |
