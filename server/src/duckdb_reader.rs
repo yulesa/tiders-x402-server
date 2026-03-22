@@ -6,7 +6,7 @@ use arrow::datatypes::Schema;
 use anyhow::{anyhow, Result};
 use crate::sqp_parser::AnalyzedQuery;
 
-pub fn create_duckdb_query(ast: AnalyzedQuery) -> Result<String> {
+pub fn create_duckdb_query(ast: &AnalyzedQuery) -> Result<String> {
     let mut query = String::new();
     
     // SELECT clause
@@ -31,12 +31,12 @@ pub fn create_duckdb_query(ast: AnalyzedQuery) -> Result<String> {
     query.push_str(&format!(" FROM {}", ast.body.from));
     
     // WHERE clause
-    if let Some(selection) = ast.body.selection {
-        query.push_str(&format!(" WHERE {}", duckdb_display_expr(&selection)?));
+    if let Some(selection) = &ast.body.selection {
+        query.push_str(&format!(" WHERE {}", duckdb_display_expr(selection)?));
     }
     
     // ORDER BY clause
-    if let Some(order_by) = ast.order_by {
+    if let Some(order_by) = &ast.order_by {
         query.push_str(" ORDER BY ");
         let order_clauses = order_by.iter()
             .map(|order_by_expr| {
@@ -58,12 +58,12 @@ pub fn create_duckdb_query(ast: AnalyzedQuery) -> Result<String> {
     }
     
     // LIMIT clause
-    if let Some(limit_clause) = ast.limit_clause {
-        if let Some(limit) = limit_clause.limit {
-            query.push_str(&format!(" LIMIT {}", duckdb_display_expr(&limit)?));
+    if let Some(limit_clause) = &ast.limit_clause {
+        if let Some(limit) = &limit_clause.limit {
+            query.push_str(&format!(" LIMIT {}", duckdb_display_expr(limit)?));
         }
-        if let Some(offset) = limit_clause.offset {
-            query.push_str(&format!(" OFFSET {}", duckdb_display_expr(&offset)?));
+        if let Some(offset) = &limit_clause.offset {
+            query.push_str(&format!(" OFFSET {}", duckdb_display_expr(offset)?));
         }
     }
     
@@ -531,7 +531,7 @@ mod tests {
         
         // Parse the SQL
         let analyzed_query = analyze_query(sql)?;
-        let duckdb_sql = create_duckdb_query(analyzed_query.clone())?;
+        let duckdb_sql = create_duckdb_query(&analyzed_query)?;
         println!("DuckDB SQL: {}", duckdb_sql);
         let dialect = DuckDbDialect;
         match Parser::parse_sql(&dialect, sql) {

@@ -18,7 +18,7 @@ pub fn execute_row_count_query(db: &MutexGuard<Connection>, query: &str) -> Duck
     })
 } 
 
-pub fn serialize_batches_to_arrow_ipc(batches: &Vec<RecordBatch>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn serialize_batches_to_arrow_ipc(batches: &[RecordBatch]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut buffer = Vec::new();
     if let Some(first_batch) = batches.first() {
         let schema = first_batch.schema();
