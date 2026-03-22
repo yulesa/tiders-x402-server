@@ -1,12 +1,3 @@
-mod sqp_parser;
-mod duckdb_reader;
-mod price;
-mod facilitator_client;
-mod query_handler;
-mod payment_processing;
-mod payment_config;
-mod database;
-
 use x402_rs::chain::eip155::{ChecksummedAddress, TokenAmount};
 use x402_rs::networks::{KnownNetworkEip155, USDC};
 use std::str::FromStr;
@@ -16,10 +7,9 @@ use std::sync::Mutex;
 use url::Url;
 
 use tiders_x402::facilitator_client::FacilitatorClient;
-use tiders_x402::query_handler::AppState;
 use tiders_x402::payment_config::GlobalPaymentConfig;
 use tiders_x402::price::{PriceTag, TablePaymentOffers};
-use tiders_x402::start_server;
+use tiders_x402::{AppState, start_server};
 use tiders_x402::duckdb_reader::get_duckdb_table_schema;
 
 #[tokio::main]

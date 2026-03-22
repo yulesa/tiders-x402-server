@@ -3,15 +3,13 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
 use axum::body::Bytes;
-use duckdb::Connection;
 use http::Uri;
 use x402_rs::proto::v1::{PaymentPayload, VerifyResponse};
 use x402_rs::util::Base64Bytes;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use serde::Deserialize;
 use tracing::instrument;
-use std::fmt::Write as _;
-
+use crate::AppState;
 use crate::sqp_parser::{analyze_query, create_estimate_rows_query};
 use crate::duckdb_reader::create_duckdb_query;
 use crate::payment_processing::{
@@ -23,48 +21,6 @@ use crate::database::{execute_query, execute_row_count_query, serialize_batches_
 #[derive(Debug, Deserialize)]
 pub struct QueryRequest {
     pub query: String,
-}
-
-#[derive(Debug, Clone)]
-
-pub struct AppState {
-    pub db: Arc<Mutex<Connection>>,
-    pub payment_config: Arc<GlobalPaymentConfig>,
-}
-
-#[axum::debug_handler]
-#[allow(dead_code)]
-pub async fn root_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    let mut response = String::new();
-    writeln!(response, "Welcome to the Tiders-x402 API!\n").unwrap();
-    writeln!(response, "Usage:").unwrap();
-    writeln!(response, "- Send a POST request to /query with a JSON body: {{ \"query\": \"SELECT ... FROM ...\" }}").unwrap();
-    writeln!(response, "- You must implement the x402 payment protocol to access paid tables.").unwrap();
-    writeln!(response, "- See x402 protocol docs: https://x402.gitbook.io/x402\n").unwrap();
-    writeln!(response, "Supported tables:").unwrap();
-    for (table, offer) in &state.payment_config.table_offers {
-        writeln!(response, "- Table: {}", table).unwrap();
-        if let Some(schema) = &offer.schema {
-            writeln!(response, "  Schema:").unwrap();
-            for field in schema.fields() {
-                writeln!(response, "    - {}: {}", field.name(), field.data_type()).unwrap();
-            }
-        } else {
-            writeln!(response, "  Schema: unavailable").unwrap();
-        }
-        if let Some(desc) = &offer.description {
-            writeln!(response, "  Description: {}", desc).unwrap();
-        }
-        writeln!(response, "  Payment required: {}", offer.requires_payment).unwrap();
-    }
-    writeln!(response, "\nSQL parser rules:").unwrap();
-    writeln!(response, "- Only SELECT statements are supported.").unwrap();
-    writeln!(response, "- Only one statement per request.").unwrap();
-    writeln!(response, "- Only one table in the FROM clause.").unwrap();
-    writeln!(response, "- No GROUP BY, HAVING, JOIN, or subqueries.").unwrap();
-    writeln!(response, "- Only simple field names in SELECT, no expressions.").unwrap();
-    writeln!(response, "- WHERE, ORDER BY, and LIMIT are supported with restrictions.").unwrap();
-    response
 }
 
 #[axum::debug_handler]
@@ -151,7 +107,7 @@ pub async fn query_handler(
                 }
             };
             return create_payment_response(
-                &state.payment_config,
+                &*state.payment_config,
                 &format!("No crypto payment found. Implement x402 protocol (https://www.x402.org/) to pay for this API request."),
                 table_name,
                 estimated_rows,
@@ -252,7 +208,7 @@ pub async fn query_handler(
     // If no valid verify responses, return a 402 with the invalid reasons
     if valid_indices.is_empty() {
         return create_payment_response(
-            &state.payment_config,
+            &*state.payment_config,
             &format!("Payment provided is invalid, verification failed: {}", invalid_reasons.join(", ")),
             table_name,
             actual_rows,
@@ -278,7 +234,7 @@ pub async fn query_handler(
         Err(e) => {
             // Payment settlement failed
             create_payment_response(
-                &state.payment_config,
+                &*state.payment_config,
                 &format!("Settlement of the provided payment failed: {}", e),
                 table_name,
                 actual_rows,
@@ -297,12 +253,6 @@ pub async fn query_handler(
     return QueryResponse::success(buffer).into_response();
 }
 
-#[derive(Debug)]
-pub struct QueryResponse {
-    status: StatusCode,
-    content_type: &'static str,
-    body: Bytes,
-}
 
 // Helper function to create payment required responses
 fn create_payment_response(
@@ -321,6 +271,14 @@ fn create_payment_response(
             "Failed to find payment options for the table request".to_string(),
         ),
     }
+}
+
+
+#[derive(Debug)]
+pub struct QueryResponse {
+    status: StatusCode,
+    content_type: &'static str,
+    body: Bytes,
 }
 
 impl QueryResponse {
