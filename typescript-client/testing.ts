@@ -1,19 +1,29 @@
-import { createWalletClient, http } from "viem";  // https://viem.sh/
+import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
+import { ExactEvmScheme } from "@x402/evm";
+import type { ClientEvmSigner } from "@x402/evm";
+import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
-import { wrapFetchWithPayment } from "x402-fetch"; // https://www.npmjs.com/package/x402-fetch
 import * as arrow from 'apache-arrow';
 
 async function main() {
-  // Create a wallet client
+  // Create a viem wallet client and adapt to ClientEvmSigner interface
   const account = privateKeyToAccount("0x9ad184158f40ee42b1c2d4de59cab95b1fd968bfd2b32c17b59f4a009b5a7757");
-  const client = createWalletClient({
+  const walletClient = createWalletClient({
     account,
-    transport: http(),
     chain: baseSepolia,
+    transport: http(),
   });
+  const signer: ClientEvmSigner = {
+    address: account.address,
+    signTypedData: (msg) => walletClient.signTypedData(msg as Parameters<typeof walletClient.signTypedData>[0]),
+  };
 
-  // Wrap the fetch function with payment handling
+  // Create x402 V2 client with the EVM exact scheme for Base Sepolia
+  const client = new x402Client()
+    .register("eip155:84532", new ExactEvmScheme(signer));
+
+  // Wrap fetch with x402 payment handling
   const fetchWithPay = wrapFetchWithPayment(fetch, client);
 
   try {
@@ -30,9 +40,9 @@ async function main() {
 
     if (!response.ok) {
       if (response.status !== 200) {
-        console.log('402 Response headers:', Object.fromEntries(response.headers.entries()));
+        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
         const responseText = await response.text();
-        console.log('402 Response body:', responseText);
+        console.log('Response body:', responseText);
         console.log(response);
       }
     }

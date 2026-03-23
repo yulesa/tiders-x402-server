@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use url::Url;
-use serde_json::json;
-use x402_rs::proto::v1::{
-    PaymentPayload, PaymentRequired, PaymentRequirements, X402Version1,
+use x402_types::proto::v2::{
+    PaymentRequired, PaymentRequirements, ResourceInfo, X402Version2,
 };
 
 use crate::facilitator_client::FacilitatorClient;
@@ -58,34 +57,18 @@ impl GlobalPaymentConfig {
         }
     }
 
+    /// Finds the matching payment requirement for the provided V2 payment payload.
+    ///
+    /// V2 exact matching: the client echoes back the complete `PaymentRequirements`
+    /// in `PaymentPayload.accepted`, so we just do a direct equality check.
     pub fn find_matching_payment_requirements(
         &self,
         table_name: &str,
         item_count: usize,
-        path: &str,
-        payment_payload: &PaymentPayload,
-    ) ->  Vec<PaymentRequirements> {
-
-        let payment_requirements = self.get_all_payment_requirements(table_name, item_count, path);
-        // Parse the raw payload to extract authorization fields
-        let payload_json: serde_json::Value = serde_json::from_str(payment_payload.payload.get())
-            .unwrap_or(serde_json::Value::Null);
-
-        let matching_payment_requirements = payment_requirements.iter().filter(|requirement| {
-            requirement.scheme == payment_payload.scheme
-                && requirement.network == payment_payload.network
-                && requirement.pay_to == payload_json.get("authorization")
-                    .and_then(|auth| auth.get("to"))
-                    .and_then(|to| to.as_str())
-                    .unwrap_or("")
-                && requirement.max_amount_required == payload_json.get("authorization")
-                    .and_then(|auth| auth.get("value"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-
-        }).cloned().collect::<Vec<_>>();
-
-        matching_payment_requirements
+        accepted: &PaymentRequirements,
+    ) -> Option<PaymentRequirements> {
+        let requirements = self.get_all_payment_requirements(table_name, item_count);
+        requirements.into_iter().find(|req| req == accepted)
     }
 
     /// Creates a payment required response using the new configuration system
@@ -96,14 +79,27 @@ impl GlobalPaymentConfig {
         estimated_items: usize,
         path: &str,
     ) -> Option<PaymentRequired> {
-        let payment_requirements = self.get_all_payment_requirements(table_name, estimated_items, path);
+        let payment_requirements = self.get_all_payment_requirements(table_name, estimated_items);
         if payment_requirements.is_empty() {
             return None;
         }
+
+        let resource_url = self.base_url.join(path).ok()?;
+        let table_offer = self.get_table_offer(table_name)?;
+        let description = table_offer.description
+            .as_ref()
+            .unwrap_or(&self.default_description)
+            .clone();
+
         Some(PaymentRequired {
+            x402_version: X402Version2,
             error: Some(error.to_string()),
+            resource: Some(ResourceInfo {
+                url: resource_url.to_string(),
+                description: Some(format!("{} - {} rows", description, estimated_items)),
+                mime_type: Some(self.mime_type.clone()),
+            }),
             accepts: payment_requirements,
-            x402_version: X402Version1,
         })
     }
 
@@ -112,7 +108,6 @@ impl GlobalPaymentConfig {
         &self,
         table_name: &str,
         estimated_items: usize,
-        path: &str,
     ) -> Vec<PaymentRequirements> {
         let mut requirements = Vec::new();
         let table_offer = self.get_table_offer(table_name);
@@ -124,9 +119,7 @@ impl GlobalPaymentConfig {
         for offer in &table_offer.price_tags {
             if offer.is_in_range(estimated_items) {
                 if let Some(req) = self.create_payment_requirements_for_offer(
-                    table_name,
                     estimated_items,
-                    path,
                     offer,
                 ) {
                     requirements.push(req);
@@ -140,51 +133,32 @@ impl GlobalPaymentConfig {
     /// Creates payment requirements for a specific offer
     fn create_payment_requirements_for_offer(
         &self,
-        table_name: &str,
         item_count: usize,
-        path: &str,
         offer: &PriceTag,
     ) -> Option<PaymentRequirements> {
         let calculated_price = offer.calculate_total_price(item_count);
         let total_price = match offer.min_total_amount {
-            Some(min_total_amount) => {
+            Some(ref min_total_amount) => {
                 if calculated_price.0 > min_total_amount.0 {
                     calculated_price
                 } else {
-                    min_total_amount
+                    min_total_amount.clone()
                 }
             }
             None => calculated_price,
         };
 
-        let resource_url = self.base_url.join(path).ok()?;
-
-        let table_offer = self.get_table_offer(table_name)?;
-        let description = table_offer.description
-            .as_ref()
-            .unwrap_or(&self.default_description)
-            .clone();
-
-        let chain_id: x402_rs::chain::ChainId = offer.token.chain_reference.into();
-        let network = chain_id.as_network_name()
-            .unwrap_or_else(|| panic!("Unknown network for chain reference: {}", offer.token.chain_reference))
-            .to_string();
+        let chain_id: x402_types::chain::ChainId = offer.token.chain_reference.into();
+        let extra = serde_json::to_value(&offer.token.transfer_method).ok();
 
         Some(PaymentRequirements {
             scheme: "exact".to_string(),
-            network,
-            max_amount_required: total_price.0.to_string(),
-            resource: resource_url.to_string(),
-            description: format!("{} - {} rows", description, item_count),
-            mime_type: self.mime_type.clone(),
+            network: chain_id,
+            amount: total_price.0.to_string(),
             pay_to: offer.pay_to.to_string(),
             max_timeout_seconds: self.max_timeout_seconds,
             asset: format!("{}", offer.token.address),
-            extra: offer.token.eip712.as_ref().map(|eip712| json!({
-                "name": eip712.name,
-                "version": eip712.version,
-            })),
-            output_schema: None,
+            extra,
         })
     }
 }

@@ -33,11 +33,12 @@ use std::sync::{Arc, Mutex};
 use axum::routing::post;
 use axum::Router;
 use dotenvy::dotenv;
-use opentelemetry::trace::Status;
+use opentelemetry::trace::{Status, TracerProvider};
 use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use url::Url;
-use x402_rs::util::Telemetry;
 use tokio::signal;
 use duckdb::Connection;
 
@@ -66,12 +67,46 @@ pub async fn start_server(state: Arc<AppState>, base_url: Url) {
     // Load environment variables from a `.env` file if one exists.
     dotenv().ok();
 
-    // Initialize OpenTelemetry tracing (distributed tracing / observability).
-    // The `_telemetry` guard keeps the tracer alive for the lifetime of the server.
-    let _telemetry = Telemetry::new()
-        .with_name(env!("CARGO_PKG_NAME"))
-        .with_version(env!("CARGO_PKG_VERSION"))
-        .register();
+    // Initialize tracing subscriber for structured logging.
+    // If OTEL_EXPORTER_OTLP_ENDPOINT is set, also export spans via OTLP (gRPC).
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "info".into());
+    let fmt_layer = tracing_subscriber::fmt::layer();
+
+    if std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_ok() {
+        let exporter = opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .build()
+            .expect("failed to build OTLP span exporter");
+
+        let service_name = std::env::var("OTEL_SERVICE_NAME")
+            .unwrap_or_else(|_| "tiders-x402".to_string());
+        let resource = opentelemetry_sdk::Resource::builder()
+            .with_attribute(opentelemetry::KeyValue::new("service.name", service_name))
+            .build();
+
+        let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
+            .with_resource(resource)
+            .with_batch_exporter(exporter)
+            .build();
+
+        opentelemetry::global::set_tracer_provider(provider.clone());
+        let tracer = provider.tracer("tiders-x402");
+        let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(fmt_layer)
+            .with(otel_layer)
+            .init();
+
+        tracing::info!("OTLP tracing exporter enabled");
+    } else {
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(fmt_layer)
+            .init();
+    };
 
     // Build the Axum Router.
     // A Router maps HTTP method + path combinations to handler functions.
@@ -158,6 +193,8 @@ pub async fn start_server(state: Arc<AppState>, base_url: Url) {
         .with_graceful_shutdown(shutdown_signal())
         .await
         .unwrap();
+
+    // The OTLP tracer provider flushes pending spans on Drop.
 }
 
 /// Waits for a shutdown signal (Ctrl+C or SIGTERM on Unix).

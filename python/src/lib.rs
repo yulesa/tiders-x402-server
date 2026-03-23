@@ -19,8 +19,10 @@ use tokio::runtime::Runtime;
 use duckdb::arrow::datatypes::Schema;
 
 use tiders_x402::{PriceTag, TablePaymentOffers, GlobalPaymentConfig, AppState, FacilitatorClient};
-use x402_rs::chain::eip155::{ChecksummedAddress, Eip155TokenDeployment, TokenAmount};
-use x402_rs::networks::{KnownNetworkEip155, USDC};
+use tiders_x402::price::TokenAmount;
+use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
+use x402_chain_eip155::KnownNetworkEip155;
+use x402_types::networks::USDC;
 use duckdb::Connection;
 use alloy::primitives::U256;
 use arrow::pyarrow::{FromPyArrow, ToPyArrow};
@@ -402,7 +404,7 @@ impl PyAppState {
 #[pyclass(name="Server")]
 pub struct PyServer {
     runtime: Runtime,
-    state: Option<Arc<tiders_x402::query_handler::AppState>>,
+    state: Option<Arc<tiders_x402::AppState>>,
 }
 
 #[pymethods]
@@ -461,7 +463,7 @@ impl PyServer {
             let db = Connection::open(db_path)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
 
-            let state = Arc::new(tiders_x402::query_handler::AppState {
+            let state = Arc::new(tiders_x402::AppState {
                 db: Arc::new(Mutex::new(db)),
                 payment_config: Arc::new(global_payment_config),
             });

@@ -1,5 +1,6 @@
-use x402_rs::chain::eip155::{ChecksummedAddress, TokenAmount};
-use x402_rs::networks::{KnownNetworkEip155, USDC};
+use x402_chain_eip155::chain::ChecksummedAddress;
+use x402_chain_eip155::KnownNetworkEip155;
+use x402_types::networks::USDC;
 use std::str::FromStr;
 use std::sync::Arc;
 use duckdb::Connection;
@@ -8,7 +9,7 @@ use url::Url;
 
 use tiders_x402::facilitator_client::FacilitatorClient;
 use tiders_x402::payment_config::GlobalPaymentConfig;
-use tiders_x402::price::{PriceTag, TablePaymentOffers};
+use tiders_x402::price::{PriceTag, TablePaymentOffers, TokenAmount};
 use tiders_x402::{AppState, start_server};
 use tiders_x402::duckdb_reader::get_duckdb_table_schema;
 
@@ -26,11 +27,11 @@ async fn main() {
     // let base_url = Url::parse("http://localhost:4021").expect("Failed to parse base URL");
 
 
-    let db = Connection::open("data/uni_v2_swaps.db").expect("Failed to open DuckDB connection");
+    let db = Connection::open("data/duckdb.db").expect("Failed to open DuckDB connection");
 
     let mut global_payment_config = GlobalPaymentConfig::default(facilitator, base_url.clone());
 
-    // Create a default USDC price tag for swaps_df table
+    // Create a default USDC price tag for uniswap_v3_pool_swap table
     let usdc = USDC::base_sepolia();
 
     let swap_price_tag = PriceTag{
@@ -46,9 +47,9 @@ async fn main() {
 
 
     // Create table payment offer
-    let swaps_schema = get_duckdb_table_schema(&db, "swaps_df").unwrap();
+    let swaps_schema = get_duckdb_table_schema(&db, "uniswap_v3_pool_swap").unwrap();
     let swaps_offer = TablePaymentOffers::new(
-        "swaps_df".to_string(),
+        "uniswap_v3_pool_swap".to_string(),
         vec![swap_price_tag],
         Some(swaps_schema),
     ).with_description("Uniswap v2 swaps".to_string());

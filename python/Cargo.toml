@@ -6,7 +6,8 @@ edition = "2024"
 [dependencies]
 pyo3 = { workspace = true, features = ["anyhow"] }
 tiders-x402 = { path = "../server", features = ["pyo3"] }
-x402-rs = { workspace = true }
+x402-types = { workspace = true }
+x402-chain-eip155 = { workspace = true }
 url = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

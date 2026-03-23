@@ -1,7 +1,7 @@
-//! A [`x402_rs::facilitator::Facilitator`] implementation that interacts with a _remote_ x402 Facilitator over HTTP.
+//! A [`x402_types::facilitator::Facilitator`] implementation that interacts with a _remote_ x402 Facilitator over HTTP.
 //!
 //! This [`FacilitatorClient`] handles the `/verify` and `/settle` endpoints of a remote facilitator,
-//! and implements the [`x402_rs::facilitator::Facilitator`] trait for compatibility
+//! and implements the [`x402_types::facilitator::Facilitator`] trait for compatibility
 //! with x402-based middleware and logic.
 //!
 //! ## Example
@@ -33,8 +33,8 @@ use reqwest::Client;
 use std::fmt::Display;
 use std::time::Duration;
 use url::Url;
-use x402_rs::facilitator::Facilitator;
-use x402_rs::proto;
+use x402_types::facilitator::Facilitator;
+use x402_types::proto;
 use tracing::{Span, Instrument};
 
 /// A client for communicating with a remote x402 facilitator.

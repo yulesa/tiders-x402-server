@@ -6,9 +6,9 @@
     "test": "tsx testing.ts"
   },
   "dependencies": {
-    "apache-arrow": "^14.0.2",
-    "viem": "^2.7.9",
-    "x402-fetch": "^0.3.3"
+    "@x402/evm": "^2.8.0",
+    "@x402/fetch": "^2.8.0",
+    "apache-arrow": "^14.0.2"
   },
   "devDependencies": {
     "tsx": "^4.7.0",

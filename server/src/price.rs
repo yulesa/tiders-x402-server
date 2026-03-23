@@ -1,7 +1,11 @@
 use std::fmt::Debug;
 use arrow::datatypes::Schema;
-use x402_rs::chain::eip155::{ChecksummedAddress, Eip155TokenDeployment, TokenAmount};
+use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use alloy::primitives::U256;
+
+/// A newtype wrapper around `U256` representing a token amount.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TokenAmount(pub U256);
 
 /// A complete x402-compatible price tag, describing a required payment.
 ///

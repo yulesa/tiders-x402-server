@@ -3,7 +3,8 @@ import tiders_x402_server
 def main():
     
     # Create facilitator client
-    facilitator = tiders_x402_server.FacilitatorClient("https://x402.org/facilitator")
+    facilitator_url = "https://facilitator.x402.rs"
+    facilitator = tiders_x402_server.FacilitatorClient(facilitator_url)
 
     usdc = tiders_x402_server.USDCDeployment.by_network("base_sepolia")
     # Create price tags similar to the Rust example
@@ -55,9 +56,9 @@ def main():
         state,
     )
     
-    print("Starting server on https://x402.org/facilitator")
+    print("Starting server")
     print("Database: data/duckdb.db")
-    print("Facilitator: https://x402.org/facilitator")
+    print(f"Facilitator: {facilitator_url}")
     print("Table 'uniswap_v3_pool_swap' requires payment")
     
     # Start the server (this will block)
