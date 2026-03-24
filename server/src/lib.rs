@@ -27,8 +27,9 @@ pub mod root_handler;
 pub mod payment_processing;
 pub mod payment_config;
 pub mod database;
+pub mod database_duckdb;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use axum::routing::post;
 use axum::Router;
@@ -40,10 +41,10 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use url::Url;
 use tokio::signal;
-use duckdb::Connection;
 
 use crate::query_handler::query_handler;
 use crate::root_handler::root_handler;
+pub use database::Database;
 pub use price::{PriceTag, TablePaymentOffers};
 pub use payment_config::GlobalPaymentConfig;
 pub use facilitator_client::FacilitatorClient;
@@ -55,8 +56,8 @@ pub use facilitator_client::FacilitatorClient;
 /// handlers share the same underlying state.
 #[derive(Debug, Clone)]
 pub struct AppState {
-    /// DuckDB connection, serialized behind a `Mutex` (DuckDB is not `Send + Sync`).
-    pub db: Arc<Mutex<Connection>>,
+    /// Database backend (DuckDB, Postgres, ClickHouse, etc.) behind a trait object.
+    pub db: Arc<dyn Database>,
     /// Global payment configuration: offer's tables, pricing rules, and facilitator settings.
     pub payment_config: Arc<GlobalPaymentConfig>,
 }

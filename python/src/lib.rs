@@ -13,13 +13,13 @@
 use pyo3::prelude::*;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::sync::Mutex;
 use url::Url;
 use tokio::runtime::Runtime;
 use duckdb::arrow::datatypes::Schema;
 
 use tiders_x402::{PriceTag, TablePaymentOffers, GlobalPaymentConfig, AppState, FacilitatorClient};
 use tiders_x402::price::TokenAmount;
+use tiders_x402::database_duckdb::DuckDbDatabase;
 use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use x402_chain_eip155::KnownNetworkEip155;
 use x402_types::networks::USDC;
@@ -390,10 +390,10 @@ impl PyAppState {
     ///     AppState: A new AppState object.
     #[new]
     fn new(db_path: &str, payment_config: &PyGlobalPaymentConfig) -> PyResult<Self> {
-        let db = Connection::open(db_path)
+        let db = DuckDbDatabase::from_path(db_path)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         let state = AppState {
-            db: Arc::new(Mutex::new(db)),
+            db: Arc::new(db),
             payment_config: Arc::new(payment_config.inner.clone()),
         };
         Ok(Self { inner: state })
@@ -460,11 +460,11 @@ impl PyServer {
             }
 
             // Initialize DuckDB connection
-            let db = Connection::open(db_path)
+            let db = DuckDbDatabase::from_path(db_path)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
 
             let state = Arc::new(tiders_x402::AppState {
-                db: Arc::new(Mutex::new(db)),
+                db: Arc::new(db),
                 payment_config: Arc::new(global_payment_config),
             });
 

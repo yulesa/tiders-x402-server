@@ -19,17 +19,16 @@ use serde::Deserialize;
 use tracing::instrument;
 use crate::AppState;
 use crate::sqp_parser::{analyze_query, create_estimate_rows_query};
-use crate::duckdb_reader::create_duckdb_query;
 use crate::payment_processing::{
     settle_payment, verify_payment
 };
 use crate::payment_config::GlobalPaymentConfig;
-use crate::database::{execute_query, execute_row_count_query, serialize_batches_to_arrow_ipc};
+use crate::database::serialize_batches_to_arrow_ipc;
 
 /// JSON body for the `/query` endpoint.
 #[derive(Debug, Deserialize)]
 pub struct QueryRequest {
-    /// The SQL query to execute against the DuckDB database.
+    /// The SQL query to execute against the database.
     pub query: String,
 }
 
@@ -59,8 +58,8 @@ pub async fn query_handler(
     let analyzed_query = analyze_query(&query_req.query)
         .map_err(|e| QueryError::BadRequest(format!("Invalid query: {}", e)))?;
 
-    // Create the executable DuckDB SQL query
-    let duckdb_sql = create_duckdb_query(&analyzed_query)
+    // Create the executable SQL query for the configured database backend
+    let sql = state.db.create_sql_query(&analyzed_query)
         .map_err(|e| QueryError::Internal(format!("Failed to create executable query: {}", e)))?;
 
     // Extract table name and check if payment is required
@@ -72,7 +71,7 @@ pub async fn query_handler(
         }
         // No payment required, execute query and return data
         Some(false) => {
-            let buffer = run_query_to_ipc(&state, &duckdb_sql)?;
+            let buffer = run_query_to_ipc(&state, &sql).await?;
             return Ok(success_response(buffer));
         }
         // Payment required, continue to payment processing
@@ -83,7 +82,7 @@ pub async fn query_handler(
         None => {
             // Step 1: No payment header - return 402 with pricing info
             // Estimate row count
-            let estimated_rows = estimate_row_count(&state, &duckdb_sql)?;
+            let estimated_rows = estimate_row_count(&state, &sql).await?;
             Err(QueryError::payment(
                 &state.payment_config,
                 "No crypto payment found. Implement x402 protocol (https://www.x402.org/) to pay for this API request.".to_string(),
@@ -97,7 +96,7 @@ pub async fn query_handler(
         // Parse payment payload
         Some(payment_header) => {
             let payment_payload = decode_payment_payload(payment_header)?;
-            let batches = execute_db_query(&state, &duckdb_sql)?;
+            let batches = execute_db_query(&state, &sql).await?;
             let actual_rows = batches.iter().map(|b| b.num_rows()).sum::<usize>();
 
             process_payment(&state, &payment_payload, table_name, actual_rows, path, &batches).await
@@ -108,27 +107,23 @@ pub async fn query_handler(
 /// Convenience alias used by the internal helper functions.
 type QueryResult<T> = Result<T, QueryError>;
 
-/// Executes `duckdb_sql` and serializes the result batches into Arrow IPC bytes.
-fn run_query_to_ipc(state: &AppState, duckdb_sql: &str) -> QueryResult<Vec<u8>> {
-    let batches = execute_db_query(state, duckdb_sql)?;
+/// Executes `sql` and serializes the result batches into Arrow IPC bytes.
+async fn run_query_to_ipc(state: &AppState, sql: &str) -> QueryResult<Vec<u8>> {
+    let batches = execute_db_query(state, sql).await?;
     serialize_batches_to_arrow_ipc(&batches)
         .map_err(|e| QueryError::Internal(format!("Failed to serialize batches to Arrow IPC: {}", e)))
 }
 
-/// Wraps `duckdb_sql` in a `COUNT(*)` query and returns the estimated row count.
-fn estimate_row_count(state: &AppState, duckdb_sql: &str) -> QueryResult<usize> {
-    let estimated_rows_query = create_estimate_rows_query(duckdb_sql);
-    let db = state.db.lock()
-        .map_err(|e| QueryError::Internal(format!("Failed to lock database: {}", e)))?;
-    execute_row_count_query(&db, &estimated_rows_query)
+/// Wraps `sql` in a `COUNT(*)` query and returns the estimated row count.
+async fn estimate_row_count(state: &AppState, sql: &str) -> QueryResult<usize> {
+    let estimated_rows_query = create_estimate_rows_query(sql);
+    state.db.execute_row_count_query(&estimated_rows_query).await
         .map_err(|e| QueryError::Internal(format!("Failed to execute row count query: {}", e)))
 }
 
-/// Acquires the database lock and executes `duckdb_sql`, returning Arrow record batches.
-fn execute_db_query(state: &AppState, duckdb_sql: &str) -> QueryResult<Vec<RecordBatch>> {
-    let db = state.db.lock()
-        .map_err(|e| QueryError::Internal(format!("Failed to lock database: {}", e)))?;
-    execute_query(&db, duckdb_sql)
+/// Executes `sql` via the database backend, returning Arrow record batches.
+async fn execute_db_query(state: &AppState, sql: &str) -> QueryResult<Vec<RecordBatch>> {
+    state.db.execute_query(sql).await
         .map_err(|e| QueryError::Internal(format!("Failed to execute query: {}", e)))
 }
 
