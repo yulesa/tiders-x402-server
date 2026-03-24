@@ -27,7 +27,7 @@ async fn main() {
     // let base_url = Url::parse("http://localhost:4021").expect("Failed to parse base URL");
 
 
-    let db = Connection::open("data/duckdb.db").expect("Failed to open DuckDB connection");
+    let db = Connection::open("../data/duckdb.db").expect("Failed to open DuckDB connection");
 
     let mut global_payment_config = GlobalPaymentConfig::default(facilitator, base_url.clone());
 

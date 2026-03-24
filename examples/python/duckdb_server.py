@@ -32,7 +32,7 @@ def main():
         is_default=False
     )
     
-    swap_schema = tiders_x402_server.get_duckdb_table_schema_py("./data/duckdb.db", "uniswap_v3_pool_swap")
+    swap_schema = tiders_x402_server.get_duckdb_table_schema_py("../data/duckdb.db", "uniswap_v3_pool_swap")
 
     # Create table payment offers
     swaps_offer = tiders_x402_server.TablePaymentOffers("uniswap_v3_pool_swap", [price_tag_1], swap_schema)
@@ -48,7 +48,7 @@ def main():
     global_payment_config.add_offers_table(swaps_offer)
 
     state = tiders_x402_server.AppState(
-        db_path="./data/duckdb.db",
+        db_path="../data/duckdb.db",
         payment_config=global_payment_config,
     )
 

@@ -1,0 +1,17 @@
+[package]
+name = "tiders-x402-example"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+tiders-x402 = "0.1.0"
+x402-types = { version = "1.4.4", features = ["telemetry"] }
+x402-chain-eip155 = { version = "1.4.4", features = ["server"] }
+tokio = { version = "1.50.0", features = ["signal", "rt-multi-thread", "macros"] }
+url = "2.5.8"
+duckdb = { version = "1.10500.0", features = ["bundled"] }
+
+# Uncomment below and comment out the tiders-x402 line above for local development
+# [patch.crates-io]
+# tiders-x402 = { path = "../../server" }

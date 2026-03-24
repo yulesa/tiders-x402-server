@@ -4,11 +4,10 @@
 
 # Getting Started
 
-- [Installation TODO](./getting-started/installation.md)
+- [Installation](./getting-started/installation.md)
 - [Server Overview](./getting-started/server-overview.md)
 - [Payment Flow](./getting-started/payment-flow.md)
 - [Running the Server](./getting-started/running.md)
-- [Development Setup TODO](./getting-started/development_setup.md)
 
 # API Reference
 

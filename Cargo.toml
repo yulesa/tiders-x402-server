@@ -4,6 +4,7 @@ members = [
   "server",
   "python"
 ]
+exclude = ["examples/rust"]
 
 [workspace.dependencies]
 x402-types = { version = "1.4.4", features = ["telemetry"] }
