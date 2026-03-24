@@ -18,7 +18,7 @@ opentelemetry-otlp = { workspace = true }
 tower-http = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 url = { workspace = true }
-duckdb = { workspace = true, features = ["bundled"] }
+duckdb = { workspace = true, features = ["bundled"], optional = true }
 arrow = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 anyhow = { workspace = true }
@@ -32,4 +32,7 @@ faster-hex = { workspace = true }
 async-trait = { workspace = true }
 
 [features]
+duckdb = ["dep:duckdb"]
+postgresql = []
+clickhouse = []
 pyo3 = ["dep:pyo3"]

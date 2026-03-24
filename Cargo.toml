@@ -36,3 +36,6 @@ alloy = { version = "1.7.3" }
 pyo3 = { version = "0.26", features = ["anyhow"]}
 faster-hex = { version = "0.10.0" }
 async-trait = "0.1"
+tokio-postgres = "0.7"
+deadpool-postgres = "0.14"
+clickhouse = "0.13"

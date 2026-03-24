@@ -15,17 +15,21 @@ use std::str::FromStr;
 use std::sync::Arc;
 use url::Url;
 use tokio::runtime::Runtime;
+#[cfg(feature = "duckdb")]
 use duckdb::arrow::datatypes::Schema;
 
 use tiders_x402::{PriceTag, TablePaymentOffers, GlobalPaymentConfig, AppState, FacilitatorClient};
 use tiders_x402::price::TokenAmount;
+#[cfg(feature = "duckdb")]
 use tiders_x402::database_duckdb::DuckDbDatabase;
 use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use x402_chain_eip155::KnownNetworkEip155;
 use x402_types::networks::USDC;
+#[cfg(feature = "duckdb")]
 use duckdb::Connection;
 use alloy::primitives::U256;
 use arrow::pyarrow::{FromPyArrow, ToPyArrow};
+#[cfg(feature = "duckdb")]
 use tiders_x402::duckdb_reader::get_duckdb_table_schema;
 
 /// A Python module implemented in Rust.
@@ -34,12 +38,15 @@ fn tiders_x402_server(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PyPriceTag>()?;
     m.add_class::<PyTablePaymentOffers>()?;
     m.add_class::<PyGlobalPaymentConfig>()?;
-    m.add_class::<PyAppState>()?;
     m.add_class::<PyUSDCDeployment>()?;
     m.add_class::<PyFacilitatorClient>()?;
-    m.add_class::<PyServer>()?;
-    m.add_class::<PySchema>()?;
-    m.add_function(wrap_pyfunction!(get_duckdb_table_schema_py, m)?)?;
+    #[cfg(feature = "duckdb")]
+    {
+        m.add_class::<PyAppState>()?;
+        m.add_class::<PyServer>()?;
+        m.add_class::<PySchema>()?;
+        m.add_function(wrap_pyfunction!(get_duckdb_table_schema_py, m)?)?;
+    }
     Ok(())
 }
 
@@ -180,11 +187,13 @@ impl PyUSDCDeployment {
     }
 }
 
+#[cfg(feature = "duckdb")]
 #[pyclass(name="Schema")]
 pub struct PySchema {
     pub inner: Schema,
 }
 
+#[cfg(feature = "duckdb")]
 #[pymethods]
 impl PySchema {
     /// Create a new PySchema from a pyarrow.Schema.
@@ -223,6 +232,7 @@ impl PySchema {
 ///
 /// Returns:
 ///     PySchema: The schema of the table.
+#[cfg(feature = "duckdb")]
 #[pyfunction]
 fn get_duckdb_table_schema_py(db_path: &str, table_name: &str) -> PyResult<PySchema> {
     let db = Connection::open(db_path)
@@ -373,11 +383,13 @@ impl PyGlobalPaymentConfig {
 }
 
 /// Application state, object mutually shared between API handlers, including database and payment config.
+#[cfg(feature = "duckdb")]
 #[pyclass(name="AppState")]
 pub struct PyAppState {
     inner: AppState,
 }
 
+#[cfg(feature = "duckdb")]
 #[pymethods]
 impl PyAppState {
     /// Create a new AppState.
@@ -401,12 +413,14 @@ impl PyAppState {
 }
 
 /// Runs a payment-enabled DuckDB server.
+#[cfg(feature = "duckdb")]
 #[pyclass(name="Server")]
 pub struct PyServer {
     runtime: Runtime,
     state: Option<Arc<tiders_x402::AppState>>,
 }
 
+#[cfg(feature = "duckdb")]
 #[pymethods]
 impl PyServer {
     /// Create a new Server instance.

@@ -19,6 +19,7 @@
 //! - `GET /` — a root endpoint that returns server metadata and available data offers.
 
 pub mod sqp_parser;
+#[cfg(feature = "duckdb")]
 pub mod duckdb_reader;
 pub mod price;
 pub mod facilitator_client;
@@ -27,6 +28,7 @@ pub mod root_handler;
 pub mod payment_processing;
 pub mod payment_config;
 pub mod database;
+#[cfg(feature = "duckdb")]
 pub mod database_duckdb;
 
 use std::sync::Arc;
