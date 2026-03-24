@@ -356,8 +356,8 @@ impl PyGlobalPaymentConfig {
     ///
     /// Returns:
     ///     GlobalPaymentConfig: The updated GlobalPaymentConfig object with the new table payment offer.
-    fn add_table_offer(&mut self, offer: &PyTablePaymentOffers) {
-        self.inner.add_table_offer(offer.inner.clone());
+    fn add_offers_table(&mut self, offer: &PyTablePaymentOffers) {
+        self.inner.add_offers_table(offer.inner.clone());
     }
 
     /// Check if a table requires payment.
@@ -427,19 +427,19 @@ impl PyServer {
         })
     }
 
-    /// Set up the server with facilitator, base URL, DB path, and table offers.
+    /// Set up the server with facilitator, base URL, DB path, and offer's tables.
     ///
     /// Args:
     ///     facilitator_url (str): Facilitator service URL.
     ///     base_url (str): Base URL for the app.
     ///     db_path (str): Path to DuckDB database file.
-    ///     table_offers (List[TablePaymentOffers]): List of table payment offers.
+    ///     offers_tables (List[TablePaymentOffers]): List of table payment offers.
     fn setup_server(
         &mut self,
         facilitator_url: &str,
         base_url: &str,
         db_path: &str,
-        table_offers: Vec<PyTablePaymentOffers>,
+        offers_tables: Vec<PyTablePaymentOffers>,
     ) -> PyResult<()> {
         self.runtime.block_on(async {
             // Initialize facilitator client
@@ -454,9 +454,9 @@ impl PyServer {
 
             let mut global_payment_config = GlobalPaymentConfig::default(facilitator, base_url);
 
-            // Add table offers
-            for offer in table_offers {
-                global_payment_config.add_table_offer(offer.inner);
+            // Add offer's tables
+            for offer in offers_tables {
+                global_payment_config.add_offers_table(offer.inner);
             }
 
             // Initialize DuckDB connection

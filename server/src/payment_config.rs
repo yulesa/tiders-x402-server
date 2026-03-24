@@ -1,3 +1,10 @@
+//! Payment configuration and x402 V2 payment requirements generation.
+//!
+//! This module is the central place where pricing rules are defined. It
+//! determines how much each query costs based on the target table and row
+//! count, and generates the x402 V2 [`PaymentRequirements`] that clients
+//! need to fulfill before receiving data.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use url::Url;
@@ -8,26 +15,30 @@ use x402_types::proto::v2::{
 use crate::facilitator_client::FacilitatorClient;
 use crate::price::{PriceTag, TablePaymentOffers};
 
-/// Global configuration for the payment system
+/// Central payment configuration shared across all request handlers.
+///
+/// Holds the facilitator client, server identity, and per-table pricing
+/// rules. The query handler consults this to decide whether a table is
+/// free or paid, to build 402 responses, and to validate incoming payments.
 #[derive(Clone, Debug)]
 pub struct GlobalPaymentConfig {
-    /// The facilitator client for payment verification and settlement
+    /// Client for verifying and settling payments with the x402 facilitator.
     pub facilitator: Arc<FacilitatorClient>,
-    /// Base URL for constructing resource URLs
+    /// The server's public URL, used to build the `resource` field in payment requirements.
     pub base_url: Url,
-    /// MIME type for responses
+    /// Response format advertised to clients (defaults to `"application/vnd.apache.arrow.stream"`).
     pub mime_type: String,
-    /// Maximum timeout for payment settlement in seconds
+    /// How long a payment offer remains valid, in seconds (defaults to 300).
     pub max_timeout_seconds: u64,
-    /// Default description for payment requirements. This is used if no description is provided for a table.
+    /// Fallback description used when a table has no description of its own.
     pub default_description: String,
-    /// Table-specific payment offers
-    pub table_offers: HashMap<String, TablePaymentOffers>,
+    /// Per-table pricing and payment configuration, keyed by table name.
+    pub offers_tables: HashMap<String, TablePaymentOffers>,
 }
 
 #[allow(dead_code)]
 impl GlobalPaymentConfig {
-    /// Creates a default configuration with common values
+    /// Creates a configuration with sensible defaults (Arrow IPC mime type, 300s timeout).
     pub fn default(facilitator: Arc<FacilitatorClient>, base_url: Url) -> Self {
         Self {
             facilitator,
@@ -35,23 +46,24 @@ impl GlobalPaymentConfig {
             mime_type: "application/vnd.apache.arrow.stream".to_string(),
             max_timeout_seconds: 300,
             default_description: "Query execution payment".to_string(),
-            table_offers: HashMap::new(),
+            offers_tables: HashMap::new(),
         }
     }
 
-    /// Adds a table payment offer to the configuration
-    pub fn add_table_offer(&mut self, offer: TablePaymentOffers) {
-        self.table_offers.insert(offer.table_name.clone(), offer);
+    /// Registers a table and its pricing rules.
+    pub fn add_offers_table(&mut self, offer: TablePaymentOffers) {
+        self.offers_tables.insert(offer.table_name.clone(), offer);
     }
 
-    /// Gets a table payment offers by name
-    pub fn get_table_offer(&self, table_name: &str) -> Option<&TablePaymentOffers> {
-        self.table_offers.get(table_name)
+    /// Looks up the payment offers for a table, or `None` if the table is not configured.
+    pub fn get_offers_table(&self, table_name: &str) -> Option<&TablePaymentOffers> {
+        self.offers_tables.get(table_name)
     }
 
-    /// Checks if a table requires payment
+    /// Returns whether a table is free (`Some(false)`), paid (`Some(true)`),
+    /// or not configured at all (`None`).
     pub fn table_requires_payment(&self, table_name: &str) -> Option<bool> {
-        match self.table_offers.get(table_name) {
+        match self.offers_tables.get(table_name) {
             Some(offer) => Some(offer.requires_payment),
             None => None
         }
@@ -71,7 +83,10 @@ impl GlobalPaymentConfig {
         requirements.into_iter().find(|req| req == accepted)
     }
 
-    /// Creates a payment required response using the new configuration system
+    /// Assembles a full 402 response body with the error message, resource info,
+    /// and all applicable payment options for the given table and row count.
+    ///
+    /// Returns `None` if no price tags apply or the table is not configured.
     pub fn create_payment_required_response(
         &self,
         error: &str,
@@ -85,8 +100,8 @@ impl GlobalPaymentConfig {
         }
 
         let resource_url = self.base_url.join(path).ok()?;
-        let table_offer = self.get_table_offer(table_name)?;
-        let description = table_offer.description
+        let offers_table = self.get_offers_table(table_name)?;
+        let description = offers_table.description
             .as_ref()
             .unwrap_or(&self.default_description)
             .clone();
@@ -103,20 +118,23 @@ impl GlobalPaymentConfig {
         })
     }
 
-    /// Gets all available payment requirements for a table (for 402 responses)
+    /// Returns all payment requirements whose price tag range covers `estimated_items`.
+    ///
+    /// Each price tag with a matching `min_items`/`max_items` range produces one
+    /// [`PaymentRequirements`] entry with the calculated price.
     pub fn get_all_payment_requirements(
         &self,
         table_name: &str,
         estimated_items: usize,
     ) -> Vec<PaymentRequirements> {
         let mut requirements = Vec::new();
-        let table_offer = self.get_table_offer(table_name);
-        if table_offer.is_none() {
+        let offers_table = self.get_offers_table(table_name);
+        if offers_table.is_none() {
             return requirements;
         }
-        let table_offer = table_offer.unwrap();
+        let offers_table = offers_table.unwrap();
 
-        for offer in &table_offer.price_tags {
+        for offer in &offers_table.price_tags {
             if offer.is_in_range(estimated_items) {
                 if let Some(req) = self.create_payment_requirements_for_offer(
                     estimated_items,
@@ -130,7 +148,10 @@ impl GlobalPaymentConfig {
         requirements
     }
 
-    /// Creates payment requirements for a specific offer
+    /// Converts a single price tag into a [`PaymentRequirements`] for the given row count.
+    ///
+    /// Calculates the total price (applying `min_total_amount` if set) and fills in
+    /// the blockchain-specific fields (network, asset, pay_to, etc.).
     fn create_payment_requirements_for_offer(
         &self,
         item_count: usize,

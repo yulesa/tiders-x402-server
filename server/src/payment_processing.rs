@@ -1,19 +1,19 @@
-//! Payment processing module for facilitator interactions.
+//! Payment verification and settlement via the x402 facilitator.
 //!
-//! This module handles the low-level communication with the x402 facilitator
-//! for payment verification and settlement. The payment configuration and
-//! requirements creation are handled by the `payment_config` module.
+//! Translates between the server's V2 types and the facilitator's wire format.
+//! This module is stateless — pricing logic lives in [`crate::payment_config`],
+//! and HTTP transport lives in [`crate::facilitator_client`].
 
 use std::sync::Arc;
 use x402_types::proto;
 use x402_types::proto::v2;
 use crate::facilitator_client::FacilitatorClient;
 
-/// Helper function to verify payment with the facilitator.
+/// Verifies a payment with the facilitator.
 ///
-/// Builds a V2 verify request, converts it to the proto wire format,
-/// and sends it to the facilitator. Returns both the proto request
-/// (for reuse in settlement) and the typed V2 response.
+/// Builds a V2 verify request, converts it to the wire format, and sends it.
+/// Returns both the wire-format request (needed later for settlement) and the
+/// typed V2 response so the caller can inspect the result.
 pub async fn verify_payment(
     facilitator: &Arc<FacilitatorClient>,
     payment_payload: &v2::PaymentPayload<v2::PaymentRequirements, serde_json::Value>,
@@ -30,9 +30,11 @@ pub async fn verify_payment(
     Ok((proto_verify_request, v2_response))
 }
 
-/// Helper function to settle payment with the facilitator.
+/// Settles a verified payment with the facilitator.
 ///
-/// Reuses the proto verify request as the settle request (same wire format).
+/// Only proceeds if the verification was valid. Reuses the wire-format verify
+/// request as the settle request. Returns an error if the facilitator rejects
+/// the settlement or if the verification was invalid.
 pub async fn settle_payment(
     verify_response: v2::VerifyResponse,
     facilitator: &Arc<FacilitatorClient>,

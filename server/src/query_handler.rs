@@ -81,7 +81,7 @@ pub async fn query_handler(
 
     match headers.get("Payment-Signature") {
         None => {
-            // Phase 1: No payment header - return 402 with pricing info
+            // Step 1: No payment header - return 402 with pricing info
             // Estimate row count
             let estimated_rows = estimate_row_count(&state, &duckdb_sql)?;
             Err(QueryError::payment(
@@ -93,7 +93,7 @@ pub async fn query_handler(
             ))
         }
 
-        // Phase 2: Payment header present - verify payment and return data
+        // Step 2: Payment header present - verify payment and return data
         // Parse payment payload
         Some(payment_header) => {
             let payment_payload = decode_payment_payload(payment_header)?;
@@ -195,24 +195,23 @@ async fn process_payment(
     Ok(success_response(buffer))
 }
 
-/// Error type returned by the query handler, mapped to HTTP status codes
-/// via its [`IntoResponse`] implementation.
+/// All error outcomes from the query handler, each mapping to an HTTP status code.
 #[derive(Debug)]
 pub enum QueryError {
-    /// 400 — the client sent a malformed query or payment header.
+    /// The client sent an invalid query, unsupported table, or malformed payment header (400).
     BadRequest(String),
-    /// 500 — an unexpected server-side failure (database lock, serialization, facilitator).
+    /// An unexpected server-side failure — database, serialization, or facilitator error (500).
     Internal(String),
-    /// 402 — valid request but payment is required or the provided payment was rejected.
-    /// Contains the base64-encoded V2 `PaymentRequired` JSON for the `Payment-Required` header,
-    /// and the raw JSON bytes for the response body (needed by `x402-fetch`).
+    /// The query is valid but requires payment, or the provided payment was rejected (402).
+    /// Carries both the base64-encoded payment requirements (for the `Payment-Required` header)
+    /// and the raw JSON body (for `x402-fetch` clients).
     PaymentRequired { header_value: String, json_body: Vec<u8> },
 }
 
 impl QueryError {
-    /// Builds a [`QueryError::PaymentRequired`] with the payment options looked up
-    /// from `payment_config`, or falls back to [`QueryError::Internal`] if no
-    /// matching payment configuration exists.
+    /// Builds a 402 error with payment options for the given table and row count.
+    ///
+    /// Falls back to [`QueryError::Internal`] if no matching payment configuration exists.
     fn payment(payment_config: &GlobalPaymentConfig, message: String, table_name: &str, row_count: usize, path: &str) -> Self {
         match payment_config.create_payment_required_response(&message, table_name, row_count, path) {
             Some(payment_response) => {

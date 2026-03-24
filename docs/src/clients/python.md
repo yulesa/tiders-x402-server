@@ -74,7 +74,7 @@ Central payment configuration.
 
 ```python
 config = tiders_x402_server.GlobalPaymentConfig(facilitator, base_url="http://0.0.0.0:4021")
-config.add_table_offer(offer)
+config.add_offers_table(offer)
 ```
 
 ### `AppState`
@@ -137,7 +137,7 @@ offer = tiders_x402_server.TablePaymentOffers("swaps", [price_tag_default], sche
 offer.with_payment_offer(price_tag_bulk)
 
 config = tiders_x402_server.GlobalPaymentConfig(facilitator, base_url="http://0.0.0.0:4021")
-config.add_table_offer(offer)
+config.add_offers_table(offer)
 
 state = tiders_x402_server.AppState(db_path="./data/db.db", payment_config=config)
 server = tiders_x402_server.Server(state)

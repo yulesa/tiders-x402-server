@@ -1,4 +1,4 @@
-# Configuration
+# Configuration Reference
 
 The server is configured programmatically -- there are no config files. You set up payment rules, database connections, and server parameters in code.
 
@@ -17,7 +17,7 @@ let config = GlobalPaymentConfig::default(facilitator, base_url);
 | `mime_type` | `String` | Response MIME type (default: `application/vnd.apache.arrow.stream`) |
 | `max_timeout_seconds` | `u64` | Maximum payment timeout (default: 300) |
 | `default_description` | `String` | Fallback description for payment requirements |
-| `table_offers` | `HashMap<String, TablePaymentOffers>` | Per-table payment configuration |
+| `offers_tables` | `HashMap<String, TablePaymentOffers>` | Per-table payment configuration |
 
 ## PriceTag
 
@@ -58,7 +58,7 @@ let offer = TablePaymentOffers::new(
     Some(schema),
 ).with_description("My dataset description".to_string());
 
-config.add_table_offer(offer);
+config.add_offers_table(offer);
 ```
 
 ### Free Tables
@@ -70,7 +70,7 @@ let free_offer = TablePaymentOffers::new_free_table(
     "public_table".to_string(),
     Some(schema),
 );
-config.add_table_offer(free_offer);
+config.add_offers_table(free_offer);
 ```
 
 ## Tiered Pricing Example

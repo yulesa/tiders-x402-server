@@ -1,10 +1,10 @@
 # Payment Configuration
 
-The payment configuration module (`server/src/payment_config.rs`) manages pricing rules and generates x402-compatible payment requirements.
+The payment configuration module (`server/src/payment_config.rs`) is the central place where pricing rules are defined and x402 V2 payment requirements are generated. It determines how much each query costs and what payment options the server offers to clients.
 
 ## GlobalPaymentConfig
 
-The central configuration object:
+`GlobalPaymentConfig` holds everything the server needs to price queries and communicate payment options:
 
 ```rust
 pub struct GlobalPaymentConfig {
@@ -13,61 +13,53 @@ pub struct GlobalPaymentConfig {
     pub mime_type: String,               // default: "application/vnd.apache.arrow.stream"
     pub max_timeout_seconds: u64,        // default: 300
     pub default_description: String,     // default: "Query execution payment"
-    pub table_offers: HashMap<String, TablePaymentOffers>,
+    pub offers_tables: HashMap<String, TablePaymentOffers>,
 }
 ```
 
-### Key Methods
+- **`facilitator`** — The client used to verify and settle payments with the x402 facilitator.
+- **`base_url`** — The server's public URL, used to build the `resource` field in payment requirements.
+- **`mime_type`** — The response format advertised to clients (defaults to `"application/vnd.apache.arrow.stream"`).
+- **`max_timeout_seconds`** — How long a payment remains valid before expiring (defaults to 300 seconds).
+- **`default_description`** — Fallback description when a table doesn't have its own (defaults to `"Query execution payment"`).
+- **`offers_tables`** — A map of table names to their payment offers (pricing tiers, schemas, descriptions).
 
-**`table_requires_payment(table_name) -> Option<bool>`**
+## What It Does
 
-Returns `Some(true)` if the table exists and has payment requirements, `Some(false)` if it exists but is free, or `None` if the table is not configured.
+The module answers four questions for the query handler:
 
-**`get_all_payment_requirements(table_name, estimated_items, path) -> Vec<PaymentRequirements>`**
+1. **Does this table require payment?** — `table_requires_payment` returns whether a table is free, paid, or unknown.
 
-Generates all applicable payment requirements for a table given the estimated row count. Iterates through all price tags and includes those whose `min_items`/`max_items` range covers the estimated count.
+2. **What are the payment options for this query?** — `get_all_payment_requirements` takes a table name and estimated row count, then returns all applicable payment requirements. Each price tag is checked against its `min_items`/`max_items` range to determine if it applies.
 
-**`find_matching_payment_requirements(table_name, item_count, path, payment_payload) -> Vec<PaymentRequirements>`**
+3. **Does the client's payment match what we expect?** — `find_matching_payment_requirements` compares the `PaymentRequirements` the client echoed back (in `PaymentPayload.accepted`) against the server-generated requirements using direct equality.
 
-Filters payment requirements to find those matching a specific payment payload. Matches on:
-- `scheme` == `payment_payload.scheme`
-- `network` == `payment_payload.network`
-- `pay_to` == `authorization.to` from the payload
-- `max_amount_required` == `authorization.value` from the payload
-
-**`create_payment_required_response(error, table_name, estimated_items, path) -> Option<PaymentRequired>`**
-
-Constructs the full 402 response body with error message and all applicable payment options.
+4. **What should the 402 response look like?** — `create_payment_required_response` assembles the full `PaymentRequired` response body including the error message, resource info, and all applicable payment options.
 
 ## Price Calculation
 
-For each `PriceTag`, the total price is:
+For each price tag, the total price is based on the number of rows:
 
 ```
 total = amount_per_item * item_count
 ```
 
-If `min_total_amount` is set, the actual charge is:
+If `min_total_amount` is set, the server enforces a minimum charge:
 
 ```
 charge = max(total, min_total_amount)
 ```
 
-## PaymentRequirements Generation
+## Payment Requirements
 
-Each `PriceTag` generates a `PaymentRequirements` struct:
+Each applicable price tag produces a x402 `PaymentRequirements` entry sent to the client in the 402 response. The key fields are:
 
-```rust
-PaymentRequirements {
-    scheme: "exact",
-    network: "<chain name>",           // e.g., "base-sepolia"
-    max_amount_required: "<total>",    // in token's smallest unit
-    resource: "<base_url>/<path>",
-    description: "<table desc> - <N> rows",
-    mime_type: "application/vnd.apache.arrow.stream",
-    pay_to: "<recipient address>",
-    max_timeout_seconds: 300,
-    asset: "<token contract address>",
-    extra: { "name": "USDC", "version": "2" },
-}
-```
+| Field | Description |
+|-------|-------------|
+| `scheme` | Payment scheme style. Always `"exact"` — the client must pay the exact amount |
+| `network` | The blockchain network (e.g., `"base-sepolia"`) |
+| `amount` | Total price in the token's smallest unit |
+| `pay_to` | The recipient wallet address |
+| `max_timeout_seconds` | How long the payment offer is valid |
+| `asset` | The token contract address |
+| `extra` | Token metadata (e.g., name, version) |

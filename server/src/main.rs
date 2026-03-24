@@ -67,7 +67,7 @@ async fn main() {
     };
 
     let swaps_offer = swaps_offer.with_payment_offer(swap_price_tag_2);
-    global_payment_config.add_table_offer(swaps_offer);
+    global_payment_config.add_offers_table(swaps_offer);
 
     let state = Arc::new(AppState {
         db: Arc::new(Mutex::new(db)),

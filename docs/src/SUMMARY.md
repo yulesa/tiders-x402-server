@@ -2,30 +2,33 @@
 
 [Introduction](./introduction.md)
 
-# User Guide
+# Getting Started
 
-- [Getting Started](./getting-started.md)
-  - [Configuration](./getting-started/configuration.md)
-  - [Running the Server](./getting-started/running.md)
-
-# Architecture
-
-- [Overview](./architecture/overview.md)
-- [Payment Flow](./architecture/payment-flow.md)
-
-# Server Components
-
-- [Query Handler](./server/query-handler.md)
-- [SQL Parser](./server/sql-parser.md)
-- [DuckDB Reader](./server/duckdb-reader.md)
-- [Payment Configuration](./server/payment-config.md)
-- [Facilitator Client](./server/facilitator-client.md)
+- [Installation TODO](./getting-started/installation.md)
+- [Server Overview](./getting-started/server-overview.md)
+- [Payment Flow](./getting-started/payment-flow.md)
+- [Running the Server](./getting-started/running.md)
+- [Development Setup TODO](./getting-started/development_setup.md)
 
 # API Reference
 
 - [Endpoints](./api/endpoints.md)
 - [Payment Protocol](./api/payment-protocol.md)
 - [Response Formats](./api/response-formats.md)
+
+# Server Components
+
+- [Configuration Reference TODO](./server/configuration.md)
+- [Server Library](./server/lib.md)
+- [Root Handler](./server/root-handler.md)
+- [Query Handler](./server/query-handler.md)
+- [SQL Parser](./server/sql-parser.md)
+- [Database](./server/database.md)
+- [DuckDB Reader](./server/duckdb-reader.md)
+- [Price](./server/price.md)
+- [Payment Configuration](./server/payment-config.md)
+- [Payment Processing](./server/payment-processing.md)
+- [Facilitator Client](./server/facilitator-client.md)
 
 # Client Libraries
 

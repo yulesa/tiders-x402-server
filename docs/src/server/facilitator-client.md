@@ -1,14 +1,14 @@
 # Facilitator Client
 
-The facilitator client (`server/src/facilitator_client.rs`) communicates with a remote x402 facilitator service to verify and settle payments.
+The facilitator client (`server/src/facilitator_client.rs`) is responsible for communicating with a remote x402 facilitator service. It handles the HTTP details so the rest of the server can verify and settle payments through simple function calls.
 
 ## What is a Facilitator?
 
-An x402 facilitator is a third-party service that handles the blockchain-side payment operations:
+An x402 facilitator is a third-party service that handles the blockchain side of payments. The server never interacts with the blockchain directly — instead, it delegates to the facilitator for three operations:
 
-- **Verify** -- Confirms that a payment payload is valid and the transaction is properly signed and funded.
-- **Settle** -- Executes the on-chain payment transfer.
-- **Supported** -- Reports which payment schemes and networks are supported.
+- **Verify** — confirms that a payment payload is valid, properly signed, and funded.
+- **Settle** — executes the on-chain payment transfer.
+- **Supported** — reports which payment schemes and networks the facilitator can handle.
 
 The default public facilitator is at `https://facilitator.x402.rs`.
 
@@ -26,57 +26,42 @@ pub struct FacilitatorClient {
 }
 ```
 
+`FacilitatorClient` wraps an HTTP client pointed at a facilitator's base URL. On construction, it derives the `/verify`, `/settle`, and `/supported` endpoint URLs automatically.
+
+The client can be safely reused across concurrent requests.
+
 ### Construction
 
-From a URL string:
+The client can be created from a URL string or a parsed `Url`:
 
 ```rust
 let facilitator = FacilitatorClient::try_from("https://facilitator.x402.rs")
     .expect("Failed to create facilitator client");
 ```
 
-Or from a `Url`:
-
-```rust
-let facilitator = FacilitatorClient::try_new(url)?;
-```
-
 ### Configuration
 
-```rust
-// Add custom headers
-let client = facilitator.with_headers(headers);
+The client supports optional customization:
 
-// Set request timeout
-let client = facilitator.with_timeout(Duration::from_secs(30));
-```
+- **Custom headers** — attach headers to every outgoing request (e.g., authentication tokens) via `with_headers`.
+- **Timeout** — set a per-request timeout via `with_timeout`.
 
 ### Facilitator Trait
 
-The client implements the `x402_rs::facilitator::Facilitator` trait:
+The client implements the `x402_types::facilitator::Facilitator` trait, which defines the `verify`, `settle`, and `supported` methods. This allows it to be used interchangeably with other facilitator implementations (e.g., a local one for testing).
 
-```rust
-impl Facilitator for FacilitatorClient {
-    async fn verify(&self, request: &VerifyRequest) -> Result<VerifyResponse, Error>;
-    async fn settle(&self, request: &SettleRequest) -> Result<SettleResponse, Error>;
-    async fn supported(&self) -> Result<SupportedResponse, Error>;
-}
-```
+## Error Handling
 
-### Error Types
+Errors are captured with context about where the failure occurred:
 
-```rust
-pub enum FacilitatorClientError {
-    UrlParse { context, source },           // Invalid URL
-    Http { context, source },               // Network/transport error
-    JsonDeserialization { context, source }, // Response parsing failed
-    HttpStatus { context, status, body },   // Non-200 response
-    ResponseBodyRead { context, source },   // Could not read body
-}
-```
+| Error | Meaning |
+|-------|---------|
+| `UrlParse` | The facilitator URL or an endpoint path could not be parsed |
+| `Http` | A network or transport error occurred (connection refused, DNS failure, timeout) |
+| `JsonDeserialization` | The facilitator returned a response that could not be parsed as JSON |
+| `HttpStatus` | The facilitator returned a non-200 status code |
+| `ResponseBodyRead` | The response body could not be read as text |
 
-### Telemetry
+## Telemetry
 
-All facilitator requests are instrumented with OpenTelemetry tracing spans. Each request records:
-- `otel.status_code` -- "OK" or "ERROR"
-- `error.message` -- Error details on failure
+All facilitator requests are wrapped in OpenTelemetry tracing spans. Each span records the outcome (`otel.status_code` as `"OK"` or `"ERROR"`) and, on failure, the error details. This makes facilitator latency and errors visible in the server's observability pipeline.

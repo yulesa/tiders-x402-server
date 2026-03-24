@@ -1,32 +1,22 @@
-//! A [`x402_types::facilitator::Facilitator`] implementation that interacts with a _remote_ x402 Facilitator over HTTP.
+//! HTTP client for communicating with a remote x402 facilitator.
 //!
-//! This [`FacilitatorClient`] handles the `/verify` and `/settle` endpoints of a remote facilitator,
-//! and implements the [`x402_types::facilitator::Facilitator`] trait for compatibility
-//! with x402-based middleware and logic.
+//! The server never interacts with the blockchain directly. Instead, it
+//! delegates payment verification and settlement to an external facilitator
+//! service via this client.
+//!
+//! [`FacilitatorClient`] implements the [`x402_types::facilitator::Facilitator`]
+//! trait, so it can be swapped with other implementations (e.g., a mock for testing).
+//!
+//! The client is cheap to clone and internally shares a connection pool,
+//! making it safe to reuse across concurrent requests.
 //!
 //! ## Example
 //!
 //! ```rust
-//! use x402_axum::facilitator_client::FacilitatorClient;
+//! use server::facilitator_client::FacilitatorClient;
 //!
-//! let facilitator = FacilitatorClient::try_from("https://facilitator.ukstv.me/").unwrap();
+//! let facilitator = FacilitatorClient::try_from("https://facilitator.x402.rs/").unwrap();
 //! ```
-//! This client is cheap to clone and internally shares a connection pool via `reqwest::Client`,
-//! making it safe and efficient to reuse across multiple Axum routes or concurrent tasks.
-//!
-//! ## Features
-//!
-//! - Uses `reqwest` for async HTTP requests
-//! - Supports optional timeout and headers
-//! - Integrates with `tracing` if the `telemetry` feature is enabled
-//!
-//! ## Error Handling
-//!
-//! Custom error types capture detailed failure contexts, including
-//! - URL construction
-//! - HTTP transport failures
-//! - JSON deserialization errors
-//! - Unexpected HTTP status responses
 
 use http::{HeaderMap, StatusCode};
 use reqwest::Client;
@@ -37,9 +27,10 @@ use x402_types::facilitator::Facilitator;
 use x402_types::proto;
 use tracing::{Span, Instrument};
 
-/// A client for communicating with a remote x402 facilitator.
+/// HTTP client for communicating with a remote x402 facilitator.
 ///
-/// Handles `/verify`, `/settle`, and `/supported` endpoints via JSON HTTP POST/GET.
+/// Wraps a base URL and derives `/verify`, `/settle`, and `/supported`
+/// endpoints automatically. Supports optional custom headers and timeouts.
 #[derive(Clone, Debug)]
 pub struct FacilitatorClient {
     /// Base URL of the facilitator (e.g. `https://facilitator.example/`)
@@ -98,7 +89,8 @@ impl Facilitator for FacilitatorClient {
     }
 }
 
-/// Errors that can occur while interacting with a remote facilitator.
+/// Errors from facilitator communication, each carrying context about which
+/// operation failed and the underlying cause.
 #[derive(Debug, thiserror::Error)]
 pub enum FacilitatorClientError {
     #[error("URL parse error: {context}: {source}")]
@@ -274,8 +266,8 @@ impl FacilitatorClient {
         result
     }
 
-    /// Generic POST helper that handles JSON serialization, error mapping,
-    /// timeout application, and telemetry integration.
+        /// Shared POST helper: serializes the payload as JSON, applies headers/timeout,
+    /// sends the request, and records the outcome on the current tracing span.
     async fn post_json<T, R>(
         &self,
         url: &Url,
@@ -322,7 +314,7 @@ impl FacilitatorClient {
     }
 }
 
-/// Converts a string URL into a `FacilitatorClient`, parsing the URL and calling `try_new`.
+/// Constructs a [`FacilitatorClient`] from a URL string, normalizing trailing slashes.
 impl TryFrom<&str> for FacilitatorClient {
     type Error = FacilitatorClientError;
 
@@ -338,7 +330,8 @@ impl TryFrom<&str> for FacilitatorClient {
     }
 }
 
-/// Records the outcome of a request on a tracing span, including status and errors.
+/// Records the outcome of a facilitator request on the current tracing span
+/// (`otel.status_code` and, on failure, `error.message`).
 fn record_result_on_span<R, E: Display>(result: &Result<R, E>) {
     let span = Span::current();
     match result {

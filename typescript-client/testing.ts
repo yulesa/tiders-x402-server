@@ -39,12 +39,11 @@ async function main() {
     });
 
     if (!response.ok) {
-      if (response.status !== 200) {
-        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-        const responseText = await response.text();
-        console.log('Response body:', responseText);
-        console.log(response);
-      }
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      const responseText = await response.text();
+      console.log('Response body:', responseText);
+      return;
     }
 
     // Get the response as ArrayBuffer

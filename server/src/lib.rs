@@ -48,9 +48,16 @@ pub use price::{PriceTag, TablePaymentOffers};
 pub use payment_config::GlobalPaymentConfig;
 pub use facilitator_client::FacilitatorClient;
 
+/// Shared application state accessible by every request handler.
+///
+/// Holds the database connection and the global payment configuration.
+/// Axum clones the wrapping `Arc` for each incoming request, so all
+/// handlers share the same underlying state.
 #[derive(Debug, Clone)]
 pub struct AppState {
+    /// DuckDB connection, serialized behind a `Mutex` (DuckDB is not `Send + Sync`).
     pub db: Arc<Mutex<Connection>>,
+    /// Global payment configuration: offer's tables, pricing rules, and facilitator settings.
     pub payment_config: Arc<GlobalPaymentConfig>,
 }
 

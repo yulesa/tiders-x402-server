@@ -45,7 +45,7 @@ def main():
         base_url=base_url,
     )
 
-    global_payment_config.add_table_offer(swaps_offer)
+    global_payment_config.add_offers_table(swaps_offer)
 
     state = tiders_x402_server.AppState(
         db_path="./data/duckdb.db",

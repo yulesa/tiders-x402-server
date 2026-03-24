@@ -1,57 +1,75 @@
 # Query Handler
 
-The query handler (`server/src/query_handler.rs`) is the main entry point for all HTTP requests. It implements two endpoints:
+The query handler (`server/src/query_handler.rs`) is the Axum handler for the `POST /query` API endpoint. It is the core of the server logic: it receives SQL queries from clients, validates them, checks whether payment is required, and orchestrates the x402 V2 payment flow when needed.
 
-## Root Handler -- `GET /`
-
-Returns a plain text response with:
-- Usage instructions
-- List of available tables with their schemas
-- SQL parser rules and restrictions
-
-## Query Handler -- `POST /query`
-
-Accepts a JSON body:
+The handler accepts a JSON body:
 
 ```json
 { "query": "SELECT * FROM my_table LIMIT 10" }
 ```
 
-### Processing Steps
+For paid tables, a successful request typically involves two steps. First, the client submits a query without payment to discover the price. The server responds with a 402 containing the payment conditions — most importantly, the cost. Then the client resubmits the same query with a `Payment-Signature` header attached.
 
-1. **Parse and validate** the SQL using `sqp_parser::analyze_query`.
-2. **Convert** the analyzed query to DuckDB SQL via `duckdb_reader::create_duckdb_query`.
-3. **Check table existence** -- returns 400 if the table is not in the configuration.
-4. **Check payment requirement** -- if the table is free, execute immediately and return Arrow IPC.
-5. **Phase 1** (no `X-Payment` header):
-   - Estimate row count with a `COUNT(*)` wrapper query.
-   - Return 402 with payment options.
-6. **Phase 2** (with `X-Payment` header):
-   - Decode and parse the payment payload.
-   - Execute the query to get actual results.
-   - Find matching payment requirements.
-   - Verify payment with the facilitator.
-   - Settle payment with the facilitator.
-   - Return Arrow IPC data.
+## Processing Flow
 
-### QueryResponse
+Every request goes through the same initial validation:
 
-Responses use a `QueryResponse` struct with these variants:
+1. **Parse and validate** the SQL query using `sqp_parser::analyze_query`.
+2. **Convert** the parsed query into executable DuckDB SQL via `duckdb_reader::create_duckdb_query`.
+3. **Check table existence** — return status 400 if the table is not in the configuration.
+4. **Check payment requirement** — if the table is free, execute immediately and return the data (Arrow IPC format).
 
-| Method | Status | Content-Type | Body |
-|--------|--------|-------------|------|
-| `success` | 200 | `application/vnd.apache.arrow.stream` | Arrow IPC binary |
-| `payment_required` | 402 | `application/json` | Payment requirements JSON |
-| `bad_request` | 400 | `text/plain` | Error message |
-| `internal_error` | 500 | `text/plain` | Error message |
+For paid tables, the flow branches depending on whether the client included a payment:
 
-### AppState
+5. **Estimation** (no `Payment-Signature` header):
+   - Estimate the row count using a `COUNT(*)` wrapper query.
+   - Return status 402 with x402 V2 payment requirements in both the `Payment-Required` header (base64-encoded) and the JSON response body.
 
-```rust
-pub struct AppState {
-    pub db: Arc<Mutex<Connection>>,
-    pub payment_config: Arc<GlobalPaymentConfig>,
-}
-```
+6. **Execution and Settlement** (with `Payment-Signature` header):
+   - Decode and deserialize the payment header into a V2 `PaymentPayload`.
+   - Execute the query to get the actual results and computes the actual number of rows (to verify the cost).
+   - Match the payload against the generated payment requirements.
+   - Verify the payment with the facilitator.
+   - If verification fails, return 402 with updated payment options.
+   - Settle the payment with the facilitator.
+   - Return the query results as Arrow IPC data.
 
-The DuckDB connection is behind a `Mutex` because DuckDB connections are not `Send` + `Sync` by default. This means queries are serialized, but DuckDB is fast enough for typical workloads.
+## Responses
+
+The query handler can return four types of responses, each signaling a different outcome to the client:
+
+| Outcome | Status | Content-Type | Description |
+|---------|--------|-------------|-------------|
+| Success | 200 | `application/vnd.apache.arrow.stream` | The query executed successfully. The body contains the result data in Arrow IPC format. |
+| Bad Request | 400 | `text/plain` | The client sent something invalid — a malformed query, an unsupported table, or a bad payment header. The body explains what went wrong. |
+| Payment Required | 402 | `application/json` | The query is valid but requires payment. The body contains the x402 V2 payment requirements (price, accepted networks, etc.). The same information is also available base64-encoded in the `Payment-Required` header. |
+| Internal Error | 500 | `text/plain` | Something unexpected failed on the server side (database error, serialization failure, facilitator unreachable). |
+
+## Helper Functions
+
+The handler delegates to several private helpers to keep the main function readable:
+
+- **`run_query_to_ipc`** — executes a query and serializes the results to Arrow IPC bytes.
+- **`estimate_row_count`** — wraps a query in `COUNT(*)` to estimate the number of rows.
+- **`execute_db_query`** — acquires the database lock and runs a query, returning Arrow record batches.
+- **`decode_payment_payload`** — base64-decodes and deserializes the `Payment-Signature` header into a V2 `PaymentPayload`.
+- **`process_payment`** — orchestrates the verify/settle cycle and returns the Arrow IPC response on success.
+
+## Server Overload Vector
+
+In the current Execution and Settlement step, the server runs the full query before verifying the payment. So an attacker can repeatedly submit expensive queries with bogus Payment-Signature headers and the server will execute every one of them. 
+
+The attack surface has two layers:
+
+1. Estimation abuse (Step 5) — `COUNT(*)` queries are cheap but still hit the database. High volume could saturate the mutex.
+2. Execution abuse (Step 6) — full queries run before payment is verified. Needs more computation, can be arbitrarily expensive.
+
+**Possible mitigations**:
+
+Verify before executing — move payment verification before execute_db_query. Use an  estimated row count (like in Step 5, recomputed cheaply) instead of actual rows for matching. This eliminates the expensive work for invalid payments. The tradeoff: the actual row count might differ from the estimate. (Minor improvement)
+
+Proof-of-intent deposit — require a payment signature at the estimation step, not just at execution. A successful request would then involve two payments signatures: one for the estimate, one for the data. The server would need additional logic to decide when to charge the estimation fee (e.g., always, or only after repeated requests). This shifts the cost of abuse to the attacker but adds protocol complexity.
+
+Query cost cap — reject queries above a certain estimated cost (row count, complexity). This bounds the damage per request.
+
+Rate limiting — add a middleware layer (by IP, by wallet address from the payment header, etc.) to cap requests per time window. Cheap to implement, but doesn't prevent slow, sustained abuse.

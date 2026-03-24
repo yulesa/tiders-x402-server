@@ -1,9 +1,22 @@
+//! Axum handler for the `GET /` (root) endpoint.
+//!
+//! Returns a plain-text overview of the server: usage instructions,
+//! available tables with their schemas, and SQL parser rules. Designed
+//! for both human users and AI agents to discover what data is available
+//! before making paid queries.
+
 use axum::extract::State;
 use axum::response::IntoResponse;
 use std::sync::Arc;
 use std::fmt::Write as _;
 use crate::AppState;
 
+/// Handles `GET /` — returns a plain-text summary of the server's capabilities.
+///
+/// The response includes:
+/// - How to submit queries via `POST /query`.
+/// - A list of supported tables with their schemas, descriptions, and payment status.
+/// - The SQL restrictions enforced by the parser.
 #[axum::debug_handler]
 #[allow(dead_code)]
 pub async fn root_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
@@ -14,7 +27,7 @@ pub async fn root_handler(State(state): State<Arc<AppState>>) -> impl IntoRespon
     writeln!(response, "- You must implement the x402 payment protocol to access paid tables.").unwrap();
     writeln!(response, "- See x402 protocol docs: https://x402.gitbook.io/x402\n").unwrap();
     writeln!(response, "Supported tables:").unwrap();
-    for (table, offer) in &state.payment_config.table_offers {
+    for (table, offer) in &state.payment_config.offers_tables {
         writeln!(response, "- Table: {}", table).unwrap();
         if let Some(schema) = &offer.schema {
             writeln!(response, "  Schema:").unwrap();
