@@ -19,8 +19,9 @@
 //! - `GET /` — a root endpoint that returns server metadata and available data offers.
 
 pub mod sqp_parser;
+pub mod sql_shared;
 #[cfg(feature = "duckdb")]
-pub mod duckdb_reader;
+pub mod sql_duckdb;
 pub mod price;
 pub mod facilitator_client;
 pub mod query_handler;

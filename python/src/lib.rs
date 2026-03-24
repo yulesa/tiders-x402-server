@@ -30,7 +30,7 @@ use duckdb::Connection;
 use alloy::primitives::U256;
 use arrow::pyarrow::{FromPyArrow, ToPyArrow};
 #[cfg(feature = "duckdb")]
-use tiders_x402::duckdb_reader::get_duckdb_table_schema;
+use tiders_x402::sql_duckdb::get_duckdb_table_schema;
 
 /// A Python module implemented in Rust.
 #[pymodule]

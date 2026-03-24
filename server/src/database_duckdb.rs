@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use duckdb::Connection;
 
 use crate::database::Database;
-use crate::duckdb_reader::{create_duckdb_query, get_duckdb_table_schema};
+use crate::sql_duckdb::{create_duckdb_query, get_duckdb_table_schema};
 use crate::sqp_parser::AnalyzedQuery;
 
 /// DuckDB database backend.
