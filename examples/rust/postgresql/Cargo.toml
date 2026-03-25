@@ -1,0 +1,19 @@
+[package]
+name = "tiders-x402-postgresql-example"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+tiders-x402 = { version = "0.1.0", features = ["postgresql"] }
+x402-types = { version = "1.4.4", features = ["telemetry"] }
+x402-chain-eip155 = { version = "1.4.4", features = ["server"] }
+tokio = { version = "1.50.0", features = ["signal", "rt-multi-thread", "macros"] }
+tokio-postgres = "0.7"
+deadpool-postgres = "0.14"
+url = "2.5.8"
+dotenvy = "0.15.7"
+
+# Uncomment below for local development
+# [patch.crates-io]
+# tiders-x402 = { path = "../../../server" }

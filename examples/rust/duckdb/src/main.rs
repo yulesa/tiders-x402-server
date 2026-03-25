@@ -9,8 +9,7 @@ use url::Url;
 use tiders_x402::facilitator_client::FacilitatorClient;
 use tiders_x402::payment_config::GlobalPaymentConfig;
 use tiders_x402::price::{PriceTag, TablePaymentOffers, TokenAmount};
-use tiders_x402::{AppState, start_server};
-use tiders_x402::duckdb_reader::get_duckdb_table_schema;
+use tiders_x402::{AppState, Database, start_server};
 use tiders_x402::database_duckdb::DuckDbDatabase;
 
 #[tokio::main]
@@ -27,7 +26,7 @@ async fn main() {
     // let base_url = Url::parse("http://localhost:4021").expect("Failed to parse base URL");
 
 
-    let db = Connection::open("../data/duckdb.db").expect("Failed to open DuckDB connection");
+    let conn = Connection::open("../../data/duckdb.db").expect("Failed to open DuckDB connection");
 
     let mut global_payment_config = GlobalPaymentConfig::default(facilitator, base_url.clone());
 
@@ -45,9 +44,13 @@ async fn main() {
         is_default: true
     };
 
+    let db = DuckDbDatabase::new(conn);
 
     // Create table payment offer
-    let swaps_schema = get_duckdb_table_schema(&db, "uniswap_v3_pool_swap").unwrap();
+    let swaps_schema = db.get_table_schema("uniswap_v3_pool_swap")
+        .await
+        .expect("Failed to get table schema");
+
     let swaps_offer = TablePaymentOffers::new(
         "uniswap_v3_pool_swap".to_string(),
         vec![swap_price_tag],
@@ -70,7 +73,7 @@ async fn main() {
     global_payment_config.add_offers_table(swaps_offer);
 
     let state = Arc::new(AppState {
-        db: Arc::new(DuckDbDatabase::new(db)),
+        db: Arc::new(db),
         payment_config: Arc::new(global_payment_config),
     });
 

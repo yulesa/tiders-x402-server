@@ -30,9 +30,13 @@ alloy = { workspace = true }
 pyo3 = { workspace = true, features = ["anyhow"], optional = true }
 faster-hex = { workspace = true }
 async-trait = { workspace = true }
+tokio-postgres = { workspace = true, optional = true }
+deadpool-postgres = { workspace = true, optional = true }
+postgres-types = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
 
 [features]
 duckdb = ["dep:duckdb"]
-postgresql = []
+postgresql = ["dep:tokio-postgres", "dep:deadpool-postgres", "dep:postgres-types", "dep:bytes"]
 clickhouse = []
 pyo3 = ["dep:pyo3"]

@@ -31,6 +31,10 @@ pub mod payment_config;
 pub mod database;
 #[cfg(feature = "duckdb")]
 pub mod database_duckdb;
+#[cfg(feature = "postgresql")]
+pub mod database_postgresql;
+#[cfg(feature = "postgresql")]
+pub mod sql_postgresql;
 
 use std::sync::Arc;
 
