@@ -35,6 +35,10 @@ pub mod database_duckdb;
 pub mod database_postgresql;
 #[cfg(feature = "postgresql")]
 pub mod sql_postgresql;
+#[cfg(feature = "clickhouse")]
+pub mod database_clickhouse;
+#[cfg(feature = "clickhouse")]
+pub mod sql_clickhouse;
 
 use std::sync::Arc;
 
