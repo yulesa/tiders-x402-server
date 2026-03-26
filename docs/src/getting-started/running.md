@@ -102,27 +102,23 @@ You can add multiple price tags to a table for tiered pricing. See [Configuratio
 
 ## 4. Build the Payment Configuration
 
-The global payment configuration holds the facilitator client and all table offers. The server base URL is used to build the `resource` field in payment requirements.
+The global payment configuration holds the facilitator client and all table offers.
 
 **Rust:**
 ```rust
-use url::Url;
 use tiders_x402_server::payment_config::GlobalPaymentConfig;
 
-let base_url = Url::parse("http://0.0.0.0:4021").expect("Failed to parse base URL");
-let mut config = GlobalPaymentConfig::default(facilitator, base_url.clone());
-config.add_offers_table(offers_table);
+let mut global_payment_config = GlobalPaymentConfig::default(facilitator);
+global_payment_config.add_offers_table(offers_table);
 ```
 
 **Python:**
 ```python
-base_url = "http://0.0.0.0:4021"
 
-config = tiders_x402_server.GlobalPaymentConfig(
+global_payment_config = tiders_x402_server.GlobalPaymentConfig(
     facilitator,
-    base_url=base_url,
 )
-config.add_offers_table(offers_table)
+global_payment_config.add_offers_table(offers_table)
 ```
 
 ## 5. Create State and Start the Server
@@ -131,24 +127,27 @@ Wrap the database and payment configuration into the application state, then sta
 
 **Rust:**
 ```rust
+use Url
 use tiders_x402_server::{AppState, start_server};
 
+let server_base_url = Url::parse("http://0.0.0.0:4021").expect("Failed to parse server base URL");
 let state = Arc::new(AppState {
     db: Arc::new(db),
-    payment_config: Arc::new(config),
+    payment_config: Arc::new(global_payment_config),
+    server_base_url
 });
 
-start_server(state, base_url).await;
+start_server(state).await;
 ```
 
 **Python:**
 ```python
 state = tiders_x402_server.AppState(
     db,
-    payment_config=config,
+    payment_config=global_payment_config,
 )
 
-tiders_x402_server.start_server_py(state, base_url)
+tiders_x402_server.start_server_py(state)
 ```
 
 The server blocks until it receives a shutdown signal (Ctrl+C or SIGTERM).

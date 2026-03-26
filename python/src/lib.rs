@@ -323,17 +323,14 @@ impl PyGlobalPaymentConfig {
     ///
     /// Args:
     ///     facilitator (FacilitatorClient): Facilitator client.
-    ///     base_url (str): Base URL for the app.
     ///
     /// Returns:
     ///     GlobalPaymentConfig: A new GlobalPaymentConfig object.
     #[new]
-    fn new(facilitator: &PyFacilitatorClient, base_url: &str) -> PyResult<Self> {
-        let base_url = Url::parse(base_url)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+    fn new(facilitator: &PyFacilitatorClient) -> PyResult<Self> {
         let facilitator = std::sync::Arc::new(facilitator.inner.clone());
         Ok(Self {
-            inner: GlobalPaymentConfig::default(facilitator, base_url),
+            inner: GlobalPaymentConfig::default(facilitator),
         })
     }
 
@@ -611,12 +608,15 @@ impl PyAppState {
     /// Args:
     ///     database: A database object (DuckDbDatabase, PostgresqlDatabase, or ClickHouseDatabase).
     ///     payment_config (GlobalPaymentConfig): Global payment config.
+    ///     server_base_url (str): Base URL for the server (e.g., "http://0.0.0.0:4021").
     ///
     /// Returns:
     ///     AppState: A new AppState object.
     #[new]
     #[allow(unused_variables)]
-    fn new(database: &Bound<'_, PyAny>, payment_config: &PyGlobalPaymentConfig) -> PyResult<Self> {
+    fn new(database: &Bound<'_, PyAny>, payment_config: &PyGlobalPaymentConfig, server_base_url: &str) -> PyResult<Self> {
+        let server_base_url = Url::parse(server_base_url)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         // Try to downcast to each database type
         #[cfg(feature = "duckdb")]
         if let Ok(db) = database.extract::<PyRef<PyDuckDbDatabase>>() {
@@ -624,6 +624,7 @@ impl PyAppState {
                 inner: AppState {
                     db: db.inner.clone(),
                     payment_config: Arc::new(payment_config.inner.clone()),
+                    server_base_url: server_base_url.clone(),
                 },
             });
         }
@@ -633,6 +634,7 @@ impl PyAppState {
                 inner: AppState {
                     db: db.inner.clone(),
                     payment_config: Arc::new(payment_config.inner.clone()),
+                    server_base_url: server_base_url.clone(),
                 },
             });
         }
@@ -642,6 +644,7 @@ impl PyAppState {
                 inner: AppState {
                     db: db.inner.clone(),
                     payment_config: Arc::new(payment_config.inner.clone()),
+                    server_base_url: server_base_url.clone(),
                 },
             });
         }
@@ -656,16 +659,13 @@ impl PyAppState {
 ///
 /// Args:
 ///     state (AppState): Application state with database and payment config.
-///     base_url (str): Base URL for the server (e.g., "http://0.0.0.0:4021").
 #[pyfunction]
-fn start_server_py(state: &PyAppState, base_url: &str) -> PyResult<()> {
-    let base_url = Url::parse(base_url)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+fn start_server_py(state: &PyAppState) -> PyResult<()> {
     let state = Arc::new(state.inner.clone());
     let rt = Runtime::new()
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
     rt.block_on(async {
-        start_server(state, base_url).await;
+        start_server(state).await;
         Ok(())
     })
 }

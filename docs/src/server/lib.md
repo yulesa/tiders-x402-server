@@ -10,11 +10,13 @@ The server library (`server/src/lib.rs`) is the entry point of the server. It se
 pub struct AppState {
     pub db: Arc<Mutex<Connection>>,
     pub payment_config: Arc<GlobalPaymentConfig>,
+    pub server_base_url: Url,
 }
 ```
 
 - **`db`** — The database connection used to execute queries against DuckDB. Access is serialized (one query at a time), but DuckDB is fast enough that this is not a bottleneck for typical workloads.
 - **`payment_config`** — The global payment configuration, including which tables require payment, pricing rules, and facilitator settings. See [Payment Configuration](./payment-config.md).
+- **`server_base_url`** — The server's public URL, used for binding and for building resource URLs in payment requirements.
 
 ## Router
 

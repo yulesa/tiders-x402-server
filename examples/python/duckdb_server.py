@@ -41,11 +41,10 @@ def main():
     swaps_offer = tiders_x402_server.TablePaymentOffers("uniswap_v3_pool_swap", [price_tag_1], swap_schema)
     swaps_offer.with_payment_offer(price_tag_2)
 
-    base_url = "http://0.0.0.0:4021"
+    server_base_url = "http://0.0.0.0:4021"
 
     global_payment_config = tiders_x402_server.GlobalPaymentConfig(
         facilitator,
-        base_url=base_url,
     )
 
     global_payment_config.add_offers_table(swaps_offer)
@@ -53,6 +52,7 @@ def main():
     state = tiders_x402_server.AppState(
         db,
         payment_config=global_payment_config,
+        server_base_url=server_base_url,
     )
 
     print("Starting server")
@@ -61,7 +61,7 @@ def main():
     print("Table 'uniswap_v3_pool_swap' requires payment")
 
     # Start the server (blocking call)
-    tiders_x402_server.start_server_py(state, base_url)
+    tiders_x402_server.start_server_py(state)
 
 if __name__ == "__main__":
     main()

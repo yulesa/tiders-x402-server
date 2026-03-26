@@ -7,13 +7,12 @@ The server is configured programmatically -- there are no config files. You set 
 The central configuration object that holds all payment-related settings.
 
 ```rust
-let config = GlobalPaymentConfig::default(facilitator, base_url);
+let config = GlobalPaymentConfig::default(facilitator);
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `facilitator` | `Arc<FacilitatorClient>` | Client for the x402 facilitator service |
-| `base_url` | `Url` | Server's base URL, used to construct resource URLs in payment requirements |
 | `mime_type` | `String` | Response MIME type (default: `application/vnd.apache.arrow.stream`) |
 | `max_timeout_seconds` | `u64` | Maximum payment timeout (default: 300) |
 | `default_description` | `String` | Fallback description for payment requirements |

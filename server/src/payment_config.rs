@@ -22,8 +22,6 @@ use crate::price::{PriceTag, TablePaymentOffers};
 pub struct GlobalPaymentConfig {
     /// Client for verifying and settling payments with the x402 facilitator.
     pub facilitator: Arc<FacilitatorClient>,
-    /// The server's public URL, used to build the `resource` field in payment requirements.
-    pub base_url: Url,
     /// Response format advertised to clients (defaults to `"application/vnd.apache.arrow.stream"`).
     pub mime_type: String,
     /// How long a payment offer remains valid, in seconds (defaults to 300).
@@ -37,10 +35,9 @@ pub struct GlobalPaymentConfig {
 #[allow(dead_code)]
 impl GlobalPaymentConfig {
     /// Creates a configuration with sensible defaults (Arrow IPC mime type, 300s timeout).
-    pub fn default(facilitator: Arc<FacilitatorClient>, base_url: Url) -> Self {
+    pub fn default(facilitator: Arc<FacilitatorClient>) -> Self {
         Self {
             facilitator,
-            base_url,
             mime_type: "application/vnd.apache.arrow.stream".to_string(),
             max_timeout_seconds: 300,
             default_description: "Query execution payment".to_string(),
@@ -90,13 +87,14 @@ impl GlobalPaymentConfig {
         table_name: &str,
         estimated_items: usize,
         path: &str,
+        server_base_url: &Url,
     ) -> Option<PaymentRequired> {
         let payment_requirements = self.get_all_payment_requirements(table_name, estimated_items);
         if payment_requirements.is_empty() {
             return None;
         }
 
-        let resource_url = self.base_url.join(path).ok()?;
+        let resource_url = server_base_url.join(path).ok()?;
         let offers_table = self.get_offers_table(table_name)?;
         let description = offers_table
             .description

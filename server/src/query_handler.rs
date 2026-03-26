@@ -92,6 +92,7 @@ pub async fn query_handler(
                 table_name,
                 estimated_rows,
                 path,
+                &state.server_base_url,
             ))
         }
 
@@ -206,6 +207,7 @@ async fn process_payment(
             table_name,
             actual_rows,
             path,
+            &state.server_base_url,
         ));
     }
 
@@ -223,6 +225,7 @@ async fn process_payment(
             table_name,
             actual_rows,
             path,
+            &state.server_base_url,
         )
     })?;
 
@@ -259,8 +262,9 @@ impl QueryError {
         table_name: &str,
         row_count: usize,
         path: &str,
+        server_base_url: &url::Url,
     ) -> Self {
-        match payment_config.create_payment_required_response(&message, table_name, row_count, path)
+        match payment_config.create_payment_required_response(&message, table_name, row_count, path, server_base_url)
         {
             Some(payment_response) => {
                 let json_bytes = serde_json::to_vec(&payment_response)

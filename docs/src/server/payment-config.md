@@ -9,7 +9,6 @@ The payment configuration module (`server/src/payment_config.rs`) is the central
 ```rust
 pub struct GlobalPaymentConfig {
     pub facilitator: Arc<FacilitatorClient>,
-    pub base_url: Url,
     pub mime_type: String,               // default: "application/vnd.apache.arrow.stream"
     pub max_timeout_seconds: u64,        // default: 300
     pub default_description: String,     // default: "Query execution payment"
@@ -18,7 +17,6 @@ pub struct GlobalPaymentConfig {
 ```
 
 - **`facilitator`** — The client used to verify and settle payments with the x402 facilitator.
-- **`base_url`** — The server's public URL, used to build the `resource` field in payment requirements.
 - **`mime_type`** — The response format advertised to clients (defaults to `"application/vnd.apache.arrow.stream"`).
 - **`max_timeout_seconds`** — How long a payment remains valid before expiring (defaults to 300 seconds).
 - **`default_description`** — Fallback description when a table doesn't have its own (defaults to `"Query execution payment"`).

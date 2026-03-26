@@ -71,6 +71,8 @@ pub struct AppState {
     pub db: Arc<dyn Database>,
     /// Global payment configuration: offer's tables, pricing rules, and facilitator settings.
     pub payment_config: Arc<GlobalPaymentConfig>,
+    /// The server's public URL, used for binding and for building resource URLs in payment requirements.
+    pub server_base_url: Url,
 }
 
 /// Starts the Axum HTTP server and blocks until a shutdown signal is received.
@@ -78,9 +80,9 @@ pub struct AppState {
 /// # Arguments
 /// * `state` — Shared application state (wrapped in `Arc` so it can be safely shared
 ///   across all request-handling tasks). Axum clones this `Arc` for each incoming
-///   request and passes it to the handler.
-/// * `base_url` — The URL to bind the server to (host and port are extracted from it).
-pub async fn start_server(state: Arc<AppState>, base_url: Url) {
+///   request and passes it to the handler. The server binds to the host and port
+///   extracted from `state.server_base_url`.
+pub async fn start_server(state: Arc<AppState>) {
     // Load environment variables from a `.env` file if one exists.
     dotenv().ok();
 
@@ -124,6 +126,11 @@ pub async fn start_server(state: Arc<AppState>, base_url: Url) {
             .with(fmt_layer)
             .init();
     };
+
+    // Extract host and port from the server base URL before moving state into the router.
+    let host = state.server_base_url.host_str().unwrap().to_string();
+    let port = state.server_base_url.port().unwrap();
+    let bind_addr = format!("{}:{}", host, port);
 
     // Build the Axum Router.
     // A Router maps HTTP method + path combinations to handler functions.
@@ -190,11 +197,6 @@ pub async fn start_server(state: Arc<AppState>, base_url: Url) {
                     },
                 ),
         );
-
-    // Extract host and port from the provided URL and bind a TCP listener.
-    let host = base_url.host_str().unwrap();
-    let port = base_url.port().unwrap();
-    let bind_addr = format!("{}:{}", host, port);
 
     let listener = tokio::net::TcpListener::bind(bind_addr)
         .await

@@ -22,8 +22,8 @@ async fn main() {
     );
 
     // Initialize payment configuration
-    let base_url = Url::parse("http://0.0.0.0:4021").expect("Failed to parse base URL");
-    // let base_url = Url::parse("http://localhost:4021").expect("Failed to parse base URL");
+    let server_base_url = Url::parse("http://0.0.0.0:4021").expect("Failed to parse server base URL");
+    // let server_base_url = Url::parse("http://localhost:4021").expect("Failed to parse server base URL");
 
 
 
@@ -97,7 +97,7 @@ async fn main() {
 
 
     
-    let mut global_payment_config = GlobalPaymentConfig::default(facilitator, base_url.clone());
+    let mut global_payment_config = GlobalPaymentConfig::default(facilitator);
 
     // Create a default USDC price tag for uniswap_v3_pool_swap table
     let usdc = USDC::base_sepolia();
@@ -143,7 +143,8 @@ async fn main() {
     let state = Arc::new(AppState {
         db: Arc::new(db),
         payment_config: Arc::new(global_payment_config),
+        server_base_url,
     });
 
-    start_server(state, base_url).await;
+    start_server(state).await;
 }

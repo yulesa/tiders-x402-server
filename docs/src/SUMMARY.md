@@ -32,4 +32,3 @@
 # Client Libraries
 
 - [TypeScript Client](./clients/typescript.md)
-- [Python Bindings](./clients/python.md)
