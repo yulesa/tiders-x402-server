@@ -5083,7 +5083,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "tiders-x402"
+name = "tiders-x402-python"
+version = "0.1.0"
+dependencies = [
+ "alloy",
+ "arrow",
+ "duckdb",
+ "pyo3",
+ "serde",
+ "serde_json",
+ "tiders-x402-server",
+ "tokio",
+ "url",
+ "x402-chain-eip155",
+ "x402-types",
+]
+
+[[package]]
+name = "tiders-x402-server"
 version = "0.1.0"
 dependencies = [
  "alloy",
@@ -5114,23 +5131,6 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
- "url",
- "x402-chain-eip155",
- "x402-types",
-]
-
-[[package]]
-name = "tiders-x402-python"
-version = "0.1.0"
-dependencies = [
- "alloy",
- "arrow",
- "duckdb",
- "pyo3",
- "serde",
- "serde_json",
- "tiders-x402",
- "tokio",
  "url",
  "x402-chain-eip155",
  "x402-types",

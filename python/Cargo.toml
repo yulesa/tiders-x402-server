@@ -2,10 +2,15 @@
 name = "tiders-x402-python"
 version = "0.1.0"
 edition = "2024"
+description = "Payment-enabled database API server that connects different databases with the x402 payment protocol to create a pay-per-query data marketplace."
+homepage = "https://github.com/yulesa/tiders-x402-server"
+repository = "https://github.com/yulesa/tiders-x402-server"
+authors = ["Yulesa <yulesa@gmail.com>"]
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 pyo3 = { workspace = true, features = ["anyhow"] }
-tiders-x402 = { path = "../server", features = ["pyo3"] }
+tiders-x402-server = { path = "../server", features = ["pyo3"] }
 x402-types = { workspace = true }
 x402-chain-eip155 = { workspace = true }
 url = { workspace = true }
@@ -17,6 +22,6 @@ duckdb = { workspace = true, features = ["bundled"], optional = true }
 arrow = { workspace = true, features = ["pyarrow"] }
 
 [features]
-duckdb = ["tiders-x402/duckdb", "dep:duckdb"]
-postgresql = ["tiders-x402/postgresql"]
-clickhouse = ["tiders-x402/clickhouse"]
+duckdb = ["tiders-x402-server/duckdb", "dep:duckdb"]
+postgresql = ["tiders-x402-server/postgresql"]
+clickhouse = ["tiders-x402-server/clickhouse"]

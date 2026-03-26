@@ -5,10 +5,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 use url::Url;
 
-use tiders_x402::facilitator_client::FacilitatorClient;
-use tiders_x402::payment_config::GlobalPaymentConfig;
-use tiders_x402::price::{PriceTag, TablePaymentOffers, TokenAmount};
-use tiders_x402::{AppState, Database, start_server};
+use tiders_x402_server::facilitator_client::FacilitatorClient;
+use tiders_x402_server::payment_config::GlobalPaymentConfig;
+use tiders_x402_server::price::{PriceTag, TablePaymentOffers, TokenAmount};
+use tiders_x402_server::{AppState, Database, start_server};
 
 #[tokio::main]
 async fn main() {

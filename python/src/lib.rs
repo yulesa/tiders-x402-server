@@ -25,15 +25,15 @@ use arrow::pyarrow::FromPyArrow;
 #[cfg(any(feature = "duckdb", feature = "postgresql", feature = "clickhouse"))]
 use arrow::pyarrow::ToPyArrow;
 #[cfg(any(feature = "duckdb", feature = "postgresql", feature = "clickhouse"))]
-use tiders_x402::Database;
+use ::tiders_x402_server::Database;
 #[cfg(feature = "clickhouse")]
-use tiders_x402::database_clickhouse::ClickHouseDatabase;
+use ::tiders_x402_server::database_clickhouse::ClickHouseDatabase;
 #[cfg(feature = "duckdb")]
-use tiders_x402::database_duckdb::DuckDbDatabase;
+use ::tiders_x402_server::database_duckdb::DuckDbDatabase;
 #[cfg(feature = "postgresql")]
-use tiders_x402::database_postgresql::PostgresqlDatabase;
-use tiders_x402::price::TokenAmount;
-use tiders_x402::{AppState, FacilitatorClient, GlobalPaymentConfig, PriceTag, TablePaymentOffers};
+use ::tiders_x402_server::database_postgresql::PostgresqlDatabase;
+use ::tiders_x402_server::price::TokenAmount;
+use ::tiders_x402_server::{AppState, FacilitatorClient, GlobalPaymentConfig, PriceTag, TablePaymentOffers, start_server};
 use x402_chain_eip155::KnownNetworkEip155;
 use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use x402_types::networks::USDC;
@@ -665,7 +665,7 @@ fn start_server_py(state: &PyAppState, base_url: &str) -> PyResult<()> {
     let rt = Runtime::new()
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
     rt.block_on(async {
-        tiders_x402::start_server(state, base_url).await;
+        start_server(state, base_url).await;
         Ok(())
     })
 }

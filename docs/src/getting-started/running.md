@@ -11,7 +11,7 @@ The facilitator handles blockchain-side payment operations (verification and set
 **Rust:**
 ```rust
 use std::sync::Arc;
-use tiders_x402::facilitator_client::FacilitatorClient;
+use tiders_x402_server::facilitator_client::FacilitatorClient;
 
 let facilitator = Arc::new(
     FacilitatorClient::try_from("https://facilitator.x402.rs")
@@ -50,8 +50,8 @@ Each paid table needs a price tag that describes how much to charge and in which
 use std::str::FromStr;
 use x402_chain_eip155::chain::ChecksummedAddress;
 use x402_types::networks::USDC;
-use tiders_x402::price::{PriceTag, TablePaymentOffers, TokenAmount};
-use tiders_x402::Database;
+use tiders_x402_server::price::{PriceTag, TablePaymentOffers, TokenAmount};
+use tiders_x402_server::Database;
 
 let usdc = USDC::base_sepolia();
 
@@ -107,7 +107,7 @@ The global payment configuration holds the facilitator client and all table offe
 **Rust:**
 ```rust
 use url::Url;
-use tiders_x402::payment_config::GlobalPaymentConfig;
+use tiders_x402_server::payment_config::GlobalPaymentConfig;
 
 let base_url = Url::parse("http://0.0.0.0:4021").expect("Failed to parse base URL");
 let mut config = GlobalPaymentConfig::default(facilitator, base_url.clone());
@@ -131,7 +131,7 @@ Wrap the database and payment configuration into the application state, then sta
 
 **Rust:**
 ```rust
-use tiders_x402::{AppState, start_server};
+use tiders_x402_server::{AppState, start_server};
 
 let state = Arc::new(AppState {
     db: Arc::new(db),
