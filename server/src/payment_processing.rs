@@ -4,10 +4,10 @@
 //! This module is stateless — pricing logic lives in [`crate::payment_config`],
 //! and HTTP transport lives in [`crate::facilitator_client`].
 
+use crate::facilitator_client::FacilitatorClient;
 use std::sync::Arc;
 use x402_types::proto;
 use x402_types::proto::v2;
-use crate::facilitator_client::FacilitatorClient;
 
 /// Verifies a payment with the facilitator.
 ///
@@ -43,7 +43,8 @@ pub async fn settle_payment(
     match verify_response {
         v2::VerifyResponse::Valid { .. } => {
             let settle_response_proto = facilitator.settle(&verify_request).await?;
-            let settle_response: v2::SettleResponse = serde_json::from_value(settle_response_proto.0)?;
+            let settle_response: v2::SettleResponse =
+                serde_json::from_value(settle_response_proto.0)?;
 
             match settle_response {
                 v2::SettleResponse::Success { .. } => Ok(()),

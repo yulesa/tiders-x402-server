@@ -1,17 +1,19 @@
-use sqlparser::{ast::OrderByKind, dialect::AnsiDialect};
-use sqlparser::parser::Parser;
+use anyhow::{Result, anyhow};
 use sqlparser::ast::{
-    Expr, GroupByExpr, LimitClause, ObjectNamePart, SelectFlavor, SelectItem, SetExpr, Statement, TableFactor, TableWithJoins};
-use anyhow::{anyhow, Result};
+    Expr, GroupByExpr, LimitClause, ObjectNamePart, SelectFlavor, SelectItem, SetExpr, Statement,
+    TableFactor, TableWithJoins,
+};
+use sqlparser::parser::Parser;
+use sqlparser::{ast::OrderByKind, dialect::AnsiDialect};
 
 #[derive(Debug, Clone)]
-pub struct AnalyzedQuery{
+pub struct AnalyzedQuery {
     pub body: AnalyzedSelect,
     pub limit_clause: Option<AnalyzedLimitClause>,
     pub order_by: Option<Vec<AnalyzedOrderByExpr>>,
 }
 
-impl AnalyzedQuery{
+impl AnalyzedQuery {
     fn new() -> Self {
         Self {
             body: AnalyzedSelect::new(),
@@ -22,14 +24,14 @@ impl AnalyzedQuery{
 }
 
 #[derive(Debug, Clone)]
-pub struct AnalyzedSelect{
+pub struct AnalyzedSelect {
     pub projection: Vec<AnalyzedSelectItem>, // Items in SELECT clause
-    pub wildcard: bool, // Whether * was used in SELECT clause
-    pub from: String, // Table name in FROM clause
-    pub selection:Option<Expr> // Expression in WHERE clause
+    pub wildcard: bool,                      // Whether * was used in SELECT clause
+    pub from: String,                        // Table name in FROM clause
+    pub selection: Option<Expr>,             // Expression in WHERE clause
 }
 
-impl AnalyzedSelect{
+impl AnalyzedSelect {
     fn new() -> Self {
         Self {
             projection: Vec::new(),
@@ -41,30 +43,30 @@ impl AnalyzedSelect{
 }
 
 #[derive(Debug, Clone)]
-pub struct AnalyzedSelectItem{
+pub struct AnalyzedSelectItem {
     pub ident: String,
     pub alias: Option<String>,
 }
 
 #[derive(Debug, Clone)]
-pub struct AnalyzedOrderByExpr{
+pub struct AnalyzedOrderByExpr {
     pub expr: Expr,
     pub asc: bool,
     pub nulls_first: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
-pub struct AnalyzedLimitClause{
+pub struct AnalyzedLimitClause {
     pub limit: Option<Expr>,
-    pub offset: Option<Expr>
+    pub offset: Option<Expr>,
 }
 
 pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
     let mut analyzed_query = AnalyzedQuery::new();
 
     let dialect = AnsiDialect {};
-    let ast:Vec<Statement> = Parser::parse_sql(&dialect, sql)?;
-    
+    let ast: Vec<Statement> = Parser::parse_sql(&dialect, sql)?;
+
     // Ensure there only one statement, and it is a query statement
     if ast.len() != 1 {
         return Err(anyhow!("Simplified SQL only supports one statement"));
@@ -99,10 +101,15 @@ pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
                     check_unsupported_field(&select.value_table_mode)?;
                     check_unsupported_field(&select.connect_by)?;
                     if !matches!(select.flavor, SelectFlavor::Standard) {
-                        return Err(anyhow!("Simplified SQL only supports standard 'SELECT ... FROM' statements"));
+                        return Err(anyhow!(
+                            "Simplified SQL only supports standard 'SELECT ... FROM' statements"
+                        ));
                     }
-                    if !matches!(select.group_by, GroupByExpr::Expressions(ref exprs, ref sets) if exprs.is_empty() && sets.is_empty()) {
-                        return Err(anyhow!("Simplified SQL does not support the use of 'GroupByExpr'"));
+                    if !matches!(select.group_by, GroupByExpr::Expressions(ref exprs, ref sets) if exprs.is_empty() && sets.is_empty())
+                    {
+                        return Err(anyhow!(
+                            "Simplified SQL does not support the use of 'GroupByExpr'"
+                        ));
                     }
 
                     // Projections (SELECT Items)
@@ -112,27 +119,33 @@ pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
                                 match expr {
                                     Expr::Identifier(ident) => {
                                         // Field name
-                                        analyzed_query.body.projection.push(AnalyzedSelectItem{
+                                        analyzed_query.body.projection.push(AnalyzedSelectItem {
                                             ident: ident.value.clone(),
                                             alias: None,
                                         });
                                     }
                                     _ => {
-                                        return Err(anyhow!("Simplified SQL does not support the use of expressions in Select Items: {}", expr));
+                                        return Err(anyhow!(
+                                            "Simplified SQL does not support the use of expressions in Select Items: {}",
+                                            expr
+                                        ));
                                     }
                                 }
                             }
-                            SelectItem::ExprWithAlias{expr, alias} => {
+                            SelectItem::ExprWithAlias { expr, alias } => {
                                 match expr {
                                     Expr::Identifier(ident) => {
                                         // Field name
-                                        analyzed_query.body.projection.push(AnalyzedSelectItem{
+                                        analyzed_query.body.projection.push(AnalyzedSelectItem {
                                             ident: ident.value.clone(),
                                             alias: Some(alias.value.clone()),
                                         });
                                     }
                                     _ => {
-                                        return Err(anyhow!("Simplified SQL does not support the use of expressions in Select Items: {}", expr));
+                                        return Err(anyhow!(
+                                            "Simplified SQL does not support the use of expressions in Select Items: {}",
+                                            expr
+                                        ));
                                     }
                                 }
                             }
@@ -146,19 +159,34 @@ pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
                                 analyzed_query.body.wildcard = true;
                             }
                             SelectItem::QualifiedWildcard(_, _) => {
-                                return Err(anyhow!("Simplified SQL does not support the use of Qualified Wildcard (alias.*)"));
+                                return Err(anyhow!(
+                                    "Simplified SQL does not support the use of Qualified Wildcard (alias.*)"
+                                ));
                             }
                         }
                     }
 
                     // FROM clause
                     if select.from.len() != 1 {
-                        return Err(anyhow!("Simplified SQL only supports one table in the FROM clause"));
+                        return Err(anyhow!(
+                            "Simplified SQL only supports one table in the FROM clause"
+                        ));
                     }
-                    let TableWithJoins{ relation, joins } = select.from[0].clone();
+                    let TableWithJoins { relation, joins } = select.from[0].clone();
                     check_unsupported_field(&joins)?;
                     match relation {
-                        TableFactor::Table { name, alias, args, with_hints, version, with_ordinality,  partitions, json_path, sample, index_hints} => {
+                        TableFactor::Table {
+                            name,
+                            alias,
+                            args,
+                            with_hints,
+                            version,
+                            with_ordinality,
+                            partitions,
+                            json_path,
+                            sample,
+                            index_hints,
+                        } => {
                             check_unsupported_field(&alias)?;
                             check_unsupported_field(&args)?;
                             check_unsupported_field(&with_hints)?;
@@ -175,15 +203,22 @@ pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
                                         analyzed_query.body.from = ident.value.clone();
                                     }
                                     _ => {
-                                        return Err(anyhow!("Simplified SQL only supports simple table identifiers in the FROM clause"));
+                                        return Err(anyhow!(
+                                            "Simplified SQL only supports simple table identifiers in the FROM clause"
+                                        ));
                                     }
                                 }
                             } else {
-                                return Err(anyhow!("Simplified SQL only supports simple table in the FROM clause. No support compound table name: {}", name));
+                                return Err(anyhow!(
+                                    "Simplified SQL only supports simple table in the FROM clause. No support compound table name: {}",
+                                    name
+                                ));
                             }
                         }
                         _ => {
-                            return Err(anyhow!("Simplified SQL only supports simple table in the FROM clause"));
+                            return Err(anyhow!(
+                                "Simplified SQL only supports simple table in the FROM clause"
+                            ));
                         }
                     }
 
@@ -203,27 +238,33 @@ pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
                     return Err(anyhow!("Simplified SQL only supports SELECT statements"));
                 }
             }
-            
+
             // Check Order by clause
             match &query.order_by {
                 Some(order_by) => {
                     let kind = order_by.kind.clone();
                     match kind {
                         OrderByKind::All(_) => {
-                            return Err(anyhow!("Simplified SQL does not support the use of 'ALL' in ORDER BY clause"));
+                            return Err(anyhow!(
+                                "Simplified SQL does not support the use of 'ALL' in ORDER BY clause"
+                            ));
                         }
                         OrderByKind::Expressions(exprs) => {
                             analyzed_query.order_by = Some(Vec::new());
                             for order_by_expr in exprs {
                                 if let Some(_) = &order_by_expr.with_fill {
-                                    return Err(anyhow!("Simplified SQL does not support the use of 'WITH FILL' in ORDER BY clause"));
+                                    return Err(anyhow!(
+                                        "Simplified SQL does not support the use of 'WITH FILL' in ORDER BY clause"
+                                    ));
                                 }
                                 check_unsupported_expr(Some(order_by_expr.expr.clone()))?;
-                                analyzed_query.order_by.as_mut().unwrap().push(AnalyzedOrderByExpr{
-                                    expr: order_by_expr.expr.clone(),
-                                    asc: order_by_expr.options.asc.unwrap_or(true),
-                                    nulls_first: order_by_expr.options.nulls_first,
-                                });
+                                analyzed_query.order_by.as_mut().unwrap().push(
+                                    AnalyzedOrderByExpr {
+                                        expr: order_by_expr.expr.clone(),
+                                        asc: order_by_expr.options.asc.unwrap_or(true),
+                                        nulls_first: order_by_expr.options.nulls_first,
+                                    },
+                                );
                             }
                         }
                     }
@@ -242,22 +283,30 @@ pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
             match &query.limit_clause {
                 Some(limit_clause) => {
                     match limit_clause {
-                        LimitClause::LimitOffset {limit, offset, limit_by} => {
+                        LimitClause::LimitOffset {
+                            limit,
+                            offset,
+                            limit_by,
+                        } => {
                             check_unsupported_expr(limit.clone())?;
                             if let Some(offset) = offset {
                                 check_unsupported_expr(Some(offset.value.clone()))?;
                             }
                             if !limit_by.is_empty() {
-                                return Err(anyhow!("Simplified SQL does not support the use of 'LIMIT BY' in LIMIT clause"));
+                                return Err(anyhow!(
+                                    "Simplified SQL does not support the use of 'LIMIT BY' in LIMIT clause"
+                                ));
                             }
-                            analyzed_query.limit_clause = Some(AnalyzedLimitClause{
+                            analyzed_query.limit_clause = Some(AnalyzedLimitClause {
                                 limit: limit.clone(),
                                 offset: offset.as_ref().map(|o| o.value.clone()),
                             });
                         }
                         // MySQL-specific syntax; the order of expressions is reversed. ANSI dialect does not support this.
-                        LimitClause::OffsetCommaLimit{..} => {
-                            return Err(anyhow!("Simplified SQL does not support MySQL-specific syntax: 'OFFSET, LIMIT'"));
+                        LimitClause::OffsetCommaLimit { .. } => {
+                            return Err(anyhow!(
+                                "Simplified SQL does not support MySQL-specific syntax: 'OFFSET, LIMIT'"
+                            ));
                         }
                     };
                 }
@@ -265,18 +314,14 @@ pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
                     analyzed_query.limit_clause = None;
                 }
             }
-
         }
         _ => {
             return Err(anyhow!("Simplified SQL only supports SELECT statements"));
         }
-
-        
     }
-    
+
     Ok(analyzed_query)
 }
-
 
 // Helper function to create a query to estimate row count for a query
 pub fn create_estimate_rows_query(duckdb_sql: &str) -> String {
@@ -326,7 +371,10 @@ impl UnsupportedCheck for bool {
 
 fn check_unsupported_field<T: UnsupportedCheck + std::fmt::Debug>(field: &T) -> Result<()> {
     if !field.is_supported() {
-        return Err(anyhow!("Simplified SQL does not support the use of '{}'", T::field_name()));
+        return Err(anyhow!(
+            "Simplified SQL does not support the use of '{}'",
+            T::field_name()
+        ));
     }
     Ok(())
 }
@@ -338,49 +386,48 @@ fn check_unsupported_expr(expr: Option<Expr>) -> Result<Option<Expr>> {
             match expr {
                 // First check for explicitly unsupported expressions. Being restrictive here is better than being lenient.
                 Expr::CompoundIdentifier(_)
-                | Expr::CompoundFieldAccess{..}
-                | Expr::JsonAccess {..}
+                | Expr::CompoundFieldAccess { .. }
+                | Expr::JsonAccess { .. }
                 | Expr::IsUnknown(_)
                 | Expr::IsNotUnknown(_)
                 | Expr::IsDistinctFrom(_, _)
                 | Expr::IsNotDistinctFrom(_, _)
-                | Expr::IsNormalized{..}
-                | Expr::InSubquery{..}
-                | Expr::InUnnest{..}
-                | Expr::RLike{..}
-                | Expr::AnyOp{..}
-                | Expr::AllOp{..}
-                | Expr::Convert{..}
-                | Expr::Collate{..}
+                | Expr::IsNormalized { .. }
+                | Expr::InSubquery { .. }
+                | Expr::InUnnest { .. }
+                | Expr::RLike { .. }
+                | Expr::AnyOp { .. }
+                | Expr::AllOp { .. }
+                | Expr::Convert { .. }
+                | Expr::Collate { .. }
                 | Expr::Prefixed { .. }
-                | Expr::Function{..}
-                | Expr::Case{..}
-                | Expr::Exists{..}
-                | Expr::Subquery{..}
+                | Expr::Function { .. }
+                | Expr::Case { .. }
+                | Expr::Exists { .. }
+                | Expr::Subquery { .. }
                 | Expr::GroupingSets(_)
                 | Expr::Cube(_)
                 | Expr::Rollup(_)
                 | Expr::Struct { .. }
-                | Expr::Named{..}
+                | Expr::Named { .. }
                 | Expr::Dictionary(_)
                 | Expr::Map(_)
-                | Expr::MatchAgainst{..}
+                | Expr::MatchAgainst { .. }
                 | Expr::Wildcard(_)
                 | Expr::QualifiedWildcard(_, _)
                 | Expr::OuterJoin(_)
                 | Expr::Prior(_)
                 | Expr::Lambda(_)
                 | Expr::MemberOf(_) => {
-                    return Err(anyhow!("Simplified SQL does not support the use of {} expressions", expr));
+                    return Err(anyhow!(
+                        "Simplified SQL does not support the use of {} expressions",
+                        expr
+                    ));
                 }
-                
+
                 // Simple expressions that don't need recursive checking
-                Expr::Identifier(_)
-                | Expr::Value(_)
-                | Expr::TypedString(_) => {
-                    Ok(Some(expr))
-                }
-                
+                Expr::Identifier(_) | Expr::Value(_) | Expr::TypedString(_) => Ok(Some(expr)),
+
                 // Then recursively check sub-expressions in supported variants
                 Expr::IsFalse(expr) => {
                     let expr_clone = expr.clone();
@@ -412,22 +459,40 @@ fn check_unsupported_expr(expr: Option<Expr>) -> Result<Option<Expr>> {
                     check_unsupported_expr(Some(*expr_clone))?;
                     Ok(Some(Expr::IsNotNull(expr)))
                 }
-                Expr::InList { expr, list, negated } => {
+                Expr::InList {
+                    expr,
+                    list,
+                    negated,
+                } => {
                     let expr_clone = expr.clone();
                     check_unsupported_expr(Some(*expr_clone))?;
                     for e in &list {
                         check_unsupported_expr(Some(e.clone()))?;
                     }
-                    Ok(Some(Expr::InList { expr, list, negated }))
+                    Ok(Some(Expr::InList {
+                        expr,
+                        list,
+                        negated,
+                    }))
                 }
-                Expr::Between { expr, negated, low, high } => {
+                Expr::Between {
+                    expr,
+                    negated,
+                    low,
+                    high,
+                } => {
                     let expr_clone = expr.clone();
                     let low_clone = low.clone();
                     let high_clone = high.clone();
                     check_unsupported_expr(Some(*expr_clone))?;
                     check_unsupported_expr(Some(*low_clone))?;
                     check_unsupported_expr(Some(*high_clone))?;
-                    Ok(Some(Expr::Between { expr, negated, low, high }))
+                    Ok(Some(Expr::Between {
+                        expr,
+                        negated,
+                        low,
+                        high,
+                    }))
                 }
                 Expr::BinaryOp { left, op, right } => {
                     let left_clone = left.clone();
@@ -436,48 +501,108 @@ fn check_unsupported_expr(expr: Option<Expr>) -> Result<Option<Expr>> {
                     check_unsupported_expr(Some(*right_clone))?;
                     Ok(Some(Expr::BinaryOp { left, op, right }))
                 }
-                Expr::Like { negated, any, expr, pattern, escape_char } => {
+                Expr::Like {
+                    negated,
+                    any,
+                    expr,
+                    pattern,
+                    escape_char,
+                } => {
                     let expr_clone = expr.clone();
                     let pattern_clone = pattern.clone();
                     check_unsupported_expr(Some(*expr_clone))?;
                     check_unsupported_expr(Some(*pattern_clone))?;
-                    Ok(Some(Expr::Like { negated, any, expr, pattern, escape_char }))
+                    Ok(Some(Expr::Like {
+                        negated,
+                        any,
+                        expr,
+                        pattern,
+                        escape_char,
+                    }))
                 }
-                Expr::ILike { negated, any, expr, pattern, escape_char } => {
+                Expr::ILike {
+                    negated,
+                    any,
+                    expr,
+                    pattern,
+                    escape_char,
+                } => {
                     let expr_clone = expr.clone();
                     let pattern_clone = pattern.clone();
                     check_unsupported_expr(Some(*expr_clone))?;
                     check_unsupported_expr(Some(*pattern_clone))?;
-                    Ok(Some(Expr::ILike { negated, any, expr, pattern, escape_char }))
+                    Ok(Some(Expr::ILike {
+                        negated,
+                        any,
+                        expr,
+                        pattern,
+                        escape_char,
+                    }))
                 }
-                Expr::SimilarTo { negated, expr, pattern, escape_char } => {
+                Expr::SimilarTo {
+                    negated,
+                    expr,
+                    pattern,
+                    escape_char,
+                } => {
                     let expr_clone = expr.clone();
                     let pattern_clone = pattern.clone();
                     check_unsupported_expr(Some(*expr_clone))?;
                     check_unsupported_expr(Some(*pattern_clone))?;
-                    Ok(Some(Expr::SimilarTo { negated, expr, pattern, escape_char }))
+                    Ok(Some(Expr::SimilarTo {
+                        negated,
+                        expr,
+                        pattern,
+                        escape_char,
+                    }))
                 }
                 Expr::UnaryOp { op, expr } => {
                     let expr_clone = expr.clone();
                     check_unsupported_expr(Some(*expr_clone))?;
                     Ok(Some(Expr::UnaryOp { op, expr }))
                 }
-                Expr::Cast { kind, expr, data_type, format, array } => {
+                Expr::Cast {
+                    kind,
+                    expr,
+                    data_type,
+                    format,
+                    array,
+                } => {
                     let expr_clone = expr.clone();
                     check_unsupported_expr(Some(*expr_clone))?;
-                    Ok(Some(Expr::Cast { kind, expr, data_type, format, array }))
+                    Ok(Some(Expr::Cast {
+                        kind,
+                        expr,
+                        data_type,
+                        format,
+                        array,
+                    }))
                 }
-                Expr::AtTimeZone { timestamp, time_zone } => {
+                Expr::AtTimeZone {
+                    timestamp,
+                    time_zone,
+                } => {
                     let timestamp_clone = timestamp.clone();
                     let time_zone_clone = time_zone.clone();
                     check_unsupported_expr(Some(*timestamp_clone))?;
                     check_unsupported_expr(Some(*time_zone_clone))?;
-                    Ok(Some(Expr::AtTimeZone { timestamp, time_zone }))
+                    Ok(Some(Expr::AtTimeZone {
+                        timestamp,
+                        time_zone,
+                    }))
                 }
-                Expr::Extract { field, syntax, expr } => {
+                Expr::Extract {
+                    field,
+                    syntax,
+                    expr,
+                } => {
                     let expr_clone = expr.clone();
                     check_unsupported_expr(Some(*expr_clone))?;
-                    Ok(Some(Expr::Extract { field, syntax, expr }))
+                    Ok(Some(Expr::Extract {
+                        field,
+                        syntax,
+                        expr,
+                    }))
                 }
                 Expr::Ceil { expr, field } => {
                     let expr_clone = expr.clone();
@@ -496,7 +621,13 @@ fn check_unsupported_expr(expr: Option<Expr>) -> Result<Option<Expr>> {
                     check_unsupported_expr(Some(*in_clone))?;
                     Ok(Some(Expr::Position { expr, r#in }))
                 }
-                Expr::Substring { expr, substring_from, substring_for, special, shorthand } => {
+                Expr::Substring {
+                    expr,
+                    substring_from,
+                    substring_for,
+                    special,
+                    shorthand,
+                } => {
                     let expr_clone = expr.clone();
                     check_unsupported_expr(Some(*expr_clone))?;
                     if let Some(from) = &substring_from {
@@ -507,9 +638,20 @@ fn check_unsupported_expr(expr: Option<Expr>) -> Result<Option<Expr>> {
                         let for_expr_clone = for_expr.clone();
                         check_unsupported_expr(Some(*for_expr_clone))?;
                     }
-                    Ok(Some(Expr::Substring { expr, substring_from, substring_for, special, shorthand }))
+                    Ok(Some(Expr::Substring {
+                        expr,
+                        substring_from,
+                        substring_for,
+                        special,
+                        shorthand,
+                    }))
                 }
-                Expr::Trim { expr, trim_where, trim_what, trim_characters } => {
+                Expr::Trim {
+                    expr,
+                    trim_where,
+                    trim_what,
+                    trim_characters,
+                } => {
                     let expr_clone = expr.clone();
                     check_unsupported_expr(Some(*expr_clone))?;
                     if let Some(what) = &trim_what {
@@ -521,9 +663,19 @@ fn check_unsupported_expr(expr: Option<Expr>) -> Result<Option<Expr>> {
                             check_unsupported_expr(Some(e.clone()))?;
                         }
                     }
-                    Ok(Some(Expr::Trim { expr, trim_where, trim_what, trim_characters }))
+                    Ok(Some(Expr::Trim {
+                        expr,
+                        trim_where,
+                        trim_what,
+                        trim_characters,
+                    }))
                 }
-                Expr::Overlay { expr, overlay_what, overlay_from, overlay_for } => {
+                Expr::Overlay {
+                    expr,
+                    overlay_what,
+                    overlay_from,
+                    overlay_for,
+                } => {
                     let expr_clone = expr.clone();
                     let overlay_what_clone = overlay_what.clone();
                     let overlay_from_clone = overlay_from.clone();
@@ -534,7 +686,12 @@ fn check_unsupported_expr(expr: Option<Expr>) -> Result<Option<Expr>> {
                         let for_expr_clone = for_expr.clone();
                         check_unsupported_expr(Some(*for_expr_clone))?;
                     }
-                    Ok(Some(Expr::Overlay { expr, overlay_what, overlay_from, overlay_for }))
+                    Ok(Some(Expr::Overlay {
+                        expr,
+                        overlay_what,
+                        overlay_from,
+                        overlay_for,
+                    }))
                 }
                 Expr::Nested(expr) => {
                     let expr_clone = expr.clone();
@@ -560,8 +717,6 @@ fn check_unsupported_expr(expr: Option<Expr>) -> Result<Option<Expr>> {
                 }
             }
         }
-        None => {
-            Ok(None)
-        }
+        None => Ok(None),
     }
 }

@@ -14,10 +14,10 @@ use http::{HeaderMap, StatusCode};
 use reqwest::Client;
 use std::fmt::Display;
 use std::time::Duration;
+use tracing::{Instrument, Span};
 use url::Url;
 use x402_types::facilitator::Facilitator;
 use x402_types::proto;
-use tracing::{Span, Instrument};
 
 /// HTTP client for communicating with a remote x402 facilitator.
 ///
@@ -70,9 +70,7 @@ impl Facilitator for FacilitatorClient {
     }
 
     /// Queries the facilitator for supported payment kinds.
-    async fn supported(
-        &self,
-    ) -> Result<proto::SupportedResponse, FacilitatorClientError> {
+    async fn supported(&self) -> Result<proto::SupportedResponse, FacilitatorClientError> {
         with_span(
             FacilitatorClient::supported(self),
             tracing::info_span!("x402.facilitator_client.supported", timeout = ?self.timeout),
@@ -220,9 +218,7 @@ impl FacilitatorClient {
     }
 
     /// Sends a `GET /supported` request to the facilitator.
-    pub async fn supported(
-        &self,
-    ) -> Result<proto::SupportedResponse, FacilitatorClientError> {
+    pub async fn supported(&self) -> Result<proto::SupportedResponse, FacilitatorClientError> {
         let mut req = self.client.get(self.supported_url.clone());
         for (key, value) in self.headers.iter() {
             req = req.header(key, value);
@@ -230,22 +226,27 @@ impl FacilitatorClient {
         if let Some(timeout) = self.timeout {
             req = req.timeout(timeout);
         }
-        let http_response = req
-            .send()
-            .await
-            .map_err(|e| FacilitatorClientError::Http { context: "GET /supported", source: e })?;
+        let http_response = req.send().await.map_err(|e| FacilitatorClientError::Http {
+            context: "GET /supported",
+            source: e,
+        })?;
 
         let result = if http_response.status() == StatusCode::OK {
             http_response
                 .json::<proto::SupportedResponse>()
                 .await
-                .map_err(|e| FacilitatorClientError::JsonDeserialization { context: "GET /supported", source: e })
+                .map_err(|e| FacilitatorClientError::JsonDeserialization {
+                    context: "GET /supported",
+                    source: e,
+                })
         } else {
             let status = http_response.status();
-            let body = http_response
-                .text()
-                .await
-                .map_err(|e| FacilitatorClientError::ResponseBodyRead { context: "GET /supported", source: e })?;
+            let body = http_response.text().await.map_err(|e| {
+                FacilitatorClientError::ResponseBodyRead {
+                    context: "GET /supported",
+                    source: e,
+                }
+            })?;
             Err(FacilitatorClientError::HttpStatus {
                 context: "GET /supported",
                 status,
@@ -258,7 +259,7 @@ impl FacilitatorClient {
         result
     }
 
-        /// Shared POST helper: serializes the payload as JSON, applies headers/timeout,
+    /// Shared POST helper: serializes the payload as JSON, applies headers/timeout,
     /// sends the request, and records the outcome on the current tracing span.
     async fn post_json<T, R>(
         &self,

@@ -33,7 +33,9 @@ pub trait Database: Send + Sync + std::fmt::Debug {
 /// Converts Arrow record batches into Arrow IPC streaming format (backend-agnostic).
 ///
 /// Returns an empty buffer if `batches` is empty.
-pub fn serialize_batches_to_arrow_ipc(batches: &[RecordBatch]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn serialize_batches_to_arrow_ipc(
+    batches: &[RecordBatch],
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut buffer = Vec::new();
     if let Some(first_batch) = batches.first() {
         let schema = first_batch.schema();

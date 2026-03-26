@@ -5,7 +5,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use arrow::datatypes::Schema;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -43,7 +43,8 @@ impl Database for DuckDbDatabase {
         let conn = self.conn.clone();
         let sql = sql.to_string();
         tokio::task::spawn_blocking(move || {
-            let db = conn.lock()
+            let db = conn
+                .lock()
                 .map_err(|e| anyhow!("Failed to lock database: {}", e))?;
             let mut stmt = db.prepare(&sql)?;
             let batches = stmt.query_arrow([])?.collect::<Vec<RecordBatch>>();
@@ -57,7 +58,8 @@ impl Database for DuckDbDatabase {
         let conn = self.conn.clone();
         let sql = sql.to_string();
         tokio::task::spawn_blocking(move || {
-            let db = conn.lock()
+            let db = conn
+                .lock()
                 .map_err(|e| anyhow!("Failed to lock database: {}", e))?;
             let mut stmt = db.prepare(&sql)?;
             let count: i64 = stmt.query_row([], |row| row.get(0))?;
@@ -71,7 +73,8 @@ impl Database for DuckDbDatabase {
         let conn = self.conn.clone();
         let table_name = table_name.to_string();
         tokio::task::spawn_blocking(move || {
-            let db = conn.lock()
+            let db = conn
+                .lock()
                 .map_err(|e| anyhow!("Failed to lock database: {}", e))?;
             let query = format!("SELECT * FROM {} LIMIT 0", table_name);
             let mut stmt = db.prepare(&query)?;

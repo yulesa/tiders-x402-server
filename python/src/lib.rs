@@ -1,3 +1,4 @@
+use arrow::datatypes::Schema;
 /// tiders_x402_python: Python bindings for the tiders_x402 Rust library.
 ///
 /// This module exposes payment, server, and configuration primitives for use in Python.
@@ -16,27 +17,26 @@
 use pyo3::prelude::*;
 use std::str::FromStr;
 use std::sync::Arc;
-use url::Url;
 use tokio::runtime::Runtime;
-use arrow::datatypes::Schema;
+use url::Url;
 
-use tiders_x402::{PriceTag, TablePaymentOffers, GlobalPaymentConfig, AppState, FacilitatorClient};
-#[cfg(any(feature = "duckdb", feature = "postgresql", feature = "clickhouse"))]
-use tiders_x402::Database;
-use tiders_x402::price::TokenAmount;
-#[cfg(feature = "duckdb")]
-use tiders_x402::database_duckdb::DuckDbDatabase;
-#[cfg(feature = "postgresql")]
-use tiders_x402::database_postgresql::PostgresqlDatabase;
-#[cfg(feature = "clickhouse")]
-use tiders_x402::database_clickhouse::ClickHouseDatabase;
-use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
-use x402_chain_eip155::KnownNetworkEip155;
-use x402_types::networks::USDC;
 use alloy::primitives::U256;
 use arrow::pyarrow::FromPyArrow;
 #[cfg(any(feature = "duckdb", feature = "postgresql", feature = "clickhouse"))]
 use arrow::pyarrow::ToPyArrow;
+#[cfg(any(feature = "duckdb", feature = "postgresql", feature = "clickhouse"))]
+use tiders_x402::Database;
+#[cfg(feature = "clickhouse")]
+use tiders_x402::database_clickhouse::ClickHouseDatabase;
+#[cfg(feature = "duckdb")]
+use tiders_x402::database_duckdb::DuckDbDatabase;
+#[cfg(feature = "postgresql")]
+use tiders_x402::database_postgresql::PostgresqlDatabase;
+use tiders_x402::price::TokenAmount;
+use tiders_x402::{AppState, FacilitatorClient, GlobalPaymentConfig, PriceTag, TablePaymentOffers};
+use x402_chain_eip155::KnownNetworkEip155;
+use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
+use x402_types::networks::USDC;
 
 /// A Python module implemented in Rust.
 #[pymodule]
@@ -58,7 +58,7 @@ fn tiders_x402_server(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
 }
 
 /// Represents a payment offer for a table or item.
-#[pyclass(name="PriceTag", from_py_object)]
+#[pyclass(name = "PriceTag", from_py_object)]
 #[derive(Clone)]
 pub struct PyPriceTag {
     inner: PriceTag,
@@ -100,34 +100,40 @@ impl PyPriceTag {
         // Handle amount_per_item as either string or integer
         let amount_per_item = if let Ok(amount_str) = amount_per_item.extract::<String>(py) {
             // Parse as string (MoneyAmount) using token's parse method
-            let deployed_amount = token_deployment.parse(amount_str.as_str())
+            let deployed_amount = token_deployment
+                .parse(amount_str.as_str())
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             TokenAmount(deployed_amount.amount)
         } else if let Ok(amount_int) = amount_per_item.extract::<i64>(py) {
             // Parse as integer - treat as smallest token unit
             if amount_int < 0 {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Amount cannot be negative"));
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "Amount cannot be negative",
+                ));
             }
             TokenAmount(U256::from(amount_int as u64))
         } else {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "amount_per_item must be either a string (e.g., '0.001') or an integer representing the smallest token unit"
+                "amount_per_item must be either a string (e.g., '0.001') or an integer representing the smallest token unit",
             ));
         };
 
         let min_total_amount = if let Some(min_obj) = min_total_amount {
             if let Ok(min_str) = min_obj.extract::<String>(py) {
-                let deployed_amount = token_deployment.parse(min_str.as_str())
+                let deployed_amount = token_deployment
+                    .parse(min_str.as_str())
                     .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
                 Some(TokenAmount(deployed_amount.amount))
             } else if let Ok(min_int) = min_obj.extract::<i64>(py) {
                 if min_int < 0 {
-                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Min total amount cannot be negative"));
+                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "Min total amount cannot be negative",
+                    ));
                 }
                 Some(TokenAmount(U256::from(min_int as u64)))
             } else {
                 return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "min_total_amount must be either a string (e.g., '0.01') or an integer representing the smallest token unit"
+                    "min_total_amount must be either a string (e.g., '0.01') or an integer representing the smallest token unit",
                 ));
             }
         } else {
@@ -150,7 +156,7 @@ impl PyPriceTag {
 }
 
 /// Represents a USDC token on a supported network.
-#[pyclass(name="USDC", from_py_object)]
+#[pyclass(name = "USDC", from_py_object)]
 #[derive(Clone)]
 pub struct PyUSDC {
     inner: Eip155TokenDeployment,
@@ -191,9 +197,12 @@ impl PyUSDC {
             "avalanche" => USDC::avalanche(),
             "polygon" => USDC::polygon(),
             "polygon_amoy" => USDC::polygon_amoy(),
-            _ => return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Invalid network: {}. Supported: base_sepolia, base, avalanche_fuji, avalanche, polygon, polygon_amoy", network_str)
-            )),
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Invalid network: {}. Supported: base_sepolia, base, avalanche_fuji, avalanche, polygon, polygon_amoy",
+                    network_str
+                )));
+            }
         };
 
         Ok(Self { inner: deployment })
@@ -201,7 +210,7 @@ impl PyUSDC {
 }
 
 /// Holds payment offers for a table.
-#[pyclass(name="TablePaymentOffers", from_py_object)]
+#[pyclass(name = "TablePaymentOffers", from_py_object)]
 #[derive(Clone)]
 pub struct PyTablePaymentOffers {
     inner: TablePaymentOffers,
@@ -219,7 +228,11 @@ impl PyTablePaymentOffers {
     /// Returns:
     ///     TablePaymentOffers: A new TablePaymentOffers object.
     #[new]
-    fn new(table_name: String, price_tags: Vec<PyPriceTag>, schema: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
+    fn new(
+        table_name: String,
+        price_tags: Vec<PyPriceTag>,
+        schema: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
         let price_tags: Vec<PriceTag> = price_tags.into_iter().map(|pt| pt.inner).collect();
         let schema_inner = schema
             .map(|s| Schema::from_pyarrow_bound(s))
@@ -273,7 +286,7 @@ impl PyTablePaymentOffers {
 }
 
 /// Client for interacting with a payment facilitator.
-#[pyclass(name="FacilitatorClient", from_py_object)]
+#[pyclass(name = "FacilitatorClient", from_py_object)]
 #[derive(Clone)]
 pub struct PyFacilitatorClient {
     inner: FacilitatorClient,
@@ -298,7 +311,7 @@ impl PyFacilitatorClient {
 }
 
 /// Global configuration for payment information and facilitator.
-#[pyclass(name="GlobalPaymentConfig")]
+#[pyclass(name = "GlobalPaymentConfig")]
 pub struct PyGlobalPaymentConfig {
     inner: GlobalPaymentConfig,
 }
@@ -350,7 +363,7 @@ impl PyGlobalPaymentConfig {
 
 /// DuckDB database backend.
 #[cfg(feature = "duckdb")]
-#[pyclass(name="DuckDbDatabase")]
+#[pyclass(name = "DuckDbDatabase")]
 pub struct PyDuckDbDatabase {
     inner: Arc<dyn Database>,
 }
@@ -369,7 +382,9 @@ impl PyDuckDbDatabase {
     fn new(db_path: &str) -> PyResult<Self> {
         let db = DuckDbDatabase::from_path(db_path)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        Ok(Self { inner: Arc::new(db) })
+        Ok(Self {
+            inner: Arc::new(db),
+        })
     }
 
     /// Get the schema of a table as a pyarrow.Schema.
@@ -382,9 +397,11 @@ impl PyDuckDbDatabase {
     fn get_table_schema<'py>(&self, table_name: &str, py: Python<'py>) -> PyResult<Py<PyAny>> {
         let rt = Runtime::new()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        let schema = rt.block_on(self.inner.get_table_schema(table_name))
+        let schema = rt
+            .block_on(self.inner.get_table_schema(table_name))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        let py_schema = schema.to_pyarrow(py)
+        let py_schema = schema
+            .to_pyarrow(py)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         Ok(py_schema.unbind())
     }
@@ -392,7 +409,7 @@ impl PyDuckDbDatabase {
 
 /// PostgreSQL database backend.
 #[cfg(feature = "postgresql")]
-#[pyclass(name="PostgresqlDatabase")]
+#[pyclass(name = "PostgresqlDatabase")]
 pub struct PyPostgresqlDatabase {
     inner: Arc<dyn Database>,
 }
@@ -411,9 +428,14 @@ impl PyPostgresqlDatabase {
     fn new(connection_string: &str) -> PyResult<Self> {
         let rt = Runtime::new()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        let db = rt.block_on(PostgresqlDatabase::from_connection_string(connection_string))
+        let db = rt
+            .block_on(PostgresqlDatabase::from_connection_string(
+                connection_string,
+            ))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        Ok(Self { inner: Arc::new(db) })
+        Ok(Self {
+            inner: Arc::new(db),
+        })
     }
 
     /// Create a new PostgresqlDatabase with full control over connection and pool parameters.
@@ -447,13 +469,23 @@ impl PyPostgresqlDatabase {
     ) -> PyResult<Self> {
         let rt = Runtime::new()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        let db = rt.block_on(PostgresqlDatabase::from_params(
-            host, port, user, password, dbname,
-            max_pool_size, wait_timeout_ms, create_timeout_ms, recycle_timeout_ms,
-            recycling_method,
-        ))
+        let db = rt
+            .block_on(PostgresqlDatabase::from_params(
+                host,
+                port,
+                user,
+                password,
+                dbname,
+                max_pool_size,
+                wait_timeout_ms,
+                create_timeout_ms,
+                recycle_timeout_ms,
+                recycling_method,
+            ))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        Ok(Self { inner: Arc::new(db) })
+        Ok(Self {
+            inner: Arc::new(db),
+        })
     }
 
     /// Get the schema of a table as a pyarrow.Schema.
@@ -466,9 +498,11 @@ impl PyPostgresqlDatabase {
     fn get_table_schema<'py>(&self, table_name: &str, py: Python<'py>) -> PyResult<Py<PyAny>> {
         let rt = Runtime::new()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        let schema = rt.block_on(self.inner.get_table_schema(table_name))
+        let schema = rt
+            .block_on(self.inner.get_table_schema(table_name))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        let py_schema = schema.to_pyarrow(py)
+        let py_schema = schema
+            .to_pyarrow(py)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         Ok(py_schema.unbind())
     }
@@ -476,7 +510,7 @@ impl PyPostgresqlDatabase {
 
 /// ClickHouse database backend.
 #[cfg(feature = "clickhouse")]
-#[pyclass(name="ClickHouseDatabase")]
+#[pyclass(name = "ClickHouseDatabase")]
 pub struct PyClickHouseDatabase {
     inner: Arc<dyn Database>,
 }
@@ -495,7 +529,9 @@ impl PyClickHouseDatabase {
     fn new(url: &str) -> PyResult<Self> {
         let db = ClickHouseDatabase::from_url(url)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        Ok(Self { inner: Arc::new(db) })
+        Ok(Self {
+            inner: Arc::new(db),
+        })
     }
 
     /// Create a new ClickHouseDatabase with full client configuration.
@@ -526,11 +562,19 @@ impl PyClickHouseDatabase {
         let options_vec = options.map(|m| m.into_iter().collect::<Vec<_>>());
         let headers_vec = headers.map(|m| m.into_iter().collect::<Vec<_>>());
         let db = ClickHouseDatabase::from_params(
-            url, user, password, database, access_token, compression,
-            options_vec, headers_vec,
+            url,
+            user,
+            password,
+            database,
+            access_token,
+            compression,
+            options_vec,
+            headers_vec,
         )
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        Ok(Self { inner: Arc::new(db) })
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(Self {
+            inner: Arc::new(db),
+        })
     }
 
     /// Get the schema of a table as a pyarrow.Schema.
@@ -543,16 +587,18 @@ impl PyClickHouseDatabase {
     fn get_table_schema<'py>(&self, table_name: &str, py: Python<'py>) -> PyResult<Py<PyAny>> {
         let rt = Runtime::new()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        let schema = rt.block_on(self.inner.get_table_schema(table_name))
+        let schema = rt
+            .block_on(self.inner.get_table_schema(table_name))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        let py_schema = schema.to_pyarrow(py)
+        let py_schema = schema
+            .to_pyarrow(py)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         Ok(py_schema.unbind())
     }
 }
 
 /// Application state, object mutually shared between API handlers, including database and payment config.
-#[pyclass(name="AppState")]
+#[pyclass(name = "AppState")]
 pub struct PyAppState {
     inner: AppState,
 }
@@ -600,7 +646,7 @@ impl PyAppState {
         }
 
         Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-            "Expected a DuckDbDatabase, PostgresqlDatabase, or ClickHouseDatabase object"
+            "Expected a DuckDbDatabase, PostgresqlDatabase, or ClickHouseDatabase object",
         ))
     }
 }

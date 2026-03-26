@@ -5,10 +5,10 @@
 //! (`TablePaymentOffers`). Used by [`crate::payment_config`] to
 //! generate x402 payment requirements.
 
-use std::fmt::Debug;
-use arrow::datatypes::Schema;
-use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use alloy::primitives::U256;
+use arrow::datatypes::Schema;
+use std::fmt::Debug;
+use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 
 /// A token amount in the token's smallest unit (e.g., wei for ETH, 10^-6 for USDC).
 #[derive(Clone, Debug, PartialEq)]

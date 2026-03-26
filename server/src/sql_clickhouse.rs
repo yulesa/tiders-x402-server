@@ -6,10 +6,10 @@
 //! `position(haystack, needle)` for `POSITION`, and rejection of
 //! `SIMILAR TO`, `TRY_CAST`, `SafeCast`, and `OVERLAY`.
 
-use sqlparser::ast::{Expr, CastKind};
-use anyhow::{anyhow, Result};
+use crate::sql_shared::{create_query, display_common_expr, format_value};
 use crate::sqp_parser::AnalyzedQuery;
-use crate::sql_shared::{create_query, format_value, display_common_expr};
+use anyhow::{Result, anyhow};
+use sqlparser::ast::{CastKind, Expr};
 
 /// Generates a ClickHouse SQL query string from an analyzed query AST.
 pub fn create_clickhouse_query(ast: &AnalyzedQuery) -> Result<String> {
@@ -37,7 +37,12 @@ fn ch_display_expr(expr: &Expr) -> Result<String> {
         }
 
         // OVERLAY is not natively supported in ClickHouse; synthesize with concat+substring
-        Expr::Overlay { expr, overlay_what, overlay_from, overlay_for } => {
+        Expr::Overlay {
+            expr,
+            overlay_what,
+            overlay_from,
+            overlay_for,
+        } => {
             let expr_str = ch_display_expr(expr)?;
             let what_str = ch_display_expr(overlay_what)?;
             let from_str = ch_display_expr(overlay_from)?;
@@ -46,18 +51,28 @@ fn ch_display_expr(expr: &Expr) -> Result<String> {
                 let for_str = ch_display_expr(for_expr)?;
                 Ok(format!(
                     "concat(substring({expr}, 1, {from} - 1), {what}, substring({expr}, {from} + {for_len}))",
-                    expr = expr_str, from = from_str, what = what_str, for_len = for_str
+                    expr = expr_str,
+                    from = from_str,
+                    what = what_str,
+                    for_len = for_str
                 ))
             } else {
                 Ok(format!(
                     "concat(substring({expr}, 1, {from} - 1), {what}, substring({expr}, {from} + length({what})))",
-                    expr = expr_str, from = from_str, what = what_str
+                    expr = expr_str,
+                    from = from_str,
+                    what = what_str
                 ))
             };
         }
 
         // DoubleColon cast → CAST(expr AS type) in ClickHouse
-        Expr::Cast { kind: CastKind::DoubleColon, expr, data_type, .. } => {
+        Expr::Cast {
+            kind: CastKind::DoubleColon,
+            expr,
+            data_type,
+            ..
+        } => {
             let expr_str = ch_display_expr(expr)?;
             return Ok(format!("CAST({} AS {})", expr_str, data_type));
         }
@@ -72,30 +87,40 @@ fn ch_display_expr(expr: &Expr) -> Result<String> {
 
     // ClickHouse-specific expressions not handled by shared code
     match expr {
-        Expr::TypedString(ts) => {
-            Ok(format!("CAST({} AS {})", format_value(&ts.value.value)?, ts.data_type))
-        }
+        Expr::TypedString(ts) => Ok(format!(
+            "CAST({} AS {})",
+            format_value(&ts.value.value)?,
+            ts.data_type
+        )),
 
-        Expr::Extract { field, syntax: _, expr } => {
+        Expr::Extract {
+            field,
+            syntax: _,
+            expr,
+        } => {
             let expr_str = ch_display_expr(expr)?;
             Ok(format!("EXTRACT({} FROM {})", field, expr_str))
         }
 
-        Expr::AtTimeZone { timestamp, time_zone } => {
+        Expr::AtTimeZone {
+            timestamp,
+            time_zone,
+        } => {
             let timestamp_str = ch_display_expr(timestamp)?;
             let timezone_str = ch_display_expr(time_zone)?;
             Ok(format!("toTimezone({}, {})", timestamp_str, timezone_str))
         }
 
         // ClickHouse does not support TRY_CAST or SafeCast
-        Expr::Cast { kind, .. } => {
-            match kind {
-                CastKind::TryCast => Err(anyhow!("TRY_CAST is not supported in ClickHouse")),
-                CastKind::SafeCast => Err(anyhow!("Safe cast is not supported in ClickHouse")),
-                _ => Err(anyhow!("ClickHouse: Unexpected cast kind: {:?}", kind)),
-            }
-        }
+        Expr::Cast { kind, .. } => match kind {
+            CastKind::TryCast => Err(anyhow!("TRY_CAST is not supported in ClickHouse")),
+            CastKind::SafeCast => Err(anyhow!("Safe cast is not supported in ClickHouse")),
+            _ => Err(anyhow!("ClickHouse: Unexpected cast kind: {:?}", kind)),
+        },
 
-        _ => Err(anyhow!("ClickHouse: Unsupported expression type: {:?}", expr)),
+        _ => Err(anyhow!(
+            "ClickHouse: Unsupported expression type: {:?}",
+            expr
+        )),
     }
 }

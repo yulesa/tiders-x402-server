@@ -5,7 +5,7 @@
 
 use std::io::Cursor;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ipc::reader::StreamReader;
 use arrow::record_batch::RecordBatch;
@@ -78,7 +78,12 @@ impl ClickHouseDatabase {
             let c = match comp {
                 "none" => clickhouse::Compression::None,
                 "lz4" => clickhouse::Compression::Lz4,
-                other => return Err(anyhow!("Unknown compression '{}'. Use 'none' or 'lz4'", other)),
+                other => {
+                    return Err(anyhow!(
+                        "Unknown compression '{}'. Use 'none' or 'lz4'",
+                        other
+                    ));
+                }
             };
             client = client.with_compression(c);
         }
@@ -145,26 +150,22 @@ impl Database for ClickHouseDatabase {
         let col = batch.column(0);
         let count: i64 = match col.data_type() {
             DataType::UInt64 => {
-                arrow::array::cast::as_primitive_array::<arrow::datatypes::UInt64Type>(col)
-                    .value(0) as i64
+                arrow::array::cast::as_primitive_array::<arrow::datatypes::UInt64Type>(col).value(0)
+                    as i64
             }
             DataType::Int64 => {
-                arrow::array::cast::as_primitive_array::<arrow::datatypes::Int64Type>(col)
-                    .value(0)
+                arrow::array::cast::as_primitive_array::<arrow::datatypes::Int64Type>(col).value(0)
             }
             DataType::UInt32 => {
-                arrow::array::cast::as_primitive_array::<arrow::datatypes::UInt32Type>(col)
-                    .value(0) as i64
+                arrow::array::cast::as_primitive_array::<arrow::datatypes::UInt32Type>(col).value(0)
+                    as i64
             }
             DataType::Int32 => {
-                arrow::array::cast::as_primitive_array::<arrow::datatypes::Int32Type>(col)
-                    .value(0) as i64
+                arrow::array::cast::as_primitive_array::<arrow::datatypes::Int32Type>(col).value(0)
+                    as i64
             }
             other => {
-                return Err(anyhow!(
-                    "Unexpected column type for row count: {:?}",
-                    other
-                ));
+                return Err(anyhow!("Unexpected column type for row count: {:?}", other));
             }
         };
 
@@ -182,7 +183,10 @@ impl Database for ClickHouseDatabase {
             .map_err(|e| anyhow!("Failed to describe table '{}': {}", table_name, e))?;
 
         if rows.is_empty() {
-            return Err(anyhow!("Table '{}' not found or has no columns", table_name));
+            return Err(anyhow!(
+                "Table '{}' not found or has no columns",
+                table_name
+            ));
         }
 
         let fields: Vec<Field> = rows
@@ -242,7 +246,9 @@ fn ch_type_to_arrow(ch_type: &str) -> DataType {
         "Float64" => DataType::Float64,
         "String" | "FixedString" => DataType::Utf8,
         "Date" | "Date32" => DataType::Date32,
-        "DateTime" | "DateTime64" => DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None),
+        "DateTime" | "DateTime64" => {
+            DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None)
+        }
         "UUID" => DataType::Utf8,
         _ if inner.starts_with("FixedString(") => DataType::Utf8,
         _ if inner.starts_with("DateTime64(") => {
@@ -309,8 +315,7 @@ fn read_arrow_stream(bytes: &[u8]) -> Result<Vec<RecordBatch>> {
 
     let mut batches = Vec::new();
     for batch_result in reader {
-        let batch = batch_result
-            .map_err(|e| anyhow!("Failed to read Arrow batch: {}", e))?;
+        let batch = batch_result.map_err(|e| anyhow!("Failed to read Arrow batch: {}", e))?;
         batches.push(batch);
     }
     Ok(batches)

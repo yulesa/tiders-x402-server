@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use arrow::array::{
     ArrayRef, BinaryBuilder, BooleanBuilder, Date32Builder, Decimal128Builder,
     FixedSizeBinaryBuilder, Float32Builder, Float64Builder, Int16Builder, Int32Builder,
@@ -94,7 +94,12 @@ impl PostgresqlDatabase {
             "fast" => RecyclingMethod::Fast,
             "verified" => RecyclingMethod::Verified,
             "clean" => RecyclingMethod::Clean,
-            other => return Err(anyhow!("Unknown recycling method '{}'. Use 'fast', 'verified', or 'clean'", other)),
+            other => {
+                return Err(anyhow!(
+                    "Unknown recycling method '{}'. Use 'fast', 'verified', or 'clean'",
+                    other
+                ));
+            }
         };
 
         let mgr_config = ManagerConfig {
@@ -102,8 +107,7 @@ impl PostgresqlDatabase {
         };
         let mgr = Manager::from_config(pg_config, tokio_postgres::NoTls, mgr_config);
 
-        let mut builder = Pool::builder(mgr)
-            .max_size(max_pool_size.unwrap_or(16));
+        let mut builder = Pool::builder(mgr).max_size(max_pool_size.unwrap_or(16));
 
         if let Some(ms) = wait_timeout_ms {
             builder = builder.wait_timeout(Some(std::time::Duration::from_millis(ms)));
@@ -171,7 +175,13 @@ impl Database for PostgresqlDatabase {
         let schema = Arc::new(Schema::new(
             columns
                 .iter()
-                .map(|col| Field::new(col.name(), pg_type_to_arrow(col.type_(), col.type_modifier()), true))
+                .map(|col| {
+                    Field::new(
+                        col.name(),
+                        pg_type_to_arrow(col.type_(), col.type_modifier()),
+                        true,
+                    )
+                })
                 .collect::<Vec<_>>(),
         ));
 
@@ -248,9 +258,7 @@ fn pg_type_to_arrow(pg_type: &Type, type_modifier: i32) -> DataType {
         Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME => DataType::Utf8,
         Type::BYTEA => DataType::Binary,
         Type::DATE => DataType::Date32,
-        Type::TIMESTAMPTZ | Type::TIMESTAMP => {
-            DataType::Timestamp(TimeUnit::Microsecond, None)
-        }
+        Type::TIMESTAMPTZ | Type::TIMESTAMP => DataType::Timestamp(TimeUnit::Microsecond, None),
         Type::NUMERIC => {
             // Extract precision and scale from type_modifier, or use defaults if not specified.
             let (precision, scale) = if type_modifier >= 0 {
@@ -272,7 +280,9 @@ fn pg_type_to_arrow(pg_type: &Type, type_modifier: i32) -> DataType {
         Type::INT8_ARRAY => DataType::List(Arc::new(Field::new("item", DataType::Int64, true))),
         Type::FLOAT4_ARRAY => DataType::List(Arc::new(Field::new("item", DataType::Float32, true))),
         Type::FLOAT8_ARRAY => DataType::List(Arc::new(Field::new("item", DataType::Float64, true))),
-        Type::TEXT_ARRAY | Type::VARCHAR_ARRAY => DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+        Type::TEXT_ARRAY | Type::VARCHAR_ARRAY => {
+            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true)))
+        }
         Type::JSON | Type::JSONB => DataType::Utf8,
         _ => DataType::Utf8, // Fallback: represent as string
     }
@@ -282,10 +292,7 @@ fn pg_type_to_arrow(pg_type: &Type, type_modifier: i32) -> DataType {
 ///
 /// Each column is read according to its Postgres type and written into the
 /// corresponding Arrow builder. Unknown types fall back to string conversion.
-fn build_arrow_arrays(
-    columns: &[tokio_postgres::Column],
-    rows: &[Row],
-) -> Result<Vec<ArrayRef>> {
+fn build_arrow_arrays(columns: &[tokio_postgres::Column], rows: &[Row]) -> Result<Vec<ArrayRef>> {
     let mut arrays: Vec<ArrayRef> = Vec::with_capacity(columns.len());
 
     for (col_idx, col) in columns.iter().enumerate() {
@@ -388,8 +395,9 @@ fn build_arrow_arrays(
                     .with_precision_and_scale(precision, scale)
                     .map_err(|e| anyhow!("Invalid NUMERIC precision/scale: {}", e))?;
                 for row in rows {
-                    let val: Option<PgNumeric> = row.try_get(col_idx)
-                        .map_err(|e| anyhow!("Failed to read NUMERIC column '{}': {}", col.name(), e))?;
+                    let val: Option<PgNumeric> = row.try_get(col_idx).map_err(|e| {
+                        anyhow!("Failed to read NUMERIC column '{}': {}", col.name(), e)
+                    })?;
                     match val {
                         Some(n) => builder.append_value(n.value),
                         None => builder.append_null(),
@@ -400,10 +408,12 @@ fn build_arrow_arrays(
             Type::UUID => {
                 let mut builder = FixedSizeBinaryBuilder::with_capacity(rows.len(), 16);
                 for row in rows {
-                    let val: Option<PgUuid> = row.try_get(col_idx)
-                        .map_err(|e| anyhow!("Failed to read UUID column '{}': {}", col.name(), e))?;
+                    let val: Option<PgUuid> = row.try_get(col_idx).map_err(|e| {
+                        anyhow!("Failed to read UUID column '{}': {}", col.name(), e)
+                    })?;
                     match val {
-                        Some(u) => builder.append_value(u.0)
+                        Some(u) => builder
+                            .append_value(u.0)
                             .map_err(|e| anyhow!("Failed to append UUID value: {}", e))?,
                         None => builder.append_null(),
                     }
@@ -413,8 +423,9 @@ fn build_arrow_arrays(
             Type::TIME | Type::TIMETZ => {
                 let mut builder = Time64MicrosecondBuilder::with_capacity(rows.len());
                 for row in rows {
-                    let val: Option<PgTime> = row.try_get(col_idx)
-                        .map_err(|e| anyhow!("Failed to read TIME column '{}': {}", col.name(), e))?;
+                    let val: Option<PgTime> = row.try_get(col_idx).map_err(|e| {
+                        anyhow!("Failed to read TIME column '{}': {}", col.name(), e)
+                    })?;
                     match val {
                         Some(t) => builder.append_value(t.0),
                         None => builder.append_null(),
@@ -425,8 +436,9 @@ fn build_arrow_arrays(
             Type::INTERVAL => {
                 let mut builder = IntervalMonthDayNanoBuilder::with_capacity(rows.len());
                 for row in rows {
-                    let val: Option<PgInterval> = row.try_get(col_idx)
-                        .map_err(|e| anyhow!("Failed to read INTERVAL column '{}': {}", col.name(), e))?;
+                    let val: Option<PgInterval> = row.try_get(col_idx).map_err(|e| {
+                        anyhow!("Failed to read INTERVAL column '{}': {}", col.name(), e)
+                    })?;
                     match val {
                         Some(iv) => {
                             builder.append_value(IntervalMonthDayNano {
@@ -443,8 +455,9 @@ fn build_arrow_arrays(
             Type::BOOL_ARRAY => {
                 let mut builder = ListBuilder::new(BooleanBuilder::new());
                 for row in rows {
-                    let val: Option<Vec<Option<bool>>> = row.try_get(col_idx)
-                        .map_err(|e| anyhow!("Failed to read BOOL[] column '{}': {}", col.name(), e))?;
+                    let val: Option<Vec<Option<bool>>> = row.try_get(col_idx).map_err(|e| {
+                        anyhow!("Failed to read BOOL[] column '{}': {}", col.name(), e)
+                    })?;
                     match val {
                         Some(arr) => {
                             for v in arr {
@@ -460,8 +473,9 @@ fn build_arrow_arrays(
             Type::INT2_ARRAY => {
                 let mut builder = ListBuilder::new(Int16Builder::new());
                 for row in rows {
-                    let val: Option<Vec<Option<i16>>> = row.try_get(col_idx)
-                        .map_err(|e| anyhow!("Failed to read INT2[] column '{}': {}", col.name(), e))?;
+                    let val: Option<Vec<Option<i16>>> = row.try_get(col_idx).map_err(|e| {
+                        anyhow!("Failed to read INT2[] column '{}': {}", col.name(), e)
+                    })?;
                     match val {
                         Some(arr) => {
                             for v in arr {
@@ -477,8 +491,9 @@ fn build_arrow_arrays(
             Type::INT4_ARRAY => {
                 let mut builder = ListBuilder::new(Int32Builder::new());
                 for row in rows {
-                    let val: Option<Vec<Option<i32>>> = row.try_get(col_idx)
-                        .map_err(|e| anyhow!("Failed to read INT4[] column '{}': {}", col.name(), e))?;
+                    let val: Option<Vec<Option<i32>>> = row.try_get(col_idx).map_err(|e| {
+                        anyhow!("Failed to read INT4[] column '{}': {}", col.name(), e)
+                    })?;
                     match val {
                         Some(arr) => {
                             for v in arr {
@@ -494,8 +509,9 @@ fn build_arrow_arrays(
             Type::INT8_ARRAY => {
                 let mut builder = ListBuilder::new(Int64Builder::new());
                 for row in rows {
-                    let val: Option<Vec<Option<i64>>> = row.try_get(col_idx)
-                        .map_err(|e| anyhow!("Failed to read INT8[] column '{}': {}", col.name(), e))?;
+                    let val: Option<Vec<Option<i64>>> = row.try_get(col_idx).map_err(|e| {
+                        anyhow!("Failed to read INT8[] column '{}': {}", col.name(), e)
+                    })?;
                     match val {
                         Some(arr) => {
                             for v in arr {
@@ -511,8 +527,9 @@ fn build_arrow_arrays(
             Type::FLOAT4_ARRAY => {
                 let mut builder = ListBuilder::new(Float32Builder::new());
                 for row in rows {
-                    let val: Option<Vec<Option<f32>>> = row.try_get(col_idx)
-                        .map_err(|e| anyhow!("Failed to read FLOAT4[] column '{}': {}", col.name(), e))?;
+                    let val: Option<Vec<Option<f32>>> = row.try_get(col_idx).map_err(|e| {
+                        anyhow!("Failed to read FLOAT4[] column '{}': {}", col.name(), e)
+                    })?;
                     match val {
                         Some(arr) => {
                             for v in arr {
@@ -528,8 +545,9 @@ fn build_arrow_arrays(
             Type::FLOAT8_ARRAY => {
                 let mut builder = ListBuilder::new(Float64Builder::new());
                 for row in rows {
-                    let val: Option<Vec<Option<f64>>> = row.try_get(col_idx)
-                        .map_err(|e| anyhow!("Failed to read FLOAT8[] column '{}': {}", col.name(), e))?;
+                    let val: Option<Vec<Option<f64>>> = row.try_get(col_idx).map_err(|e| {
+                        anyhow!("Failed to read FLOAT8[] column '{}': {}", col.name(), e)
+                    })?;
                     match val {
                         Some(arr) => {
                             for v in arr {
@@ -545,8 +563,9 @@ fn build_arrow_arrays(
             Type::TEXT_ARRAY | Type::VARCHAR_ARRAY => {
                 let mut builder = ListBuilder::new(StringBuilder::new());
                 for row in rows {
-                    let val: Option<Vec<Option<String>>> = row.try_get(col_idx)
-                        .map_err(|e| anyhow!("Failed to read TEXT[] column '{}': {}", col.name(), e))?;
+                    let val: Option<Vec<Option<String>>> = row.try_get(col_idx).map_err(|e| {
+                        anyhow!("Failed to read TEXT[] column '{}': {}", col.name(), e)
+                    })?;
                     match val {
                         Some(arr) => {
                             for v in arr {
@@ -575,8 +594,9 @@ fn build_arrow_arrays(
             _ => {
                 let mut builder = StringBuilder::with_capacity(rows.len(), rows.len() * 32);
                 for row in rows {
-                    let val: Option<String> = row.try_get(col_idx)
-                        .map_err(|e| anyhow!("Failed to read column '{}' as String: {}", col.name(), e))?;
+                    let val: Option<String> = row.try_get(col_idx).map_err(|e| {
+                        anyhow!("Failed to read column '{}' as String: {}", col.name(), e)
+                    })?;
                     builder.append_option(val.as_deref());
                 }
                 Arc::new(builder.finish())
@@ -600,7 +620,10 @@ const PG_EPOCH_MICROS_OFFSET: i64 = 946_684_800_000_000;
 struct PgUuid([u8; 16]);
 
 impl<'a> FromSql<'a> for PgUuid {
-    fn from_sql(_ty: &Type, raw: &'a [u8]) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         let bytes: [u8; 16] = raw.try_into().map_err(|_| "invalid UUID length")?;
         Ok(PgUuid(bytes))
     }
@@ -613,7 +636,10 @@ impl<'a> FromSql<'a> for PgUuid {
 struct PgTime(i64);
 
 impl<'a> FromSql<'a> for PgTime {
-    fn from_sql(_ty: &Type, raw: &'a [u8]) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         if raw.len() < 8 {
             return Err("invalid TIME length".into());
         }
@@ -633,14 +659,21 @@ struct PgInterval {
 }
 
 impl<'a> FromSql<'a> for PgInterval {
-    fn from_sql(_ty: &Type, raw: &'a [u8]) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         if raw.len() < 16 {
             return Err("invalid INTERVAL length".into());
         }
         let microseconds = i64::from_be_bytes(raw[0..8].try_into().unwrap());
         let days = i32::from_be_bytes(raw[8..12].try_into().unwrap());
         let months = i32::from_be_bytes(raw[12..16].try_into().unwrap());
-        Ok(PgInterval { microseconds, days, months })
+        Ok(PgInterval {
+            microseconds,
+            days,
+            months,
+        })
     }
     accepts!(INTERVAL);
 }
@@ -649,7 +682,10 @@ impl<'a> FromSql<'a> for PgInterval {
 struct PgDate(i32);
 
 impl<'a> FromSql<'a> for PgDate {
-    fn from_sql(_ty: &Type, raw: &'a [u8]) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         let bytes: [u8; 4] = raw.try_into().map_err(|_| "invalid DATE length")?;
         Ok(PgDate(i32::from_be_bytes(bytes)))
     }
@@ -660,7 +696,10 @@ impl<'a> FromSql<'a> for PgDate {
 struct PgTimestamp(i64);
 
 impl<'a> FromSql<'a> for PgTimestamp {
-    fn from_sql(_ty: &Type, raw: &'a [u8]) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         let bytes: [u8; 8] = raw.try_into().map_err(|_| "invalid TIMESTAMP length")?;
         Ok(PgTimestamp(i64::from_be_bytes(bytes)))
     }
@@ -687,7 +726,10 @@ const PG_NUMERIC_NAN: u16 = 0xC000;
 const PG_BASE: i128 = 10_000;
 
 impl<'a> FromSql<'a> for PgNumeric {
-    fn from_sql(_ty: &Type, raw: &'a [u8]) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         if raw.len() < 8 {
             return Err("NUMERIC value too short".into());
         }
@@ -709,9 +751,11 @@ impl<'a> FromSql<'a> for PgNumeric {
         for i in 0..ndigits {
             let offset = 8 + i * 2;
             let digit = u16::from_be_bytes([raw[offset], raw[offset + 1]]) as i128;
-            result = result.checked_mul(PG_BASE)
+            result = result
+                .checked_mul(PG_BASE)
                 .ok_or("NUMERIC value overflows i128")?;
-            result = result.checked_add(digit)
+            result = result
+                .checked_add(digit)
                 .ok_or("NUMERIC value overflows i128")?;
         }
 
@@ -724,7 +768,8 @@ impl<'a> FromSql<'a> for PgNumeric {
 
         if shift > 0 {
             for _ in 0..shift {
-                result = result.checked_mul(10)
+                result = result
+                    .checked_mul(10)
                     .ok_or("NUMERIC value overflows i128")?;
             }
         } else if shift < 0 {

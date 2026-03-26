@@ -8,9 +8,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use url::Url;
-use x402_types::proto::v2::{
-    PaymentRequired, PaymentRequirements, ResourceInfo, X402Version2,
-};
+use x402_types::proto::v2::{PaymentRequired, PaymentRequirements, ResourceInfo, X402Version2};
 
 use crate::facilitator_client::FacilitatorClient;
 use crate::price::{PriceTag, TablePaymentOffers};
@@ -65,7 +63,7 @@ impl GlobalPaymentConfig {
     pub fn table_requires_payment(&self, table_name: &str) -> Option<bool> {
         match self.offers_tables.get(table_name) {
             Some(offer) => Some(offer.requires_payment),
-            None => None
+            None => None,
         }
     }
 
@@ -101,7 +99,8 @@ impl GlobalPaymentConfig {
 
         let resource_url = self.base_url.join(path).ok()?;
         let offers_table = self.get_offers_table(table_name)?;
-        let description = offers_table.description
+        let description = offers_table
+            .description
             .as_ref()
             .unwrap_or(&self.default_description)
             .clone();
@@ -136,10 +135,9 @@ impl GlobalPaymentConfig {
 
         for offer in &offers_table.price_tags {
             if offer.is_in_range(estimated_items) {
-                if let Some(req) = self.create_payment_requirements_for_offer(
-                    estimated_items,
-                    offer,
-                ) {
+                if let Some(req) =
+                    self.create_payment_requirements_for_offer(estimated_items, offer)
+                {
                     requirements.push(req);
                 }
             }

@@ -1,12 +1,15 @@
-use sqlparser::ast::{Expr, Value, CastKind, TrimWhereField};
-use anyhow::{anyhow, Result};
 use crate::sqp_parser::AnalyzedQuery;
+use anyhow::{Result, anyhow};
+use sqlparser::ast::{CastKind, Expr, TrimWhereField, Value};
 
 /// Generates a SQL query string from an analyzed query AST.
 ///
 /// Shared across all database backends. The `display_expr` callback handles
 /// dialect-specific expression rendering.
-pub fn create_query(ast: &AnalyzedQuery, display_expr: &dyn Fn(&Expr) -> Result<String>) -> Result<String> {
+pub fn create_query(
+    ast: &AnalyzedQuery,
+    display_expr: &dyn Fn(&Expr) -> Result<String>,
+) -> Result<String> {
     let mut query = String::new();
 
     // SELECT clause
@@ -15,7 +18,10 @@ pub fn create_query(ast: &AnalyzedQuery, display_expr: &dyn Fn(&Expr) -> Result<
     if ast.body.wildcard {
         query.push_str("*");
     } else {
-        let projections: Vec<String> = ast.body.projection.iter()
+        let projections: Vec<String> = ast
+            .body
+            .projection
+            .iter()
             .map(|item| {
                 if let Some(alias) = &item.alias {
                     format!("{} AS {}", item.ident, alias)
@@ -38,7 +44,8 @@ pub fn create_query(ast: &AnalyzedQuery, display_expr: &dyn Fn(&Expr) -> Result<
     // ORDER BY clause
     if let Some(order_by) = &ast.order_by {
         query.push_str(" ORDER BY ");
-        let order_clauses = order_by.iter()
+        let order_clauses = order_by
+            .iter()
             .map(|order_by_expr| {
                 let mut clause = display_expr(&order_by_expr.expr)?;
                 if !order_by_expr.asc {
@@ -82,7 +89,9 @@ pub fn format_value(value: &Value) -> Result<String> {
         Value::Number(n, _) => Ok(n.clone()),
         Value::Placeholder(p) => Ok(format!("${}", p)),
         Value::SingleQuotedString(s) => Ok(format!("'{}'", s.replace("'", "''"))),
-        Value::TripleDoubleQuotedString(s) => Ok(format!("\"\"\"{}\"\"\"", s.replace("\"", "\"\""))),
+        Value::TripleDoubleQuotedString(s) => {
+            Ok(format!("\"\"\"{}\"\"\"", s.replace("\"", "\"\"")))
+        }
         Value::TripleSingleQuotedString(s) => Ok(format!("'''{}'''", s.replace("'", "''"))),
         _ => Err(anyhow!("Unsupported value type: {:?}", value)),
     }
@@ -115,9 +124,14 @@ where
         Expr::IsNotNull(expr) => Ok(Some(format!("{} IS NOT NULL", display_expr(expr)?))),
 
         // IN expressions
-        Expr::InList { expr, list, negated } => {
+        Expr::InList {
+            expr,
+            list,
+            negated,
+        } => {
             let expr_str = display_expr(expr)?;
-            let list_str = list.iter()
+            let list_str = list
+                .iter()
                 .map(|e| display_expr(e))
                 .collect::<Result<Vec<String>>>()?
                 .join(", ");
@@ -129,14 +143,25 @@ where
         }
 
         // BETWEEN expressions
-        Expr::Between { expr, negated, low, high } => {
+        Expr::Between {
+            expr,
+            negated,
+            low,
+            high,
+        } => {
             let expr_str = display_expr(expr)?;
             let low_str = display_expr(low)?;
             let high_str = display_expr(high)?;
             if *negated {
-                Ok(Some(format!("{} NOT BETWEEN {} AND {}", expr_str, low_str, high_str)))
+                Ok(Some(format!(
+                    "{} NOT BETWEEN {} AND {}",
+                    expr_str, low_str, high_str
+                )))
             } else {
-                Ok(Some(format!("{} BETWEEN {} AND {}", expr_str, low_str, high_str)))
+                Ok(Some(format!(
+                    "{} BETWEEN {} AND {}",
+                    expr_str, low_str, high_str
+                )))
             }
         }
 
@@ -148,7 +173,13 @@ where
         }
 
         // LIKE expressions
-        Expr::Like { negated, any, expr, pattern, escape_char } => {
+        Expr::Like {
+            negated,
+            any,
+            expr,
+            pattern,
+            escape_char,
+        } => {
             let expr_str = display_expr(expr)?;
             let pattern_str = display_expr(pattern)?;
             let mut like_expr = if *negated { "NOT LIKE" } else { "LIKE" };
@@ -162,7 +193,13 @@ where
             Ok(Some(result))
         }
 
-        Expr::ILike { negated, any: _, expr, pattern, escape_char } => {
+        Expr::ILike {
+            negated,
+            any: _,
+            expr,
+            pattern,
+            escape_char,
+        } => {
             let expr_str = display_expr(expr)?;
             let pattern_str = display_expr(pattern)?;
             let like_expr = if *negated { "NOT ILIKE" } else { "ILIKE" };
@@ -173,10 +210,19 @@ where
             Ok(Some(result))
         }
 
-        Expr::SimilarTo { negated, expr, pattern, escape_char } => {
+        Expr::SimilarTo {
+            negated,
+            expr,
+            pattern,
+            escape_char,
+        } => {
             let expr_str = display_expr(expr)?;
             let pattern_str = display_expr(pattern)?;
-            let like_expr = if *negated { "NOT SIMILAR TO" } else { "SIMILAR TO" };
+            let like_expr = if *negated {
+                "NOT SIMILAR TO"
+            } else {
+                "SIMILAR TO"
+            };
             let mut result = format!("({} {} {})", expr_str, like_expr, pattern_str);
             if let Some(escape) = escape_char {
                 result.push_str(&format!(" ESCAPE '{}'", escape));
@@ -191,7 +237,13 @@ where
         }
 
         // CAST expressions — only standard Cast and DoubleColon; TryCast and SafeCast are dialect-specific
-        Expr::Cast { kind, expr, data_type, format: _, array: _ } => {
+        Expr::Cast {
+            kind,
+            expr,
+            data_type,
+            format: _,
+            array: _,
+        } => {
             match kind {
                 CastKind::Cast => {
                     let expr_str = display_expr(expr)?;
@@ -224,14 +276,23 @@ where
             Ok(Some(format!("POSITION({} IN {})", expr_str, in_str)))
         }
 
-        Expr::Substring { expr, substring_from, substring_for, special: _, shorthand } => {
+        Expr::Substring {
+            expr,
+            substring_from,
+            substring_for,
+            special: _,
+            shorthand,
+        } => {
             let expr_str = display_expr(expr)?;
             if *shorthand {
                 if let Some(from) = substring_from {
                     let from_str = display_expr(from)?;
                     if let Some(for_expr) = substring_for {
                         let for_str = display_expr(for_expr)?;
-                        Ok(Some(format!("SUBSTRING({} FROM {} FOR {})", expr_str, from_str, for_str)))
+                        Ok(Some(format!(
+                            "SUBSTRING({} FROM {} FOR {})",
+                            expr_str, from_str, for_str
+                        )))
                     } else {
                         Ok(Some(format!("SUBSTRING({} FROM {})", expr_str, from_str)))
                     }
@@ -250,7 +311,12 @@ where
             }
         }
 
-        Expr::Trim { expr, trim_where, trim_what, trim_characters } => {
+        Expr::Trim {
+            expr,
+            trim_where,
+            trim_what,
+            trim_characters,
+        } => {
             let expr_str = display_expr(expr)?;
             let mut trim_expr = "TRIM".to_string();
 
@@ -264,9 +330,13 @@ where
 
             if let Some(what) = trim_what {
                 let what_str = display_expr(what)?;
-                Ok(Some(format!("{}({} FROM {})", trim_expr, what_str, expr_str)))
+                Ok(Some(format!(
+                    "{}({} FROM {})",
+                    trim_expr, what_str, expr_str
+                )))
             } else if let Some(chars) = trim_characters {
-                let chars_str = chars.iter()
+                let chars_str = chars
+                    .iter()
                     .map(|c| display_expr(c))
                     .collect::<Result<Vec<String>>>()?
                     .join(", ");
@@ -276,16 +346,27 @@ where
             }
         }
 
-        Expr::Overlay { expr, overlay_what, overlay_from, overlay_for } => {
+        Expr::Overlay {
+            expr,
+            overlay_what,
+            overlay_from,
+            overlay_for,
+        } => {
             let expr_str = display_expr(expr)?;
             let what_str = display_expr(overlay_what)?;
             let from_str = display_expr(overlay_from)?;
 
             if let Some(for_expr) = overlay_for {
                 let for_str = display_expr(for_expr)?;
-                Ok(Some(format!("OVERLAY({} PLACING {} FROM {} FOR {})", expr_str, what_str, from_str, for_str)))
+                Ok(Some(format!(
+                    "OVERLAY({} PLACING {} FROM {} FOR {})",
+                    expr_str, what_str, from_str, for_str
+                )))
             } else {
-                Ok(Some(format!("OVERLAY({} PLACING {} FROM {})", expr_str, what_str, from_str)))
+                Ok(Some(format!(
+                    "OVERLAY({} PLACING {} FROM {})",
+                    expr_str, what_str, from_str
+                )))
             }
         }
 
@@ -297,7 +378,8 @@ where
 
         // Tuple expressions
         Expr::Tuple(exprs) => {
-            let exprs_str = exprs.iter()
+            let exprs_str = exprs
+                .iter()
                 .map(|e| display_expr(e))
                 .collect::<Result<Vec<String>>>()?
                 .join(", ");
@@ -306,7 +388,9 @@ where
 
         // Array expressions
         Expr::Array(array) => {
-            let array_parts = array.elem.iter()
+            let array_parts = array
+                .elem
+                .iter()
                 .map(|e| display_expr(e))
                 .collect::<Result<Vec<String>>>()?
                 .join(", ");

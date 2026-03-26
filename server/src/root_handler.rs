@@ -5,11 +5,11 @@
 //! for both human users and AI agents to discover what data is available
 //! before making paid queries.
 
+use crate::AppState;
 use axum::extract::State;
 use axum::response::IntoResponse;
-use std::sync::Arc;
 use std::fmt::Write as _;
-use crate::AppState;
+use std::sync::Arc;
 
 /// Handles `GET /` — returns a plain-text summary of the server's capabilities.
 ///
@@ -23,9 +23,21 @@ pub async fn root_handler(State(state): State<Arc<AppState>>) -> impl IntoRespon
     let mut response = String::new();
     writeln!(response, "Welcome to the Tiders-x402 API!\n").unwrap();
     writeln!(response, "Usage:").unwrap();
-    writeln!(response, "- Send a POST request to /query with a JSON body: {{ \"query\": \"SELECT ... FROM ...\" }}").unwrap();
-    writeln!(response, "- You must implement the x402 payment protocol to access paid tables.").unwrap();
-    writeln!(response, "- See x402 protocol docs: https://x402.gitbook.io/x402\n").unwrap();
+    writeln!(
+        response,
+        "- Send a POST request to /query with a JSON body: {{ \"query\": \"SELECT ... FROM ...\" }}"
+    )
+    .unwrap();
+    writeln!(
+        response,
+        "- You must implement the x402 payment protocol to access paid tables."
+    )
+    .unwrap();
+    writeln!(
+        response,
+        "- See x402 protocol docs: https://x402.gitbook.io/x402\n"
+    )
+    .unwrap();
     writeln!(response, "Supported tables:").unwrap();
     for (table, offer) in &state.payment_config.offers_tables {
         writeln!(response, "- Table: {}", table).unwrap();
@@ -47,7 +59,15 @@ pub async fn root_handler(State(state): State<Arc<AppState>>) -> impl IntoRespon
     writeln!(response, "- Only one statement per request.").unwrap();
     writeln!(response, "- Only one table in the FROM clause.").unwrap();
     writeln!(response, "- No GROUP BY, HAVING, JOIN, or subqueries.").unwrap();
-    writeln!(response, "- Only simple field names in SELECT, no expressions.").unwrap();
-    writeln!(response, "- WHERE, ORDER BY, and LIMIT are supported with restrictions.").unwrap();
+    writeln!(
+        response,
+        "- Only simple field names in SELECT, no expressions."
+    )
+    .unwrap();
+    writeln!(
+        response,
+        "- WHERE, ORDER BY, and LIMIT are supported with restrictions."
+    )
+    .unwrap();
     response
 }
