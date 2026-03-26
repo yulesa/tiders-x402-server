@@ -16,7 +16,7 @@ pub fn create_query(
     query.push_str("SELECT ");
 
     if ast.body.wildcard {
-        query.push_str("*");
+        query.push('*');
     } else {
         let projections: Vec<String> = ast
             .body
@@ -132,7 +132,7 @@ where
             let expr_str = display_expr(expr)?;
             let list_str = list
                 .iter()
-                .map(|e| display_expr(e))
+                .map(display_expr)
                 .collect::<Result<Vec<String>>>()?
                 .join(", ");
             if *negated {
@@ -337,7 +337,7 @@ where
             } else if let Some(chars) = trim_characters {
                 let chars_str = chars
                     .iter()
-                    .map(|c| display_expr(c))
+                    .map(display_expr)
                     .collect::<Result<Vec<String>>>()?
                     .join(", ");
                 Ok(Some(format!("{}({}, {})", trim_expr, chars_str, expr_str)))
@@ -380,7 +380,7 @@ where
         Expr::Tuple(exprs) => {
             let exprs_str = exprs
                 .iter()
-                .map(|e| display_expr(e))
+                .map(display_expr)
                 .collect::<Result<Vec<String>>>()?
                 .join(", ");
             Ok(Some(format!("({})", exprs_str)))
@@ -391,7 +391,7 @@ where
             let array_parts = array
                 .elem
                 .iter()
-                .map(|e| display_expr(e))
+                .map(display_expr)
                 .collect::<Result<Vec<String>>>()?
                 .join(", ");
             Ok(Some(format!("[{}]", array_parts)))

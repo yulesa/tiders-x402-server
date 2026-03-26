@@ -81,6 +81,7 @@ impl PyPriceTag {
     /// Returns:
     ///     PriceTag: A new PriceTag object.
     #[new]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         pay_to: &str,
         amount_per_item: Py<PyAny>,

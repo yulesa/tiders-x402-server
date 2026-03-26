@@ -61,10 +61,9 @@ impl GlobalPaymentConfig {
     /// Returns whether a table is free (`Some(false)`), paid (`Some(true)`),
     /// or not configured at all (`None`).
     pub fn table_requires_payment(&self, table_name: &str) -> Option<bool> {
-        match self.offers_tables.get(table_name) {
-            Some(offer) => Some(offer.requires_payment),
-            None => None,
-        }
+        self.offers_tables
+            .get(table_name)
+            .map(|offer| offer.requires_payment)
     }
 
     /// Finds the matching payment requirement for the provided V2 payment payload.
@@ -134,12 +133,11 @@ impl GlobalPaymentConfig {
         let offers_table = offers_table.unwrap();
 
         for offer in &offers_table.price_tags {
-            if offer.is_in_range(estimated_items) {
-                if let Some(req) =
+            if offer.is_in_range(estimated_items)
+                && let Some(req) =
                     self.create_payment_requirements_for_offer(estimated_items, offer)
-                {
-                    requirements.push(req);
-                }
+            {
+                requirements.push(req);
             }
         }
 

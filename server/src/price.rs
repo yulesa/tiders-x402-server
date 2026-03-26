@@ -43,15 +43,15 @@ pub struct PriceTag {
 impl PriceTag {
     /// Returns `true` if `item_count` falls within this tier's `min_items..=max_items` range.
     pub fn is_in_range(&self, item_count: usize) -> bool {
-        if let Some(min) = self.min_items {
-            if item_count < min {
-                return false;
-            }
+        if let Some(min) = self.min_items
+            && item_count < min
+        {
+            return false;
         }
-        if let Some(max) = self.max_items {
-            if item_count > max {
-                return false;
-            }
+        if let Some(max) = self.max_items
+            && item_count > max
+        {
+            return false;
         }
         true
     }

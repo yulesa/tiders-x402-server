@@ -41,7 +41,7 @@ pub fn serialize_batches_to_arrow_ipc(
         let schema = first_batch.schema();
         let mut writer = StreamWriter::try_new(&mut buffer, &schema)?;
         for batch in batches {
-            writer.write(&batch)?;
+            writer.write(batch)?;
         }
         writer.finish()?;
     }

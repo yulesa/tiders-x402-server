@@ -240,43 +240,42 @@ pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
             }
 
             // Check Order by clause
-            match &query.order_by {
-                Some(order_by) => {
-                    let kind = order_by.kind.clone();
-                    match kind {
-                        OrderByKind::All(_) => {
-                            return Err(anyhow!(
-                                "Simplified SQL does not support the use of 'ALL' in ORDER BY clause"
-                            ));
-                        }
-                        OrderByKind::Expressions(exprs) => {
-                            analyzed_query.order_by = Some(Vec::new());
-                            for order_by_expr in exprs {
-                                if let Some(_) = &order_by_expr.with_fill {
-                                    return Err(anyhow!(
-                                        "Simplified SQL does not support the use of 'WITH FILL' in ORDER BY clause"
-                                    ));
-                                }
-                                check_unsupported_expr(Some(order_by_expr.expr.clone()))?;
-                                analyzed_query.order_by.as_mut().unwrap().push(
-                                    AnalyzedOrderByExpr {
-                                        expr: order_by_expr.expr.clone(),
-                                        asc: order_by_expr.options.asc.unwrap_or(true),
-                                        nulls_first: order_by_expr.options.nulls_first,
-                                    },
-                                );
-                            }
-                        }
+            if let Some(order_by) = &query.order_by {
+                let kind = order_by.kind.clone();
+                match kind {
+                    OrderByKind::All(_) => {
+                        return Err(anyhow!(
+                            "Simplified SQL does not support the use of 'ALL' in ORDER BY clause"
+                        ));
                     }
-                    if let Some(interpolate) = &order_by.interpolate {
-                        if let Some(interpolate_exprs) = &interpolate.exprs {
-                            for interpolate_expr in interpolate_exprs {
-                                check_unsupported_expr(interpolate_expr.expr.clone())?;
+                    OrderByKind::Expressions(exprs) => {
+                        analyzed_query.order_by = Some(Vec::new());
+                        for order_by_expr in exprs {
+                            if order_by_expr.with_fill.is_some() {
+                                return Err(anyhow!(
+                                    "Simplified SQL does not support the use of 'WITH FILL' in ORDER BY clause"
+                                ));
                             }
+                            check_unsupported_expr(Some(order_by_expr.expr.clone()))?;
+                            analyzed_query
+                                .order_by
+                                .as_mut()
+                                .unwrap()
+                                .push(AnalyzedOrderByExpr {
+                                    expr: order_by_expr.expr.clone(),
+                                    asc: order_by_expr.options.asc.unwrap_or(true),
+                                    nulls_first: order_by_expr.options.nulls_first,
+                                });
                         }
                     }
                 }
-                None => {}
+                if let Some(interpolate) = &order_by.interpolate
+                    && let Some(interpolate_exprs) = &interpolate.exprs
+                {
+                    for interpolate_expr in interpolate_exprs {
+                        check_unsupported_expr(interpolate_expr.expr.clone())?;
+                    }
+                }
             }
 
             // Check Limit clause
@@ -418,12 +417,10 @@ fn check_unsupported_expr(expr: Option<Expr>) -> Result<Option<Expr>> {
                 | Expr::OuterJoin(_)
                 | Expr::Prior(_)
                 | Expr::Lambda(_)
-                | Expr::MemberOf(_) => {
-                    return Err(anyhow!(
-                        "Simplified SQL does not support the use of {} expressions",
-                        expr
-                    ));
-                }
+                | Expr::MemberOf(_) => Err(anyhow!(
+                    "Simplified SQL does not support the use of {} expressions",
+                    expr
+                )),
 
                 // Simple expressions that don't need recursive checking
                 Expr::Identifier(_) | Expr::Value(_) | Expr::TypedString(_) => Ok(Some(expr)),
