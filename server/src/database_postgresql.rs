@@ -57,6 +57,77 @@ impl PostgresqlDatabase {
         Ok(Self { pool })
     }
 
+    /// Creates a new `PostgresqlDatabase` from individual connection parameters
+    /// with full control over pool configuration.
+    ///
+    /// # Parameters
+    /// - `host`: Database host (e.g., "localhost")
+    /// - `port`: Database port (e.g., 5432)
+    /// - `user`: Database user
+    /// - `password`: Database password
+    /// - `dbname`: Database name
+    /// - `max_pool_size`: Maximum number of connections in the pool
+    /// - `wait_timeout_ms`: Max time (ms) to wait for a connection from the pool (`None` = no timeout)
+    /// - `create_timeout_ms`: Max time (ms) to create a new connection (`None` = no timeout)
+    /// - `recycle_timeout_ms`: Max time (ms) to recycle a connection (`None` = no timeout)
+    /// - `recycling_method`: Connection recycling strategy: "fast" (default), "verified", or "clean"
+    pub async fn from_params(
+        host: &str,
+        port: u16,
+        user: &str,
+        password: &str,
+        dbname: &str,
+        max_pool_size: Option<usize>,
+        wait_timeout_ms: Option<u64>,
+        create_timeout_ms: Option<u64>,
+        recycle_timeout_ms: Option<u64>,
+        recycling_method: Option<&str>,
+    ) -> Result<Self> {
+        let mut pg_config = tokio_postgres::Config::new();
+        pg_config.host(host);
+        pg_config.port(port);
+        pg_config.user(user);
+        pg_config.password(password);
+        pg_config.dbname(dbname);
+
+        let recycling = match recycling_method.unwrap_or("fast") {
+            "fast" => RecyclingMethod::Fast,
+            "verified" => RecyclingMethod::Verified,
+            "clean" => RecyclingMethod::Clean,
+            other => return Err(anyhow!("Unknown recycling method '{}'. Use 'fast', 'verified', or 'clean'", other)),
+        };
+
+        let mgr_config = ManagerConfig {
+            recycling_method: recycling,
+        };
+        let mgr = Manager::from_config(pg_config, tokio_postgres::NoTls, mgr_config);
+
+        let mut builder = Pool::builder(mgr)
+            .max_size(max_pool_size.unwrap_or(16));
+
+        if let Some(ms) = wait_timeout_ms {
+            builder = builder.wait_timeout(Some(std::time::Duration::from_millis(ms)));
+        }
+        if let Some(ms) = create_timeout_ms {
+            builder = builder.create_timeout(Some(std::time::Duration::from_millis(ms)));
+        }
+        if let Some(ms) = recycle_timeout_ms {
+            builder = builder.recycle_timeout(Some(std::time::Duration::from_millis(ms)));
+        }
+
+        let pool = builder
+            .build()
+            .map_err(|e| anyhow!("Failed to create Postgres pool: {}", e))?;
+
+        // Verify connectivity
+        let _conn = pool
+            .get()
+            .await
+            .map_err(|e| anyhow!("Failed to connect to Postgres: {}", e))?;
+
+        Ok(Self { pool })
+    }
+
     /// Creates a new `PostgresqlDatabase` from a user-managed pool.
     pub fn from_pool(pool: Pool) -> Self {
         Self { pool }

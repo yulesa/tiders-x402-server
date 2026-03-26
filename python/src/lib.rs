@@ -4,54 +4,61 @@
 ///
 /// Exposed classes:
 /// - PriceTag: Represents a payment offer for a table or item.
-/// - USDCDeployment: Represents a USDC token deployment on a supported network.
+/// - USDC: Represents a USDC token on a supported network.
 /// - TablePaymentOffers: Holds payment offers for a table.
 /// - GlobalPaymentConfig: Global configuration for payment and facilitator.
 /// - AppState: Application state, including database and payment config.
 /// - FacilitatorClient: Client for interacting with a payment facilitator.
-/// - Server: Runs a payment-enabled DuckDB server.
+/// - start_server: Start a payment-enabled server (blocking call).
+/// - DuckDbDatabase: DuckDB database backend.
+/// - PostgresqlDatabase: PostgreSQL database backend.
+/// - ClickHouseDatabase: ClickHouse database backend.
 use pyo3::prelude::*;
 use std::str::FromStr;
 use std::sync::Arc;
 use url::Url;
 use tokio::runtime::Runtime;
-#[cfg(feature = "duckdb")]
-use duckdb::arrow::datatypes::Schema;
+use arrow::datatypes::Schema;
 
 use tiders_x402::{PriceTag, TablePaymentOffers, GlobalPaymentConfig, AppState, FacilitatorClient};
+#[cfg(any(feature = "duckdb", feature = "postgresql", feature = "clickhouse"))]
+use tiders_x402::Database;
 use tiders_x402::price::TokenAmount;
 #[cfg(feature = "duckdb")]
 use tiders_x402::database_duckdb::DuckDbDatabase;
+#[cfg(feature = "postgresql")]
+use tiders_x402::database_postgresql::PostgresqlDatabase;
+#[cfg(feature = "clickhouse")]
+use tiders_x402::database_clickhouse::ClickHouseDatabase;
 use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use x402_chain_eip155::KnownNetworkEip155;
 use x402_types::networks::USDC;
-#[cfg(feature = "duckdb")]
-use duckdb::Connection;
 use alloy::primitives::U256;
-use arrow::pyarrow::{FromPyArrow, ToPyArrow};
-#[cfg(feature = "duckdb")]
-use tiders_x402::sql_duckdb::get_duckdb_table_schema;
+use arrow::pyarrow::FromPyArrow;
+#[cfg(any(feature = "duckdb", feature = "postgresql", feature = "clickhouse"))]
+use arrow::pyarrow::ToPyArrow;
 
 /// A Python module implemented in Rust.
 #[pymodule]
 fn tiders_x402_server(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PyPriceTag>()?;
+    m.add_class::<PyUSDC>()?;
     m.add_class::<PyTablePaymentOffers>()?;
     m.add_class::<PyGlobalPaymentConfig>()?;
-    m.add_class::<PyUSDCDeployment>()?;
     m.add_class::<PyFacilitatorClient>()?;
+    m.add_class::<PyAppState>()?;
+    m.add_function(wrap_pyfunction!(start_server_py, m)?)?;
     #[cfg(feature = "duckdb")]
-    {
-        m.add_class::<PyAppState>()?;
-        m.add_class::<PyServer>()?;
-        m.add_class::<PySchema>()?;
-        m.add_function(wrap_pyfunction!(get_duckdb_table_schema_py, m)?)?;
-    }
+    m.add_class::<PyDuckDbDatabase>()?;
+    #[cfg(feature = "postgresql")]
+    m.add_class::<PyPostgresqlDatabase>()?;
+    #[cfg(feature = "clickhouse")]
+    m.add_class::<PyClickHouseDatabase>()?;
     Ok(())
 }
 
 /// Represents a payment offer for a table or item.
-#[pyclass(name="PriceTag")] // Rename PyPriceTag in python so the class is called PriceTag
+#[pyclass(name="PriceTag", from_py_object)]
 #[derive(Clone)]
 pub struct PyPriceTag {
     inner: PriceTag,
@@ -64,7 +71,7 @@ impl PyPriceTag {
     /// Args:
     ///     pay_to (str): EVM address to pay to.
     ///     amount_per_item (Union[str, int]): Amount per item (rows or tuples). If a string (e.g., "0.002" or "$1.23") it is interpreted as a MoneyAmount and converted to a TokenAmount using decimals from the token. If an integer it is interpreted as an amount in the smallest token unit ( without decimals, e.g. 1000000 for 1 USDC).
-    ///     token (USDCDeployment): Token with decimals and EIP712 information, currently only USDC is supported.
+    ///     token (USDC): Token with decimals and EIP712 information, currently only USDC is supported.
     ///     min_total_amount (Optional[Union[str, int]]): Minimum total amount for this offer to be valid (optional). Can be a string (e.g., "0.01") or an integer representing the smallest token unit.
     ///     min_items (Optional[int]): Minimum number of items (rows or tuples) for this offer to be valid (optional).
     ///     max_items (Optional[int]): Maximum number of items (rows or tuples) for this offer to be valid (optional).
@@ -77,7 +84,7 @@ impl PyPriceTag {
     fn new(
         pay_to: &str,
         amount_per_item: Py<PyAny>,
-        token: &PyUSDCDeployment,
+        token: &PyUSDC,
         min_total_amount: Option<Py<PyAny>>,
         min_items: Option<usize>,
         max_items: Option<usize>,
@@ -142,33 +149,39 @@ impl PyPriceTag {
     }
 }
 
-/// Represents a USDC token deployment (address, decimals, EIP712 information) on a supported network.
-#[pyclass(name="USDCDeployment")]
+/// Represents a USDC token on a supported network.
+#[pyclass(name="USDC", from_py_object)]
 #[derive(Clone)]
-pub struct PyUSDCDeployment {
+pub struct PyUSDC {
     inner: Eip155TokenDeployment,
 }
 
 #[pymethods]
-impl PyUSDCDeployment {
-    /// Automatically create a new USDCDeployment for a given network.
+impl PyUSDC {
+    /// Create a USDC token for a given network.
     ///
     /// Args:
-    ///     network (str): Network name (e.g., "base_sepolia", "base", "avalanche_fuji", "avalanche", "polygon", "polygon_amoy").
+    ///     network (Optional[str]): Network name (e.g., "base_sepolia", "base", "avalanche_fuji", "avalanche", "polygon", "polygon_amoy"). Defaults to "base".
     ///
     /// Returns:
-    ///     USDCDeployment: The deployment for the network.
-    #[staticmethod]
-    fn by_network(py: Python, network: Py<PyAny>) -> PyResult<Self> {
-        // Accept either a string or a Python Enum value
-        let network_str = if let Ok(s) = network.extract::<String>(py) {
-            s
-        } else if let Ok(obj) = network.getattr(py, "value") {
-            obj.extract::<String>(py)?
-        } else {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Expected a string or Network enum value",
-            ));
+    ///     USDC: A USDC token for the specified network.
+    #[new]
+    #[pyo3(signature = (network=None))]
+    fn new(py: Python, network: Option<Py<PyAny>>) -> PyResult<Self> {
+        let network_str = match network {
+            None => "base".to_string(),
+            Some(net) => {
+                // Accept either a string or a Python Enum value
+                if let Ok(s) = net.extract::<String>(py) {
+                    s
+                } else if let Ok(obj) = net.getattr(py, "value") {
+                    obj.extract::<String>(py)?
+                } else {
+                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "Expected a string or Network enum value",
+                    ));
+                }
+            }
         };
 
         let deployment = match network_str.as_str() {
@@ -187,65 +200,8 @@ impl PyUSDCDeployment {
     }
 }
 
-#[cfg(feature = "duckdb")]
-#[pyclass(name="Schema")]
-pub struct PySchema {
-    pub inner: Schema,
-}
-
-#[cfg(feature = "duckdb")]
-#[pymethods]
-impl PySchema {
-    /// Create a new PySchema from a pyarrow.Schema.
-    ///
-    /// Args:
-    ///     py_schema (pyarrow.Schema): The pyarrow.Schema to convert to a PySchema.
-    ///
-    /// Returns:
-    ///     PySchema: A new PySchema object.
-    #[new]
-    fn new(py_schema: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let schema = Schema::from_pyarrow_bound(py_schema)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        Ok(Self { inner: schema })
-    }
-
-    /// Convert the PySchema to a pyarrow.Schema.
-    ///
-    /// Args:
-    ///     py (Python): The Python interpreter.
-    ///
-    /// Returns:
-    ///     pyarrow.Schema: The pyarrow.Schema representation of the PySchema.
-    fn to_pyarrow<'py>(&self, py: Python<'py>) -> PyResult<Py<PyAny>> {
-        let bound = self.inner.to_pyarrow(py)?;
-        Ok(bound.unbind())
-    }
-}
-
-
-/// Get the schema of a table in a DuckDB database.
-///
-/// Args:
-///     db_path (str): Path to the DuckDB database file.
-///     table_name (str): Name of the table to get the schema of.
-///
-/// Returns:
-///     PySchema: The schema of the table.
-#[cfg(feature = "duckdb")]
-#[pyfunction]
-fn get_duckdb_table_schema_py(db_path: &str, table_name: &str) -> PyResult<PySchema> {
-    let db = Connection::open(db_path)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-    let schema = get_duckdb_table_schema(&db, table_name)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-    db.close().map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Error closing database: {:?}", e)))?;
-    Ok(PySchema { inner: schema })
-}
-
-
 /// Holds payment offers for a table.
-#[pyclass(name="TablePaymentOffers")]
+#[pyclass(name="TablePaymentOffers", from_py_object)]
 #[derive(Clone)]
 pub struct PyTablePaymentOffers {
     inner: TablePaymentOffers,
@@ -258,31 +214,39 @@ impl PyTablePaymentOffers {
     /// Args:
     ///     table_name (str): Name of the table.
     ///     price_tags (List[PriceTag]): List of price tags for the table.
+    ///     schema (Optional[pyarrow.Schema]): Arrow schema for the table.
     ///
     /// Returns:
     ///     TablePaymentOffers: A new TablePaymentOffers object.
     #[new]
-    fn new(table_name: String, price_tags: Vec<PyPriceTag>, schema: Option<&PySchema>) -> Self {
+    fn new(table_name: String, price_tags: Vec<PyPriceTag>, schema: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
         let price_tags: Vec<PriceTag> = price_tags.into_iter().map(|pt| pt.inner).collect();
-        let schema_inner = schema.map(|s| s.inner.clone());
-        Self {
+        let schema_inner = schema
+            .map(|s| Schema::from_pyarrow_bound(s))
+            .transpose()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(Self {
             inner: TablePaymentOffers::new(table_name, price_tags, schema_inner),
-        }
+        })
     }
 
     /// Create a free table (no payment required).
     ///
     /// Args:
     ///     table_name (str): Name of the table.
+    ///     schema (Optional[pyarrow.Schema]): Arrow schema for the table.
     ///
     /// Returns:
     ///     TablePaymentOffers: A new TablePaymentOffers object.
     #[staticmethod]
-    fn new_free_table(table_name: String, schema: Option<&PySchema>) -> Self {
-        let schema_inner = schema.map(|s| s.inner.clone());
-        Self {
+    fn new_free_table(table_name: String, schema: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
+        let schema_inner = schema
+            .map(|s| Schema::from_pyarrow_bound(s))
+            .transpose()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(Self {
             inner: TablePaymentOffers::new_free_table(table_name, schema_inner),
-        }
+        })
     }
 
     /// Set a description for the table payment offers.
@@ -309,7 +273,7 @@ impl PyTablePaymentOffers {
 }
 
 /// Client for interacting with a payment facilitator.
-#[pyclass(name="FacilitatorClient")]
+#[pyclass(name="FacilitatorClient", from_py_object)]
 #[derive(Clone)]
 pub struct PyFacilitatorClient {
     inner: FacilitatorClient,
@@ -382,122 +346,279 @@ impl PyGlobalPaymentConfig {
     }
 }
 
-/// Application state, object mutually shared between API handlers, including database and payment config.
+// ───── Database wrapper classes ─────
+
+/// DuckDB database backend.
 #[cfg(feature = "duckdb")]
+#[pyclass(name="DuckDbDatabase")]
+pub struct PyDuckDbDatabase {
+    inner: Arc<dyn Database>,
+}
+
+#[cfg(feature = "duckdb")]
+#[pymethods]
+impl PyDuckDbDatabase {
+    /// Create a new DuckDbDatabase.
+    ///
+    /// Args:
+    ///     db_path (str): Path to the DuckDB database file.
+    ///
+    /// Returns:
+    ///     DuckDbDatabase: A new DuckDbDatabase object.
+    #[new]
+    fn new(db_path: &str) -> PyResult<Self> {
+        let db = DuckDbDatabase::from_path(db_path)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(Self { inner: Arc::new(db) })
+    }
+
+    /// Get the schema of a table as a pyarrow.Schema.
+    ///
+    /// Args:
+    ///     table_name (str): Name of the table.
+    ///
+    /// Returns:
+    ///     pyarrow.Schema: The Arrow schema of the table.
+    fn get_table_schema<'py>(&self, table_name: &str, py: Python<'py>) -> PyResult<Py<PyAny>> {
+        let rt = Runtime::new()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let schema = rt.block_on(self.inner.get_table_schema(table_name))
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        let py_schema = schema.to_pyarrow(py)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(py_schema.unbind())
+    }
+}
+
+/// PostgreSQL database backend.
+#[cfg(feature = "postgresql")]
+#[pyclass(name="PostgresqlDatabase")]
+pub struct PyPostgresqlDatabase {
+    inner: Arc<dyn Database>,
+}
+
+#[cfg(feature = "postgresql")]
+#[pymethods]
+impl PyPostgresqlDatabase {
+    /// Create a new PostgresqlDatabase.
+    ///
+    /// Args:
+    ///     connection_string (str): PostgreSQL connection string (e.g., "host=localhost port=5432 user=postgres password=pass dbname=mydb").
+    ///
+    /// Returns:
+    ///     PostgresqlDatabase: A new PostgresqlDatabase object.
+    #[new]
+    fn new(connection_string: &str) -> PyResult<Self> {
+        let rt = Runtime::new()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let db = rt.block_on(PostgresqlDatabase::from_connection_string(connection_string))
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(Self { inner: Arc::new(db) })
+    }
+
+    /// Create a new PostgresqlDatabase with full control over connection and pool parameters.
+    ///
+    /// Args:
+    ///     host (str): Database host (e.g., "localhost").
+    ///     port (int): Database port (e.g., 5432).
+    ///     user (str): Database user.
+    ///     password (str): Database password.
+    ///     dbname (str): Database name.
+    ///     max_pool_size (Optional[int]): Maximum number of connections in the pool (default: 16).
+    ///     wait_timeout_ms (Optional[int]): Max time in ms to wait for a connection from the pool.
+    ///     create_timeout_ms (Optional[int]): Max time in ms to create a new connection.
+    ///     recycle_timeout_ms (Optional[int]): Max time in ms to recycle a connection.
+    ///     recycling_method (Optional[str]): Connection recycling strategy: "fast" (default), "verified", or "clean".
+    ///
+    /// Returns:
+    ///     PostgresqlDatabase: A new PostgresqlDatabase object.
+    #[staticmethod]
+    fn from_params(
+        host: &str,
+        port: u16,
+        user: &str,
+        password: &str,
+        dbname: &str,
+        max_pool_size: Option<usize>,
+        wait_timeout_ms: Option<u64>,
+        create_timeout_ms: Option<u64>,
+        recycle_timeout_ms: Option<u64>,
+        recycling_method: Option<&str>,
+    ) -> PyResult<Self> {
+        let rt = Runtime::new()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let db = rt.block_on(PostgresqlDatabase::from_params(
+            host, port, user, password, dbname,
+            max_pool_size, wait_timeout_ms, create_timeout_ms, recycle_timeout_ms,
+            recycling_method,
+        ))
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(Self { inner: Arc::new(db) })
+    }
+
+    /// Get the schema of a table as a pyarrow.Schema.
+    ///
+    /// Args:
+    ///     table_name (str): Name of the table.
+    ///
+    /// Returns:
+    ///     pyarrow.Schema: The Arrow schema of the table.
+    fn get_table_schema<'py>(&self, table_name: &str, py: Python<'py>) -> PyResult<Py<PyAny>> {
+        let rt = Runtime::new()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let schema = rt.block_on(self.inner.get_table_schema(table_name))
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        let py_schema = schema.to_pyarrow(py)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(py_schema.unbind())
+    }
+}
+
+/// ClickHouse database backend.
+#[cfg(feature = "clickhouse")]
+#[pyclass(name="ClickHouseDatabase")]
+pub struct PyClickHouseDatabase {
+    inner: Arc<dyn Database>,
+}
+
+#[cfg(feature = "clickhouse")]
+#[pymethods]
+impl PyClickHouseDatabase {
+    /// Create a new ClickHouseDatabase.
+    ///
+    /// Args:
+    ///     url (str): ClickHouse HTTP endpoint URL (e.g., "http://localhost:8123").
+    ///
+    /// Returns:
+    ///     ClickHouseDatabase: A new ClickHouseDatabase object.
+    #[new]
+    fn new(url: &str) -> PyResult<Self> {
+        let db = ClickHouseDatabase::from_url(url)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(Self { inner: Arc::new(db) })
+    }
+
+    /// Create a new ClickHouseDatabase with full client configuration.
+    ///
+    /// Args:
+    ///     url (str): ClickHouse HTTP endpoint URL (e.g., "http://localhost:8123").
+    ///     user (Optional[str]): Database user.
+    ///     password (Optional[str]): Database password.
+    ///     database (Optional[str]): Database name.
+    ///     access_token (Optional[str]): Access token for authentication.
+    ///     compression (Optional[str]): Compression mode: "none" or "lz4".
+    ///     options (Optional[Dict[str, str]]): Additional ClickHouse settings as key-value pairs.
+    ///     headers (Optional[Dict[str, str]]): Additional HTTP headers as key-value pairs.
+    ///
+    /// Returns:
+    ///     ClickHouseDatabase: A new ClickHouseDatabase object.
+    #[staticmethod]
+    fn from_params(
+        url: &str,
+        user: Option<&str>,
+        password: Option<&str>,
+        database: Option<&str>,
+        access_token: Option<&str>,
+        compression: Option<&str>,
+        options: Option<std::collections::HashMap<String, String>>,
+        headers: Option<std::collections::HashMap<String, String>>,
+    ) -> PyResult<Self> {
+        let options_vec = options.map(|m| m.into_iter().collect::<Vec<_>>());
+        let headers_vec = headers.map(|m| m.into_iter().collect::<Vec<_>>());
+        let db = ClickHouseDatabase::from_params(
+            url, user, password, database, access_token, compression,
+            options_vec, headers_vec,
+        )
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(Self { inner: Arc::new(db) })
+    }
+
+    /// Get the schema of a table as a pyarrow.Schema.
+    ///
+    /// Args:
+    ///     table_name (str): Name of the table.
+    ///
+    /// Returns:
+    ///     pyarrow.Schema: The Arrow schema of the table.
+    fn get_table_schema<'py>(&self, table_name: &str, py: Python<'py>) -> PyResult<Py<PyAny>> {
+        let rt = Runtime::new()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let schema = rt.block_on(self.inner.get_table_schema(table_name))
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        let py_schema = schema.to_pyarrow(py)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(py_schema.unbind())
+    }
+}
+
+/// Application state, object mutually shared between API handlers, including database and payment config.
 #[pyclass(name="AppState")]
 pub struct PyAppState {
     inner: AppState,
 }
 
-#[cfg(feature = "duckdb")]
 #[pymethods]
 impl PyAppState {
     /// Create a new AppState.
     ///
     /// Args:
-    ///     db_path (str): Path to DuckDB database file.
+    ///     database: A database object (DuckDbDatabase, PostgresqlDatabase, or ClickHouseDatabase).
     ///     payment_config (GlobalPaymentConfig): Global payment config.
     ///
     /// Returns:
     ///     AppState: A new AppState object.
     #[new]
-    fn new(db_path: &str, payment_config: &PyGlobalPaymentConfig) -> PyResult<Self> {
-        let db = DuckDbDatabase::from_path(db_path)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        let state = AppState {
-            db: Arc::new(db),
-            payment_config: Arc::new(payment_config.inner.clone()),
-        };
-        Ok(Self { inner: state })
-    }
-}
-
-/// Runs a payment-enabled DuckDB server.
-#[cfg(feature = "duckdb")]
-#[pyclass(name="Server")]
-pub struct PyServer {
-    runtime: Runtime,
-    state: Option<Arc<tiders_x402::AppState>>,
-}
-
-#[cfg(feature = "duckdb")]
-#[pymethods]
-impl PyServer {
-    /// Create a new Server instance.
-    ///
-    /// Args:
-    ///     state (AppState): Application state.
-    ///
-    /// Returns:
-    ///     Server: A new Server object.
-    #[new]
-    fn new(state: &PyAppState) -> PyResult<Self> {
-        let runtime = Runtime::new()
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-
-        Ok(Self {
-            runtime,
-            state: Some(Arc::new(state.inner.clone())),
-        })
-    }
-
-    /// Set up the server with facilitator, base URL, DB path, and offer's tables.
-    ///
-    /// Args:
-    ///     facilitator_url (str): Facilitator service URL.
-    ///     base_url (str): Base URL for the app.
-    ///     db_path (str): Path to DuckDB database file.
-    ///     offers_tables (List[TablePaymentOffers]): List of table payment offers.
-    fn setup_server(
-        &mut self,
-        facilitator_url: &str,
-        base_url: &str,
-        db_path: &str,
-        offers_tables: Vec<PyTablePaymentOffers>,
-    ) -> PyResult<()> {
-        self.runtime.block_on(async {
-            // Initialize facilitator client
-            let facilitator = Arc::new(
-                FacilitatorClient::try_from(facilitator_url)
-                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?
-            );
-
-            // Initialize payment configuration
-            let base_url = Url::parse(base_url)
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-
-            let mut global_payment_config = GlobalPaymentConfig::default(facilitator, base_url);
-
-            // Add offer's tables
-            for offer in offers_tables {
-                global_payment_config.add_offers_table(offer.inner);
-            }
-
-            // Initialize DuckDB connection
-            let db = DuckDbDatabase::from_path(db_path)
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-
-            let state = Arc::new(tiders_x402::AppState {
-                db: Arc::new(db),
-                payment_config: Arc::new(global_payment_config),
+    #[allow(unused_variables)]
+    fn new(database: &Bound<'_, PyAny>, payment_config: &PyGlobalPaymentConfig) -> PyResult<Self> {
+        // Try to downcast to each database type
+        #[cfg(feature = "duckdb")]
+        if let Ok(db) = database.extract::<PyRef<PyDuckDbDatabase>>() {
+            return Ok(Self {
+                inner: AppState {
+                    db: db.inner.clone(),
+                    payment_config: Arc::new(payment_config.inner.clone()),
+                },
             });
+        }
+        #[cfg(feature = "postgresql")]
+        if let Ok(db) = database.extract::<PyRef<PyPostgresqlDatabase>>() {
+            return Ok(Self {
+                inner: AppState {
+                    db: db.inner.clone(),
+                    payment_config: Arc::new(payment_config.inner.clone()),
+                },
+            });
+        }
+        #[cfg(feature = "clickhouse")]
+        if let Ok(db) = database.extract::<PyRef<PyClickHouseDatabase>>() {
+            return Ok(Self {
+                inner: AppState {
+                    db: db.inner.clone(),
+                    payment_config: Arc::new(payment_config.inner.clone()),
+                },
+            });
+        }
 
-            self.state = Some(state);
-            Ok(())
-        })
+        Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+            "Expected a DuckDbDatabase, PostgresqlDatabase, or ClickHouseDatabase object"
+        ))
     }
+}
 
-    /// Start the server (blocking call).
-    fn start_server(&self, base_url: &str) -> PyResult<()> {
-        let base_url = Url::parse(base_url)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        let state = self.state.as_ref()
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Server not set up. Call setup_server first."))?;
-
-        let state_clone = state.clone();
-        self.runtime.block_on(async {
-            tiders_x402::start_server(state_clone, base_url).await;
-            Ok(())
-        })
-    }
+/// Start a payment-enabled server (blocking call).
+///
+/// Args:
+///     state (AppState): Application state with database and payment config.
+///     base_url (str): Base URL for the server (e.g., "http://0.0.0.0:4021").
+#[pyfunction]
+fn start_server_py(state: &PyAppState, base_url: &str) -> PyResult<()> {
+    let base_url = Url::parse(base_url)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+    let state = Arc::new(state.inner.clone());
+    let rt = Runtime::new()
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    rt.block_on(async {
+        tiders_x402::start_server(state, base_url).await;
+        Ok(())
+    })
 }

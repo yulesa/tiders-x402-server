@@ -45,6 +45,63 @@ impl ClickHouseDatabase {
         Ok(Self { client })
     }
 
+    /// Creates a new `ClickHouseDatabase` from a URL with full client configuration.
+    ///
+    /// # Parameters
+    /// - `url`: ClickHouse HTTP endpoint (e.g., "http://localhost:8123")
+    /// - `user`: Database user (`None` for default)
+    /// - `password`: Database password (`None` for default)
+    /// - `database`: Database name (`None` for default)
+    /// - `access_token`: Access token for authentication (`None` to skip)
+    /// - `compression`: Compression mode: "none" or "lz4" (`None` for default)
+    /// - `options`: Additional ClickHouse settings as key-value pairs
+    /// - `headers`: Additional HTTP headers as key-value pairs
+    pub fn from_params(
+        url: &str,
+        user: Option<&str>,
+        password: Option<&str>,
+        database: Option<&str>,
+        access_token: Option<&str>,
+        compression: Option<&str>,
+        options: Option<Vec<(String, String)>>,
+        headers: Option<Vec<(String, String)>>,
+    ) -> Result<Self> {
+        let mut client = Client::default().with_url(url);
+
+        if let Some(user) = user {
+            client = client.with_user(user);
+        }
+        if let Some(password) = password {
+            client = client.with_password(password);
+        }
+        if let Some(database) = database {
+            client = client.with_database(database);
+        }
+        if let Some(token) = access_token {
+            client = client.with_access_token(token);
+        }
+        if let Some(comp) = compression {
+            let c = match comp {
+                "none" => clickhouse::Compression::None,
+                "lz4" => clickhouse::Compression::Lz4,
+                other => return Err(anyhow!("Unknown compression '{}'. Use 'none' or 'lz4'", other)),
+            };
+            client = client.with_compression(c);
+        }
+        if let Some(opts) = options {
+            for (k, v) in opts {
+                client = client.with_option(k, v);
+            }
+        }
+        if let Some(hdrs) = headers {
+            for (k, v) in hdrs {
+                client = client.with_header(k, v);
+            }
+        }
+
+        Ok(Self { client })
+    }
+
     /// Creates a new `ClickHouseDatabase` from a user-managed client.
     pub fn from_client(client: Client) -> Self {
         Self { client }

@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use duckdb::Connection;
 
 use crate::database::Database;
-use crate::sql_duckdb::{create_duckdb_query, get_duckdb_table_schema};
+use crate::sql_duckdb::create_duckdb_query;
 use crate::sqp_parser::AnalyzedQuery;
 
 /// DuckDB database backend.
@@ -73,7 +73,11 @@ impl Database for DuckDbDatabase {
         tokio::task::spawn_blocking(move || {
             let db = conn.lock()
                 .map_err(|e| anyhow!("Failed to lock database: {}", e))?;
-            get_duckdb_table_schema(&db, &table_name)
+            let query = format!("SELECT * FROM {} LIMIT 0", table_name);
+            let mut stmt = db.prepare(&query)?;
+            let arrow_result = stmt.query_arrow([])?;
+            let schema = arrow_result.get_schema();
+            Ok(schema.as_ref().clone())
         })
         .await
         .map_err(|e| anyhow!("Task join error: {}", e))?
