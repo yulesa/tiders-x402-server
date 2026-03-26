@@ -9,14 +9,6 @@
 //!
 //! The client is cheap to clone and internally shares a connection pool,
 //! making it safe to reuse across concurrent requests.
-//!
-//! ## Example
-//!
-//! ```rust
-//! use server::facilitator_client::FacilitatorClient;
-//!
-//! let facilitator = FacilitatorClient::try_from("https://facilitator.x402.rs/").unwrap();
-//! ```
 
 use http::{HeaderMap, StatusCode};
 use reqwest::Client;

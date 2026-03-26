@@ -132,32 +132,6 @@ impl PostgresqlDatabase {
     pub fn from_pool(pool: Pool) -> Self {
         Self { pool }
     }
-
-    /// Queries the table with `LIMIT 0` and maps Postgres column types to Arrow fields.
-    async fn get_table_schema_internal(&self, table_name: &str) -> Result<Schema> {
-        let conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| anyhow!("Failed to get Postgres connection: {}", e))?;
-
-        let query = format!("SELECT * FROM {} LIMIT 0", table_name);
-        let stmt = conn
-            .prepare(&query)
-            .await
-            .map_err(|e| anyhow!("Failed to prepare schema query: {}", e))?;
-
-        let fields: Vec<Field> = stmt
-            .columns()
-            .iter()
-            .map(|col| {
-                let arrow_type = pg_type_to_arrow(col.type_(), col.type_modifier());
-                Field::new(col.name(), arrow_type, true)
-            })
-            .collect();
-
-        Ok(Schema::new(fields))
-    }
 }
 
 #[async_trait]
@@ -225,13 +199,36 @@ impl Database for PostgresqlDatabase {
     }
 
     async fn get_table_schema(&self, table_name: &str) -> Result<Schema> {
-        self.get_table_schema_internal(table_name).await
+        let conn = self
+            .pool
+            .get()
+            .await
+            .map_err(|e| anyhow!("Failed to get Postgres connection: {}", e))?;
+
+        let query = format!("SELECT * FROM {} LIMIT 0", table_name);
+        let stmt = conn
+            .prepare(&query)
+            .await
+            .map_err(|e| anyhow!("Failed to prepare schema query: {}", e))?;
+
+        let fields: Vec<Field> = stmt
+            .columns()
+            .iter()
+            .map(|col| {
+                let arrow_type = pg_type_to_arrow(col.type_(), col.type_modifier());
+                Field::new(col.name(), arrow_type, true)
+            })
+            .collect();
+
+        Ok(Schema::new(fields))
     }
 
     fn create_sql_query(&self, ast: &AnalyzedQuery) -> Result<String> {
         create_postgresql_query(ast)
     }
 }
+
+// --- Helper functions ---
 
 /// Maps a Postgres type to its Arrow equivalent.
 ///
@@ -591,9 +588,7 @@ fn build_arrow_arrays(
     Ok(arrays)
 }
 
-// --- ########
-// Helpers to decode Postgres DATE, TIME, TIMESTAMP, INTERVAL, UUID, and NUMERIC types from their binary format into raw values.
-// --- ########
+// --- Helper structs ---
 
 /// Days between the Unix epoch (1970-01-01) and the Postgres epoch (2000-01-01).
 const PG_EPOCH_DAYS_OFFSET: i32 = 10_957;

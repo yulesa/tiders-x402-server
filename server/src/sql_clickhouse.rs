@@ -9,71 +9,11 @@
 use sqlparser::ast::{Expr, CastKind};
 use anyhow::{anyhow, Result};
 use crate::sqp_parser::AnalyzedQuery;
-use crate::sql_shared::{format_value, display_common_expr};
+use crate::sql_shared::{create_query, format_value, display_common_expr};
 
 /// Generates a ClickHouse SQL query string from an analyzed query AST.
 pub fn create_clickhouse_query(ast: &AnalyzedQuery) -> Result<String> {
-    let mut query = String::new();
-
-    // SELECT clause
-    query.push_str("SELECT ");
-
-    if ast.body.wildcard {
-        query.push_str("*");
-    } else {
-        let projections: Vec<String> = ast.body.projection.iter()
-            .map(|item| {
-                if let Some(alias) = &item.alias {
-                    format!("{} AS {}", item.ident, alias)
-                } else {
-                    item.ident.clone()
-                }
-            })
-            .collect();
-        query.push_str(&projections.join(", "));
-    }
-
-    // FROM clause
-    query.push_str(&format!(" FROM {}", ast.body.from));
-
-    // WHERE clause
-    if let Some(selection) = &ast.body.selection {
-        query.push_str(&format!(" WHERE {}", ch_display_expr(selection)?));
-    }
-
-    // ORDER BY clause
-    if let Some(order_by) = &ast.order_by {
-        query.push_str(" ORDER BY ");
-        let order_clauses = order_by.iter()
-            .map(|order_by_expr| {
-                let mut clause = ch_display_expr(&order_by_expr.expr)?;
-                if !order_by_expr.asc {
-                    clause.push_str(" DESC");
-                }
-                if let Some(nulls_first) = order_by_expr.nulls_first {
-                    if nulls_first {
-                        clause.push_str(" NULLS FIRST");
-                    } else {
-                        clause.push_str(" NULLS LAST");
-                    }
-                }
-                Ok(clause)
-            })
-            .collect::<Result<Vec<String>>>()?;
-        query.push_str(&order_clauses.join(", "));
-    }
-
-    // LIMIT clause
-    if let Some(limit_clause) = &ast.limit_clause {
-        if let Some(limit) = &limit_clause.limit {
-            query.push_str(&format!(" LIMIT {}", ch_display_expr(limit)?));
-        }
-        if let Some(offset) = &limit_clause.offset {
-            query.push_str(&format!(" OFFSET {}", ch_display_expr(offset)?));
-        }
-    }
-
-    Ok(query)
+    create_query(ast, &ch_display_expr)
 }
 
 /// Renders a single SQL expression into ClickHouse-specific syntax.
