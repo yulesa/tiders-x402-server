@@ -13,6 +13,10 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 alloy = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-duckdb = { workspace = true, features = ["bundled"] }
+duckdb = { workspace = true, features = ["bundled"], optional = true }
 arrow = { workspace = true, features = ["pyarrow"] }
 
+[features]
+duckdb = ["tiders-x402/duckdb", "dep:duckdb"]
+postgresql = ["tiders-x402/postgresql"]
+clickhouse = ["tiders-x402/clickhouse"]

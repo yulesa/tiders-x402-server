@@ -1,12 +1,12 @@
 # Running the Server
 
-The tiders-x402-server is best used as a library — you construct and start the server from your own code. This page walks through the full setup: setting up a connection with a facilitator, defining pricing, configuring tables, building the application state, and starting the server.
+The tiders-x402-server is best used as a library — you construct and start the server from your own code. This page walks through the minimal setup: connecting to a facilitator, defining pricing, configuring a table, and starting the server.
 
-Both Rust and Python examples are shown side by side. They follow the same steps and produce identical servers.
+Both Rust and Python examples are shown side by side. They follow the same steps and produce identical servers. For the full range of configuration options see the [Server Components](../server/configuration.md) section.
 
 ## 1. Connect to a Facilitator
 
-The facilitator handles blockchain-side payment operations (verification and settlement). Point it at a [public facilitators](https://www.x402.org/ecosystem?filter=facilitators) or to a running facilitator instance. 
+The facilitator handles blockchain-side payment operations (verification and settlement). Point it at a [public facilitator](https://www.x402.org/ecosystem?filter=facilitators) or a running facilitator instance.
 
 **Rust:**
 ```rust
@@ -26,108 +26,83 @@ import tiders_x402_server
 facilitator = tiders_x402_server.FacilitatorClient("https://facilitator.x402.rs")
 ```
 
-## 2. Define Pricing
+## 2. Create a Database
 
-Each paid table needs one or more price tags that describe how much to charge and in which token. The token defines the blockchain network and contract address.
+Create a database backend. This example uses DuckDB — see [Database](../server/database.md) for PostgreSQL and ClickHouse options.
+
+**Rust:**
+```rust
+let db = tiders_x402::database_duckdb::DuckDbDatabase::from_path("data/duckdb.db")
+    .expect("Failed to open DuckDB");
+```
+
+**Python:**
+```python
+db = tiders_x402_server.DuckDbDatabase("data/duckdb.db")
+```
+
+## 3. Define Pricing and Configure Tables
+
+Each paid table needs a price tag that describes how much to charge and in which token. The schema is optional but recommended — it is shown to clients in the root endpoint.
 
 **Rust:**
 ```rust
 use std::str::FromStr;
 use x402_chain_eip155::chain::ChecksummedAddress;
 use x402_types::networks::USDC;
-use tiders_x402::price::{PriceTag, TokenAmount};
+use tiders_x402::price::{PriceTag, TablePaymentOffers, TokenAmount};
+use tiders_x402::Database;
 
 let usdc = USDC::base_sepolia();
 
-// Default tier: $0.002 per row
 let price_tag = PriceTag {
     pay_to: ChecksummedAddress::from_str("0x[your_address]").unwrap(),
     amount_per_item: TokenAmount(usdc.parse("0.002").unwrap().amount),
     token: usdc.clone(),
     min_total_amount: None,
     min_items: None,
-    max_items: 99,
+    max_items: None,
     description: None,
     is_default: true,
 };
 
-// Bulk tier: $0.001 per row for queries returning 100+ rows
-let bulk_price_tag = PriceTag {
-    pay_to: ChecksummedAddress::from_str("0x[your_address]").unwrap(),
-    amount_per_item: TokenAmount(usdc.parse("0.001").unwrap().amount),
-    token: usdc.clone(),
-    min_total_amount: None,
-    min_items: Some(100),
-    max_items: None,
-    description: None,
-    is_default: false,
-};
-```
-
-**Python:**
-```python
-usdc = tiders_x402_server.USDCDeployment.by_network("base_sepolia")
-
-# Default tier: $0.002 per row
-price_tag = tiders_x402_server.PriceTag(
-    pay_to="0x[your_address]",
-    amount_per_item="$0.002",
-    token=usdc,
-    min_total_amount=None,
-    min_items=None,
-    max_items=99,
-    description=None,
-    is_default=True,
-)
-
-# Bulk tier: $0.001 per row for queries returning 100+ rows
-bulk_price_tag = tiders_x402_server.PriceTag(
-    pay_to="0x[your_address]",
-    amount_per_item="0.001",
-    token=usdc,
-    min_total_amount=None,
-    min_items=100,
-    max_items=None,
-    description=None,
-    is_default=False,
-)
-```
-
-When a query estimates multiple rows, both tiers apply and the client receives both options in the 402 response. See [Configuration](./configuration.md) for more details on tiered pricing.
-
-## 3. Configure Tables
-
-Create a offers' table that groups the pricing tiers and associates them with a table in the DB. The schema is optional but recommended — it is shown to clients in the root endpoint.
-
-**Rust:**
-```rust
-use duckdb::Connection;
-use tiders_x402::price::TablePaymentOffers;
-use tiders_x402::duckdb_reader::get_duckdb_table_schema;
-
-let db = Connection::open("data/duckdb.db").expect("Failed to open DuckDB");
-let schema = get_duckdb_table_schema(&db, "uniswap_v3_pool_swap").unwrap();
+let schema = db.get_table_schema("uniswap_v3_pool_swap")
+    .await
+    .expect("Failed to get table schema");
 
 let offers_table = TablePaymentOffers::new(
     "uniswap_v3_pool_swap".to_string(),
     vec![price_tag],
     Some(schema),
 )
-.with_description("Uniswap V3 swaps".to_string())
-.with_payment_offer(bulk_price_tag);
+.with_description("Uniswap V3 swaps".to_string());
 ```
 
 **Python:**
 ```python
-schema = tiders_x402_server.get_duckdb_table_schema_py("./data/duckdb.db", "uniswap_v3_pool_swap")
+usdc = tiders_x402_server.USDC("base_sepolia")
+
+price_tag = tiders_x402_server.PriceTag(
+    pay_to="0x[your_address]",
+    amount_per_item="$0.002",
+    token=usdc,
+    min_total_amount=None,
+    min_items=None,
+    max_items=None,
+    description=None,
+    is_default=True,
+)
+
+schema = db.get_table_schema("uniswap_v3_pool_swap")
 
 offers_table = tiders_x402_server.TablePaymentOffers("uniswap_v3_pool_swap", [price_tag], schema)
-offers_table.with_payment_offer(bulk_price_tag)
 ```
+
+You can add multiple price tags to a table for tiered pricing. See [Configuration](./configuration.md) for details.
 
 ## 4. Build the Payment Configuration
 
-The global payment configuration holds the facilitator client and all offer's tables. The server base URL is used to build the `resource` field in payment requirements.
+The global payment configuration holds the facilitator client and all table offers. The server base URL is used to build the `resource` field in payment requirements.
 
 **Rust:**
 ```rust
@@ -152,15 +127,14 @@ config.add_offers_table(offers_table)
 
 ## 5. Create State and Start the Server
 
-Wrap the database connection and payment configuration into the application state, then start the server.
+Wrap the database and payment configuration into the application state, then start the server.
 
 **Rust:**
 ```rust
-use std::sync::{Arc, Mutex};
 use tiders_x402::{AppState, start_server};
 
 let state = Arc::new(AppState {
-    db: Arc::new(Mutex::new(db)),
+    db: Arc::new(db),
     payment_config: Arc::new(config),
 });
 
@@ -170,12 +144,11 @@ start_server(state, base_url).await;
 **Python:**
 ```python
 state = tiders_x402_server.AppState(
-    db_path="./data/duckdb.db",
+    db,
     payment_config=config,
 )
 
-server = tiders_x402_server.Server(state)
-server.start_server(base_url)
+tiders_x402_server.start_server_py(state, base_url)
 ```
 
 The server blocks until it receives a shutdown signal (Ctrl+C or SIGTERM).

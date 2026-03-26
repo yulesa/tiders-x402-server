@@ -18,35 +18,47 @@
 //! - `POST /query` — the main endpoint where clients submit paid data queries.
 //! - `GET /` — a root endpoint that returns server metadata and available data offers.
 
-pub mod sqp_parser;
-pub mod duckdb_reader;
-pub mod price;
+pub mod database;
+#[cfg(feature = "clickhouse")]
+pub mod database_clickhouse;
+#[cfg(feature = "duckdb")]
+pub mod database_duckdb;
+#[cfg(feature = "postgresql")]
+pub mod database_postgresql;
 pub mod facilitator_client;
+pub mod payment_config;
+pub mod payment_processing;
+pub mod price;
 pub mod query_handler;
 pub mod root_handler;
-pub mod payment_processing;
-pub mod payment_config;
-pub mod database;
+#[cfg(feature = "clickhouse")]
+pub mod sql_clickhouse;
+#[cfg(feature = "duckdb")]
+pub mod sql_duckdb;
+#[cfg(feature = "postgresql")]
+pub mod sql_postgresql;
+pub mod sql_shared;
+pub mod sqp_parser;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use axum::routing::post;
 use axum::Router;
+use axum::routing::post;
 use dotenvy::dotenv;
 use opentelemetry::trace::{Status, TracerProvider};
+use tokio::signal;
 use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use url::Url;
-use tokio::signal;
-use duckdb::Connection;
 
 use crate::query_handler::query_handler;
 use crate::root_handler::root_handler;
-pub use price::{PriceTag, TablePaymentOffers};
-pub use payment_config::GlobalPaymentConfig;
+pub use database::Database;
 pub use facilitator_client::FacilitatorClient;
+pub use payment_config::GlobalPaymentConfig;
+pub use price::{PriceTag, TablePaymentOffers};
 
 /// Shared application state accessible by every request handler.
 ///
@@ -55,12 +67,11 @@ pub use facilitator_client::FacilitatorClient;
 /// handlers share the same underlying state.
 #[derive(Debug, Clone)]
 pub struct AppState {
-    /// DuckDB connection, serialized behind a `Mutex` (DuckDB is not `Send + Sync`).
-    pub db: Arc<Mutex<Connection>>,
+    /// Database backend (DuckDB, Postgres, ClickHouse, etc.) behind a trait object.
+    pub db: Arc<dyn Database>,
     /// Global payment configuration: offer's tables, pricing rules, and facilitator settings.
     pub payment_config: Arc<GlobalPaymentConfig>,
 }
-
 
 /// Starts the Axum HTTP server and blocks until a shutdown signal is received.
 ///
@@ -70,14 +81,13 @@ pub struct AppState {
 ///   request and passes it to the handler.
 /// * `base_url` — The URL to bind the server to (host and port are extracted from it).
 pub async fn start_server(state: Arc<AppState>, base_url: Url) {
-
     // Load environment variables from a `.env` file if one exists.
     dotenv().ok();
 
     // Initialize tracing subscriber for structured logging.
     // If OTEL_EXPORTER_OTLP_ENDPOINT is set, also export spans via OTLP (gRPC).
-    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| "info".into());
+    let env_filter =
+        tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
     let fmt_layer = tracing_subscriber::fmt::layer();
 
     if std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_ok() {
@@ -86,8 +96,8 @@ pub async fn start_server(state: Arc<AppState>, base_url: Url) {
             .build()
             .expect("failed to build OTLP span exporter");
 
-        let service_name = std::env::var("OTEL_SERVICE_NAME")
-            .unwrap_or_else(|_| "tiders-x402".to_string());
+        let service_name =
+            std::env::var("OTEL_SERVICE_NAME").unwrap_or_else(|_| "tiders-x402".to_string());
         let resource = opentelemetry_sdk::Resource::builder()
             .with_attribute(opentelemetry::KeyValue::new("service.name", service_name))
             .build();
@@ -210,7 +220,9 @@ pub async fn start_server(state: Arc<AppState>, base_url: Url) {
 /// graceful shutdown — finishing in-flight requests before exiting.
 async fn shutdown_signal() {
     let ctrl_c = async {
-        signal::ctrl_c().await.expect("failed to install Ctrl+C handler");
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
     };
 
     // On Unix systems, also listen for SIGTERM (sent by container orchestrators
@@ -235,4 +247,4 @@ async fn shutdown_signal() {
         _ = terminate => {},
     }
     tracing::info!("Shutdown signal received, starting graceful shutdown");
-} 
+}

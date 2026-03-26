@@ -23,7 +23,7 @@
 - [Query Handler](./server/query-handler.md)
 - [SQL Parser](./server/sql-parser.md)
 - [Database](./server/database.md)
-- [DuckDB Reader](./server/duckdb-reader.md)
+- [SQL Generators](./server/sql-generators.md)
 - [Price](./server/price.md)
 - [Payment Configuration](./server/payment-config.md)
 - [Payment Processing](./server/payment-processing.md)
