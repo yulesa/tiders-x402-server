@@ -28,7 +28,3 @@
 - [Payment Configuration](./server/payment-config.md)
 - [Payment Processing](./server/payment-processing.md)
 - [Facilitator Client](./server/facilitator-client.md)
-
-# Client Libraries
-
-- [TypeScript Client](./clients/typescript.md)

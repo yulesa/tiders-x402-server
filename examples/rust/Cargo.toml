@@ -16,4 +16,4 @@ clickhouse = "0.13"
 
 # Uncomment below for local development
 # [patch.crates-io]
-# tiders-x402 = { path = "../../server" }
+# tiders-x402-server = { path = "../../server" }

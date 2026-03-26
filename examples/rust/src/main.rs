@@ -27,14 +27,25 @@ async fn main() {
 
 
 
-
-
     // ########## If you're using a Duckdb database: ##########
+    // Load sample data from CSV into an in-memory DuckDB database.
+    // Replace this with your own database path for production use.
+    // ##########
 
-    // let conn = duckdb::Connection::open("../data/duckdb.db").expect("Failed to open DuckDB connection");
-    // let db = tiders_x402::database_duckdb::DuckDbDatabase::new(conn);
+    let conn = duckdb::Connection::open_in_memory().expect("Failed to open DuckDB connection");
+    conn.execute_batch(
+        "CREATE TABLE uniswap_v3_pool_swap AS SELECT * FROM read_csv_auto('../uniswap_v3_pool_swap.csv');"
+    ).expect("Failed to load sample data from CSV");
+    let db = tiders_x402_server::database_duckdb::DuckDbDatabase::new(conn);
+
+
+
 
     // ########## If you're using a Postgresql database: ##########
+    // First seed sample data: `psql -f ../seed_postgresql.sql``
+    // or `docker exec -it pg_database psql -U postgres -d tiders` Or if you have psql installed locally 
+    // `psql -U postgres -d tiders -h localhost -p 5432`` then copy and paste examples/seed_postgresql.sql contents
+    // ##########
 
     // let pg_user = std::env::var("POSTGRES_USER").expect("POSTGRES_USER not set");
     // let pg_password = std::env::var("POSTGRES_PASSWORD").expect("POSTGRES_PASSWORD not set");
@@ -47,7 +58,7 @@ async fn main() {
     // );
 
     // --- Option A: Connect via connection string ---
-    // let db = tiders_x402::database_postgresql::PostgresqlDatabase::from_connection_string(&conn_str)
+    // let db = tiders_x402_server::database_postgresql::PostgresqlDatabase::from_connection_string(&conn_str)
     //     .await
     //     .expect("Failed to connect to PostgreSQL");
 
@@ -68,31 +79,36 @@ async fn main() {
     //     .build()
     //     .expect("Failed to build pool");
     
-    // let db = tiders_x402::database_postgresql::PostgresqlDatabase::from_pool(pool);
+    // let db = tiders_x402_server::database_postgresql::PostgresqlDatabase::from_pool(pool);
 
+
+
+    
     // ########## If you're using a ClickHouse database: ##########
+    // First seed sample data: copy and paste examples/seed_clickhouse.sql contents to webUI.
+    // ##########
 
-    let ch_host = std::env::var("CLICKHOUSE_HOST").unwrap_or_else(|_| "localhost".to_string());
-    let ch_port = std::env::var("CLICKHOUSE_PORT").unwrap_or_else(|_| "8123".to_string());
-    let ch_user = std::env::var("CLICKHOUSE_USER").unwrap_or_else(|_| "default".to_string());
-    let ch_password = std::env::var("CLICKHOUSE_PASSWORD").unwrap_or_else(|_| "default".to_string());
-    let ch_database = std::env::var("CLICKHOUSE_DATABASE").unwrap_or_else(|_| "default".to_string());
-    let ch_secure = std::env::var("CLICKHOUSE_SECURE").unwrap_or_else(|_| "false".to_string());
-    let ch_scheme = if ch_secure == "true" { "https" } else { "http" };
-    let ch_url = format!("{}://{}:{}", ch_scheme, ch_host, ch_port);
+    // let ch_host = std::env::var("CLICKHOUSE_HOST").unwrap_or_else(|_| "localhost".to_string());
+    // let ch_port = std::env::var("CLICKHOUSE_PORT").unwrap_or_else(|_| "8123".to_string());
+    // let ch_user = std::env::var("CLICKHOUSE_USER").unwrap_or_else(|_| "default".to_string());
+    // let ch_password = std::env::var("CLICKHOUSE_PASSWORD").unwrap_or_else(|_| "default".to_string());
+    // let ch_database = std::env::var("CLICKHOUSE_DATABASE").unwrap_or_else(|_| "default".to_string());
+    // let ch_secure = std::env::var("CLICKHOUSE_SECURE").unwrap_or_else(|_| "false".to_string());
+    // let ch_scheme = if ch_secure == "true" { "https" } else { "http" };
+    // let ch_url = format!("{}://{}:{}", ch_scheme, ch_host, ch_port);
 
     // --- Option A: Connect via URL ---
-    // let db = tiders_x402::database_clickhouse::ClickHouseDatabase::from_url(&ch_url)
+    // let db = tiders_x402_server::database_clickhouse::ClickHouseDatabase::from_url(&ch_url)
     //     .expect("Failed to create ClickHouse client");
 
     // --- Option B: Connect via a user-managed client ---
-    let client = clickhouse::Client::default()
-        .with_url(&ch_url)
-        .with_user(&ch_user)
-        .with_password(&ch_password)
-        .with_database(&ch_database);
+    // let client = clickhouse::Client::default()
+    //     .with_url(&ch_url)
+    //     .with_user(&ch_user)
+    //     .with_password(&ch_password)
+    //     .with_database(&ch_database);
 
-    let db = tiders_x402::database_clickhouse::ClickHouseDatabase::from_client(client);
+    // let db = tiders_x402_server::database_clickhouse::ClickHouseDatabase::from_client(client);
 
 
 

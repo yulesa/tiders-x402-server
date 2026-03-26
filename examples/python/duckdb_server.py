@@ -33,8 +33,17 @@ def main():
         is_default=False
     )
     
-    # Create DuckDB database instance
-    db = tiders_x402_server.DuckDbDatabase("../data/duckdb.db")
+    # Load sample data from CSV into a DuckDB database file.
+    # Replace this with your own database path for production use.
+    import duckdb
+    db_path = "../data/duckdb.db"
+    conn = duckdb.connect(db_path)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS uniswap_v3_pool_swap AS SELECT * FROM read_csv_auto('../uniswap_v3_pool_swap.csv');"
+    )
+    conn.close()
+
+    db = tiders_x402_server.DuckDbDatabase(db_path)
 
     # Get schema and create table payment offers
     swap_schema = db.get_table_schema("uniswap_v3_pool_swap")

@@ -28,17 +28,25 @@ facilitator = tiders_x402_server.FacilitatorClient("https://facilitator.x402.rs"
 
 ## 2. Create a Database
 
-Create a database backend. This example uses DuckDB — see [Database](../server/database.md) for PostgreSQL and ClickHouse options.
+Create a database backend. 
+
+*The examples in the repo ship with a sample CSV file (`uniswap_v3_pool_swap.csv`) containing Uniswap V3 swap data. For DuckDB, you can load it directly. For PostgreSQL and ClickHouse, seed scripts are provided.*
+
+### DuckDB
 
 **Rust:**
 ```rust
-let db = tiders_x402::database_duckdb::DuckDbDatabase::from_path("data/duckdb.db")
-    .expect("Failed to open DuckDB");
+// Load sample data from CSV into an in-memory DuckDB database.
+let conn = duckdb::Connection::open_in_memory().unwrap();
+let db = tiders_x402_server::database_duckdb::DuckDbDatabase::new(conn);
 ```
 
 **Python:**
 ```python
-db = tiders_x402_server.DuckDbDatabase("data/duckdb.db")
+import duckdb
+db_path = "data/duckdb.db"
+conn = duckdb.connect(db_path)
+db = tiders_x402_server.DuckDbDatabase(db_path)
 ```
 
 ## 3. Define Pricing and Configure Tables
