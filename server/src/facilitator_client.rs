@@ -26,7 +26,6 @@ use x402_types::proto;
 #[derive(Clone, Debug)]
 pub struct FacilitatorClient {
     /// Base URL of the facilitator (e.g. `https://facilitator.example/`)
-    #[allow(dead_code)] // Public for consumption by downstream crates.
     base_url: Url,
     /// Full URL to `POST /verify` requests
     verify_url: Url,
@@ -117,31 +116,26 @@ pub enum FacilitatorClientError {
 
 impl FacilitatorClient {
     /// Returns the base URL used by this client.
-    #[allow(dead_code)] // Public for consumption by downstream crates.
     pub fn base_url(&self) -> &Url {
         &self.base_url
     }
 
     /// Returns the computed `./verify` URL relative to [`FacilitatorClient::base_url`].
-    #[allow(dead_code)] // Public for consumption by downstream crates.
     pub fn verify_url(&self) -> &Url {
         &self.verify_url
     }
 
     /// Returns the computed `./settle` URL relative to [`FacilitatorClient::base_url`]
-    #[allow(dead_code)] // Public for consumption by downstream crates.
     pub fn settle_url(&self) -> &Url {
         &self.settle_url
     }
 
     /// Returns any custom headers configured on the client.
-    #[allow(dead_code)] // Public for consumption by downstream crates.
     pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
 
     /// Returns the configured timeout, if any.
-    #[allow(dead_code)] // Public for consumption by downstream crates.
     pub fn timeout(&self) -> &Option<Duration> {
         &self.timeout
     }
@@ -184,7 +178,6 @@ impl FacilitatorClient {
     }
 
     /// Attaches custom headers to all future requests.
-    #[allow(dead_code)] // Public for consumption by downstream crates.
     pub fn with_headers(&self, headers: HeaderMap) -> Self {
         let mut this = self.clone();
         this.headers = headers;
@@ -192,7 +185,6 @@ impl FacilitatorClient {
     }
 
     /// Sets a timeout for all future requests.
-    #[allow(dead_code)] // Public for consumption by downstream crates.
     pub fn with_timeout(&self, timeout: Duration) -> Self {
         let mut this = self.clone();
         this.timeout = Some(timeout);

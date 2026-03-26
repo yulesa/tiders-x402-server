@@ -30,7 +30,7 @@ pub struct FacilitatorClient {
 
 The client can be safely reused across concurrent requests.
 
-### Construction
+**Construction**
 
 The client can be created from a URL string or a parsed `Url`:
 
@@ -39,14 +39,37 @@ let facilitator = FacilitatorClient::try_from("https://facilitator.x402.rs")
     .expect("Failed to create facilitator client");
 ```
 
-### Configuration
+**Configuration**
 
-The client supports optional customization:
+The client supports optional customization after creation:
 
-- **Custom headers** — attach headers to every outgoing request (e.g., authentication tokens) via `with_headers`.
-- **Timeout** — set a per-request timeout via `with_timeout`.
+```rust
+// Rust
+let facilitator = facilitator.with_headers(header_map);
+let facilitator = facilitator.with_timeout(Duration::from_millis(5000));
 
-### Facilitator Trait
+// Read back
+println!("{}", facilitator.base_url());
+println!("{}", facilitator.verify_url());
+println!("{}", facilitator.settle_url());
+println!("{:?}", facilitator.timeout());
+```
+
+```python
+# Python
+facilitator.set_headers({"Authorization": "Bearer token123"})
+facilitator.set_timeout(5000)  # milliseconds
+
+# Getters (properties)
+print(facilitator.base_url)
+print(facilitator.verify_url)
+print(facilitator.settle_url)
+print(facilitator.timeout_ms)  # returns int or None
+```
+
+See the [Configuration Reference](./configuration.md#facilitatorclient) for the full API.
+
+## Facilitator Trait
 
 The client implements the `x402_types::facilitator::Facilitator` trait, which defines the `verify`, `settle`, and `supported` methods. This allows it to be used interchangeably with other facilitator implementations (e.g., a local one for testing).
 

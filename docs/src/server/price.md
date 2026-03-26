@@ -31,6 +31,39 @@ Each price tag specifies:
 
 A table can have multiple price tags (e.g., different tokens, different tiers for small vs. large queries). The `payment_config` module selects which ones apply for a given row count.
 
+**Construction**
+
+```rust
+// Rust
+let price_tag = PriceTag {
+    pay_to: ChecksummedAddress::from_str("0x...").unwrap(),
+    amount_per_item: TokenAmount(usdc.parse("0.002").unwrap().amount),
+    token: usdc.clone(),
+    min_total_amount: None,
+    min_items: None,
+    max_items: None,
+    description: None,
+    is_default: true,
+};
+```
+
+```python
+# Python
+# amount_per_item accepts a string ("0.002") or int (2000) for smallest token units
+price_tag = PriceTag(
+    pay_to="0x...",
+    amount_per_item="0.002",
+    token=usdc,
+    min_total_amount=None,
+    min_items=None,
+    max_items=None,
+    description=None,
+    is_default=True,
+)
+```
+
+`PriceTag` is immutable after creation -- create a new one to change values.
+
 ### Price Calculation
 
 The total price for a query is:
@@ -70,11 +103,25 @@ pub struct TablePaymentOffers {
 - **`description`** — optional description shown to clients in the root endpoint and 402 responses.
 - **`schema`** — optional Arrow schema, displayed in the root endpoint to help clients discover available columns.
 
-### Construction
+**Construction and Configuration**
 
-Tables are configured at startup using a builder pattern:
+Tables are created with constructors and modified with builder/mutator methods.
 
-- `TablePaymentOffers::new(name, price_tags, schema)` — creates a paid table with the given pricing tiers.
-- `TablePaymentOffers::new_free_table(name, schema)` — creates a free table (no payment required).
-- `.with_description(desc)` — adds a human-readable description.
-- `.with_payment_offer(price_tag)` — adds an additional pricing tier.
+| Method | Rust | Python | Description |
+|--------|------|--------|-------------|
+| Create paid table | `TablePaymentOffers::new(name, tags, schema)` | `TablePaymentOffers(name, tags, schema=s, description=d)` | Creates a table with pricing tiers |
+| Create free table | `TablePaymentOffers::new_free_table(name, schema)` | `TablePaymentOffers.new_free_table(name, schema=s, description=d)` | Creates a table with no payment |
+| Set description | `.with_description(desc)` | `.with_description(desc)` | Set or replace the description |
+| Add price tag | `.add_payment_offer(tag)` | `.add_payment_offer(tag)` | Add a pricing tier |
+| Remove price tag | `.remove_price_tag(index)` | `.remove_price_tag(index)` | Remove by index, returns `bool` |
+| Make free | `.make_free()` | `.make_free()` | Remove all price tags |
+
+**Getters**
+
+| Getter | Rust | Python | Returns |
+|--------|------|--------|---------|
+| Table name | `offer.table_name` (pub field) | `offer.table_name` | `str` |
+| Requires payment | `offer.requires_payment` (pub field) | `offer.requires_payment` | `bool` |
+| Description | `offer.description` (pub field) | `offer.description` | `Optional[str]` |
+| Price tag count | `offer.price_tags.len()` (pub field) | `offer.price_tag_count` | `int` |
+| Price tag descriptions | iterate `offer.price_tags` | `offer.price_tag_descriptions` | `List[Optional[str]]` |

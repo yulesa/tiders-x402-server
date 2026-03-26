@@ -264,8 +264,13 @@ impl QueryError {
         path: &str,
         server_base_url: &url::Url,
     ) -> Self {
-        match payment_config.create_payment_required_response(&message, table_name, row_count, path, server_base_url)
-        {
+        match payment_config.create_payment_required_response(
+            &message,
+            table_name,
+            row_count,
+            path,
+            server_base_url,
+        ) {
             Some(payment_response) => {
                 let json_bytes = serde_json::to_vec(&payment_response)
                     .expect("Failed to serialize payment response");

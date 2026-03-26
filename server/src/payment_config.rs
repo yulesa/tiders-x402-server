@@ -34,15 +34,48 @@ pub struct GlobalPaymentConfig {
 
 #[allow(dead_code)]
 impl GlobalPaymentConfig {
-    /// Creates a configuration with sensible defaults (Arrow IPC mime type, 300s timeout).
-    pub fn default(facilitator: Arc<FacilitatorClient>) -> Self {
+    /// Creates a configuration with all fields specified. Optional fields fall back to sensible defaults.
+    pub fn new(
+        facilitator: Arc<FacilitatorClient>,
+        mime_type: Option<String>,
+        max_timeout_seconds: Option<u64>,
+        default_description: Option<String>,
+        offers_tables: Option<HashMap<String, TablePaymentOffers>>,
+    ) -> Self {
         Self {
             facilitator,
-            mime_type: "application/vnd.apache.arrow.stream".to_string(),
-            max_timeout_seconds: 300,
-            default_description: "Query execution payment".to_string(),
-            offers_tables: HashMap::new(),
+            mime_type: mime_type
+                .unwrap_or_else(|| "application/vnd.apache.arrow.stream".to_string()),
+            max_timeout_seconds: max_timeout_seconds.unwrap_or(300),
+            default_description: default_description
+                .unwrap_or_else(|| "Query execution payment".to_string()),
+            offers_tables: offers_tables.unwrap_or_default(),
         }
+    }
+
+    /// Creates a configuration with sensible defaults (Arrow IPC mime type, 300s timeout).
+    pub fn default(facilitator: Arc<FacilitatorClient>) -> Self {
+        Self::new(facilitator, None, None, None, None)
+    }
+
+    /// Sets the facilitator client.
+    pub fn set_facilitator(&mut self, facilitator: Arc<FacilitatorClient>) {
+        self.facilitator = facilitator;
+    }
+
+    /// Sets the MIME type advertised to clients.
+    pub fn set_mime_type(&mut self, mime_type: String) {
+        self.mime_type = mime_type;
+    }
+
+    /// Sets how long a payment offer remains valid, in seconds.
+    pub fn set_max_timeout_seconds(&mut self, max_timeout_seconds: u64) {
+        self.max_timeout_seconds = max_timeout_seconds;
+    }
+
+    /// Sets the fallback description used when a table has no description of its own.
+    pub fn set_default_description(&mut self, default_description: String) {
+        self.default_description = default_description;
     }
 
     /// Registers a table and its pricing rules.

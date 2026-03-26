@@ -5089,6 +5089,7 @@ dependencies = [
  "alloy",
  "arrow",
  "duckdb",
+ "http",
  "pyo3",
  "serde",
  "serde_json",

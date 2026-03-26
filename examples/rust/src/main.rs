@@ -137,7 +137,7 @@ async fn main() {
         is_default: false
     };
 
-    let swaps_offer = swaps_offer.with_payment_offer(swap_price_tag_2);
+    let swaps_offer = swaps_offer.add_payment_offer(swap_price_tag_2);
     global_payment_config.add_offers_table(swaps_offer);
 
     let state = Arc::new(AppState {

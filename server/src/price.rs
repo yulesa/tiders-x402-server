@@ -120,9 +120,26 @@ impl TablePaymentOffers {
     }
 
     /// Adds a pricing tier and marks the table as requiring payment.
-    pub fn with_payment_offer(mut self, offer: PriceTag) -> Self {
+    pub fn add_payment_offer(mut self, offer: PriceTag) -> Self {
         self.price_tags.push(offer);
         self.requires_payment = true;
         self
+    }
+
+    /// Removes a price tag by index. Returns `true` if the index was valid and the tag was removed.
+    /// Updates `requires_payment` based on whether any price tags remain.
+    pub fn remove_price_tag(&mut self, index: usize) -> bool {
+        if index >= self.price_tags.len() {
+            return false;
+        }
+        self.price_tags.remove(index);
+        self.requires_payment = !self.price_tags.is_empty();
+        true
+    }
+
+    /// Removes all price tags and marks the table as free (no payment required).
+    pub fn make_free(&mut self) {
+        self.price_tags.clear();
+        self.requires_payment = false;
     }
 }

@@ -8,6 +8,7 @@
 - [Server Overview](./getting-started/server-overview.md)
 - [Payment Flow](./getting-started/payment-flow.md)
 - [Running the Server](./getting-started/running.md)
+- [Configuration Reference](./getting-started/configuration.md)
 
 # API Reference
 
@@ -17,7 +18,6 @@
 
 # Server Components
 
-- [Configuration Reference TODO](./server/configuration.md)
 - [Server Library](./server/lib.md)
 - [Root Handler](./server/root-handler.md)
 - [Query Handler](./server/query-handler.md)

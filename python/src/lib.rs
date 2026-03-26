@@ -20,10 +20,6 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 use url::Url;
 
-use alloy::primitives::U256;
-use arrow::pyarrow::FromPyArrow;
-#[cfg(any(feature = "duckdb", feature = "postgresql", feature = "clickhouse"))]
-use arrow::pyarrow::ToPyArrow;
 #[cfg(any(feature = "duckdb", feature = "postgresql", feature = "clickhouse"))]
 use ::tiders_x402_server::Database;
 #[cfg(feature = "clickhouse")]
@@ -33,7 +29,13 @@ use ::tiders_x402_server::database_duckdb::DuckDbDatabase;
 #[cfg(feature = "postgresql")]
 use ::tiders_x402_server::database_postgresql::PostgresqlDatabase;
 use ::tiders_x402_server::price::TokenAmount;
-use ::tiders_x402_server::{AppState, FacilitatorClient, GlobalPaymentConfig, PriceTag, TablePaymentOffers, start_server};
+use ::tiders_x402_server::{
+    AppState, FacilitatorClient, GlobalPaymentConfig, PriceTag, TablePaymentOffers, start_server,
+};
+use alloy::primitives::U256;
+use arrow::pyarrow::FromPyArrow;
+#[cfg(any(feature = "duckdb", feature = "postgresql", feature = "clickhouse"))]
+use arrow::pyarrow::ToPyArrow;
 use x402_chain_eip155::KnownNetworkEip155;
 use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use x402_types::networks::USDC;
@@ -225,23 +227,28 @@ impl PyTablePaymentOffers {
     ///     table_name (str): Name of the table.
     ///     price_tags (List[PriceTag]): List of price tags for the table.
     ///     schema (Optional[pyarrow.Schema]): Arrow schema for the table.
+    ///     description (Optional[str]): Human-readable description for this table.
     ///
     /// Returns:
     ///     TablePaymentOffers: A new TablePaymentOffers object.
     #[new]
+    #[pyo3(signature = (table_name, price_tags, schema=None, description=None))]
     fn new(
         table_name: String,
         price_tags: Vec<PyPriceTag>,
         schema: Option<&Bound<'_, PyAny>>,
+        description: Option<String>,
     ) -> PyResult<Self> {
         let price_tags: Vec<PriceTag> = price_tags.into_iter().map(|pt| pt.inner).collect();
         let schema_inner = schema
             .map(|s| Schema::from_pyarrow_bound(s))
             .transpose()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        Ok(Self {
-            inner: TablePaymentOffers::new(table_name, price_tags, schema_inner),
-        })
+        let mut offers = TablePaymentOffers::new(table_name, price_tags, schema_inner);
+        if let Some(desc) = description {
+            offers = offers.with_description(desc);
+        }
+        Ok(Self { inner: offers })
     }
 
     /// Create a free table (no payment required).
@@ -249,18 +256,26 @@ impl PyTablePaymentOffers {
     /// Args:
     ///     table_name (str): Name of the table.
     ///     schema (Optional[pyarrow.Schema]): Arrow schema for the table.
+    ///     description (Optional[str]): Human-readable description for this table.
     ///
     /// Returns:
     ///     TablePaymentOffers: A new TablePaymentOffers object.
     #[staticmethod]
-    fn new_free_table(table_name: String, schema: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
+    #[pyo3(signature = (table_name, schema=None, description=None))]
+    fn new_free_table(
+        table_name: String,
+        schema: Option<&Bound<'_, PyAny>>,
+        description: Option<String>,
+    ) -> PyResult<Self> {
         let schema_inner = schema
             .map(|s| Schema::from_pyarrow_bound(s))
             .transpose()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        Ok(Self {
-            inner: TablePaymentOffers::new_free_table(table_name, schema_inner),
-        })
+        let mut offers = TablePaymentOffers::new_free_table(table_name, schema_inner);
+        if let Some(desc) = description {
+            offers = offers.with_description(desc);
+        }
+        Ok(Self { inner: offers })
     }
 
     /// Set a description for the table payment offers.
@@ -278,11 +293,73 @@ impl PyTablePaymentOffers {
     ///
     /// Args:
     ///     offer (PriceTag): The payment offer to add to the table.
+    fn add_payment_offer(&mut self, offer: &PyPriceTag) {
+        self.inner = self.inner.clone().add_payment_offer(offer.inner.clone());
+    }
+
+    /// Remove a price tag by index.
+    ///
+    /// Args:
+    ///     index (int): Index of the price tag to remove.
     ///
     /// Returns:
-    ///     TablePaymentOffers: The updated TablePaymentOffers object with the new payment offer.
-    fn with_payment_offer(&mut self, offer: &PyPriceTag) {
-        self.inner = self.inner.clone().with_payment_offer(offer.inner.clone());
+    ///     bool: True if the price tag was removed, False if the index was out of bounds.
+    fn remove_price_tag(&mut self, index: usize) -> bool {
+        self.inner.remove_price_tag(index)
+    }
+
+    /// Remove all price tags and mark the table as free (no payment required).
+    fn make_free(&mut self) {
+        self.inner.make_free();
+    }
+
+    /// Get the table name.
+    ///
+    /// Returns:
+    ///     str: The table name.
+    #[getter]
+    fn table_name(&self) -> &str {
+        &self.inner.table_name
+    }
+
+    /// Get whether this table requires payment.
+    ///
+    /// Returns:
+    ///     bool: True if the table requires payment.
+    #[getter]
+    fn requires_payment(&self) -> bool {
+        self.inner.requires_payment
+    }
+
+    /// Get the table description, or None.
+    ///
+    /// Returns:
+    ///     Optional[str]: The description, or None.
+    #[getter]
+    fn description(&self) -> Option<&str> {
+        self.inner.description.as_deref()
+    }
+
+    /// Get the number of price tags.
+    ///
+    /// Returns:
+    ///     int: Number of price tags.
+    #[getter]
+    fn price_tag_count(&self) -> usize {
+        self.inner.price_tags.len()
+    }
+
+    /// Get the descriptions of all price tags.
+    ///
+    /// Returns:
+    ///     List[Optional[str]]: List of descriptions, one per price tag (None if a tag has no description).
+    #[getter]
+    fn price_tag_descriptions(&self) -> Vec<Option<String>> {
+        self.inner
+            .price_tags
+            .iter()
+            .map(|pt| pt.description.clone())
+            .collect()
     }
 }
 
@@ -309,6 +386,69 @@ impl PyFacilitatorClient {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         Ok(Self { inner: client })
     }
+
+    /// Get the base URL of the facilitator.
+    ///
+    /// Returns:
+    ///     str: The base URL.
+    #[getter]
+    fn base_url(&self) -> String {
+        self.inner.base_url().to_string()
+    }
+
+    /// Get the verify endpoint URL.
+    ///
+    /// Returns:
+    ///     str: The verify URL.
+    #[getter]
+    fn verify_url(&self) -> String {
+        self.inner.verify_url().to_string()
+    }
+
+    /// Get the settle endpoint URL.
+    ///
+    /// Returns:
+    ///     str: The settle URL.
+    #[getter]
+    fn settle_url(&self) -> String {
+        self.inner.settle_url().to_string()
+    }
+
+    /// Get the configured timeout in milliseconds, or None.
+    ///
+    /// Returns:
+    ///     Optional[int]: Timeout in milliseconds, or None if not set.
+    #[getter]
+    fn timeout_ms(&self) -> Option<u64> {
+        self.inner.timeout().map(|d| d.as_millis() as u64)
+    }
+
+    /// Set custom headers for all future requests.
+    ///
+    /// Args:
+    ///     headers (Dict[str, str]): Headers to set.
+    fn set_headers(&mut self, headers: std::collections::HashMap<String, String>) -> PyResult<()> {
+        let mut header_map = http::HeaderMap::new();
+        for (key, value) in headers {
+            let name = http::header::HeaderName::from_str(&key)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let val = http::header::HeaderValue::from_str(&value)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            header_map.insert(name, val);
+        }
+        self.inner = self.inner.with_headers(header_map);
+        Ok(())
+    }
+
+    /// Set a timeout for all future requests.
+    ///
+    /// Args:
+    ///     timeout_ms (int): Timeout in milliseconds.
+    fn set_timeout(&mut self, timeout_ms: u64) {
+        self.inner = self
+            .inner
+            .with_timeout(std::time::Duration::from_millis(timeout_ms));
+    }
 }
 
 /// Global configuration for payment information and facilitator.
@@ -323,14 +463,29 @@ impl PyGlobalPaymentConfig {
     ///
     /// Args:
     ///     facilitator (FacilitatorClient): Facilitator client.
+    ///     mime_type (Optional[str]): Response MIME type (default: "application/vnd.apache.arrow.stream").
+    ///     max_timeout_seconds (Optional[int]): How long a payment offer remains valid in seconds (default: 300).
+    ///     default_description (Optional[str]): Fallback description for tables without their own (default: "Query execution payment").
     ///
     /// Returns:
     ///     GlobalPaymentConfig: A new GlobalPaymentConfig object.
     #[new]
-    fn new(facilitator: &PyFacilitatorClient) -> PyResult<Self> {
+    #[pyo3(signature = (facilitator, mime_type=None, max_timeout_seconds=None, default_description=None))]
+    fn new(
+        facilitator: &PyFacilitatorClient,
+        mime_type: Option<String>,
+        max_timeout_seconds: Option<u64>,
+        default_description: Option<String>,
+    ) -> PyResult<Self> {
         let facilitator = std::sync::Arc::new(facilitator.inner.clone());
         Ok(Self {
-            inner: GlobalPaymentConfig::default(facilitator),
+            inner: GlobalPaymentConfig::new(
+                facilitator,
+                mime_type,
+                max_timeout_seconds,
+                default_description,
+                None,
+            ),
         })
     }
 
@@ -354,6 +509,66 @@ impl PyGlobalPaymentConfig {
     ///     bool: True if the table requires payment, False otherwise.
     fn table_requires_payment(&self, table_name: &str) -> Option<bool> {
         self.inner.table_requires_payment(table_name)
+    }
+
+    /// Set the facilitator client.
+    ///
+    /// Args:
+    ///     facilitator (FacilitatorClient): The new facilitator client.
+    fn set_facilitator(&mut self, facilitator: &PyFacilitatorClient) {
+        self.inner
+            .set_facilitator(Arc::new(facilitator.inner.clone()));
+    }
+
+    /// Set the MIME type advertised to clients.
+    ///
+    /// Args:
+    ///     mime_type (str): The MIME type (e.g., "application/vnd.apache.arrow.stream").
+    fn set_mime_type(&mut self, mime_type: String) {
+        self.inner.set_mime_type(mime_type);
+    }
+
+    /// Set how long a payment offer remains valid.
+    ///
+    /// Args:
+    ///     max_timeout_seconds (int): Timeout in seconds.
+    fn set_max_timeout_seconds(&mut self, max_timeout_seconds: u64) {
+        self.inner.set_max_timeout_seconds(max_timeout_seconds);
+    }
+
+    /// Set the fallback description for tables without their own.
+    ///
+    /// Args:
+    ///     default_description (str): The default description.
+    fn set_default_description(&mut self, default_description: String) {
+        self.inner.set_default_description(default_description);
+    }
+
+    /// Get the MIME type advertised to clients.
+    ///
+    /// Returns:
+    ///     str: The MIME type.
+    #[getter]
+    fn mime_type(&self) -> &str {
+        &self.inner.mime_type
+    }
+
+    /// Get how long a payment offer remains valid, in seconds.
+    ///
+    /// Returns:
+    ///     int: Timeout in seconds.
+    #[getter]
+    fn max_timeout_seconds(&self) -> u64 {
+        self.inner.max_timeout_seconds
+    }
+
+    /// Get the fallback description.
+    ///
+    /// Returns:
+    ///     str: The default description.
+    #[getter]
+    fn default_description(&self) -> &str {
+        &self.inner.default_description
     }
 }
 
@@ -614,7 +829,11 @@ impl PyAppState {
     ///     AppState: A new AppState object.
     #[new]
     #[allow(unused_variables)]
-    fn new(database: &Bound<'_, PyAny>, payment_config: &PyGlobalPaymentConfig, server_base_url: &str) -> PyResult<Self> {
+    fn new(
+        database: &Bound<'_, PyAny>,
+        payment_config: &PyGlobalPaymentConfig,
+        server_base_url: &str,
+    ) -> PyResult<Self> {
         let server_base_url = Url::parse(server_base_url)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         // Try to downcast to each database type
@@ -652,6 +871,25 @@ impl PyAppState {
         Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
             "Expected a DuckDbDatabase, PostgresqlDatabase, or ClickHouseDatabase object",
         ))
+    }
+
+    /// Get the server's public base URL.
+    ///
+    /// Returns:
+    ///     str: The server base URL.
+    #[getter]
+    fn server_base_url(&self) -> String {
+        self.inner.server_base_url.to_string()
+    }
+
+    /// Set the server's public base URL.
+    ///
+    /// Args:
+    ///     server_base_url (str): The new base URL (e.g., "http://0.0.0.0:4021").
+    fn set_server_base_url(&mut self, server_base_url: &str) -> PyResult<()> {
+        self.inner.server_base_url = Url::parse(server_base_url)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(())
     }
 }
 

@@ -8,15 +8,30 @@ The server library (`server/src/lib.rs`) is the entry point of the server. It se
 
 ```rust
 pub struct AppState {
-    pub db: Arc<Mutex<Connection>>,
+    pub db: Arc<dyn Database>,
     pub payment_config: Arc<GlobalPaymentConfig>,
     pub server_base_url: Url,
 }
 ```
 
-- **`db`** — The database connection used to execute queries against DuckDB. Access is serialized (one query at a time), but DuckDB is fast enough that this is not a bottleneck for typical workloads.
+- **`db`** — The database backend (DuckDB, Postgres, ClickHouse, etc.) behind a trait object.
 - **`payment_config`** — The global payment configuration, including which tables require payment, pricing rules, and facilitator settings. See [Payment Configuration](./payment-config.md).
 - **`server_base_url`** — The server's public URL, used for binding and for building resource URLs in payment requirements.
+
+**Configuration**
+
+`server_base_url` can be changed after creation:
+
+```rust
+// Rust
+state.server_base_url = Url::parse("http://0.0.0.0:8080").unwrap();
+```
+
+```python
+# Python
+state.set_server_base_url("http://0.0.0.0:8080")
+print(state.server_base_url)  # getter
+```
 
 ## Router
 

@@ -22,6 +22,59 @@ pub struct GlobalPaymentConfig {
 - **`default_description`** — Fallback description when a table doesn't have its own (defaults to `"Query execution payment"`).
 - **`offers_tables`** — A map of table names to their payment offers (pricing tiers, schemas, descriptions).
 
+**Construction**
+
+All fields except `facilitator` are optional and fall back to sensible defaults.
+
+```rust
+// Rust - with defaults
+let config = GlobalPaymentConfig::default(Arc::new(facilitator));
+
+// Rust - with custom values
+let config = GlobalPaymentConfig::new(
+    Arc::new(facilitator),
+    Some("text/csv".to_string()),
+    Some(600),
+    Some("Custom description".to_string()),
+    None,
+);
+```
+
+```python
+# Python - with defaults
+config = GlobalPaymentConfig(facilitator)
+
+# Python - with custom values
+config = GlobalPaymentConfig(
+    facilitator,
+    mime_type="text/csv",
+    max_timeout_seconds=600,
+    default_description="Custom description",
+)
+```
+
+**Getters**
+
+| Getter | Rust | Python | Returns |
+|--------|------|--------|---------|
+| MIME type | `config.mime_type` (pub field) | `config.mime_type` | `String` / `str` |
+| Max timeout | `config.max_timeout_seconds` (pub field) | `config.max_timeout_seconds` | `u64` / `int` |
+| Default description | `config.default_description` (pub field) | `config.default_description` | `String` / `str` |
+| Get table offers | `config.get_offers_table("table")` | -- | `Option<&TablePaymentOffers>` |
+| Table requires payment | `config.table_requires_payment("table")` | `config.table_requires_payment("table")` | `Option<bool>` |
+
+**Setters**
+
+| Setter | Rust | Python |
+|--------|------|--------|
+| Set facilitator | `config.set_facilitator(arc_client)` | `config.set_facilitator(facilitator)` |
+| Set MIME type | `config.set_mime_type("text/csv".to_string())` | `config.set_mime_type("text/csv")` |
+| Set max timeout | `config.set_max_timeout_seconds(600)` | `config.set_max_timeout_seconds(600)` |
+| Set default description | `config.set_default_description("...".to_string())` | `config.set_default_description("...")` |
+| Add table offers | `config.add_offers_table(offer)` | `config.add_offers_table(offer)` |
+
+See the [Configuration Reference](./configuration.md#globalpaymentconfig) for the full API.
+
 ## What It Does
 
 The module answers four questions for the query handler:

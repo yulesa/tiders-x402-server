@@ -20,6 +20,7 @@ alloy = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 duckdb = { workspace = true, features = ["bundled"], optional = true }
 arrow = { workspace = true, features = ["pyarrow"] }
+http = { workspace = true }
 
 [features]
 duckdb = ["tiders-x402-server/duckdb", "dep:duckdb"]

@@ -39,7 +39,7 @@ def main():
     # Get schema and create table payment offers
     swap_schema = db.get_table_schema("uniswap_v3_pool_swap")
     swaps_offer = tiders_x402_server.TablePaymentOffers("uniswap_v3_pool_swap", [price_tag_1], swap_schema)
-    swaps_offer.with_payment_offer(price_tag_2)
+    swaps_offer.add_payment_offer(price_tag_2)
 
     server_base_url = "http://0.0.0.0:4021"
 

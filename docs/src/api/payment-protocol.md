@@ -78,6 +78,17 @@ Payment is made in ERC-20 tokens. Currently supported:
 
 The token's EIP-712 domain info (`name`, `version`) is included in the `extra` field of payment requirements, enabling clients to construct the correct typed data for signing.
 
+| Network | Rust | Python |
+|---------|------|--------|
+| Base Sepolia (testnet) | `USDC::base_sepolia()` | `USDC("base_sepolia")` |
+| Base | `USDC::base()` | `USDC("base")` |
+| Avalanche Fuji (testnet) | `USDC::avalanche_fuji()` | `USDC("avalanche_fuji")` |
+| Avalanche | `USDC::avalanche()` | `USDC("avalanche")` |
+| Polygon | `USDC::polygon()` | `USDC("polygon")` |
+| Polygon Amoy (testnet) | `USDC::polygon_amoy()` | `USDC("polygon_amoy")` |
+
+See the [Configuration Reference](../server/configuration.md) for full pricing and payment configuration details.
+
 ## Client Libraries
 
 The x402 protocol has client libraries that handle the payment flow automatically:
