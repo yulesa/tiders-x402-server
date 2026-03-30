@@ -27,6 +27,23 @@ async function main() {
   const fetchWithPay = wrapFetchWithPayment(fetch, client);
 
   try {
+    // First, make a plain fetch to see the 402 payment request response
+    const initialResponse = await fetch("http://localhost:4021/query", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: "SELECT * FROM uniswap_v3_pool_swap LIMIT 2;"
+      })
+    });
+    console.log("=== Initial 402 Response ===");
+    console.log("Status:", initialResponse.status);
+    console.log("Headers:", Object.fromEntries(initialResponse.headers.entries()));
+    const initialBody = await initialResponse.text();
+    console.log("Body:", initialBody);
+    console.log("============================\n");
+
     // Make a POST request with the query
     const response = await fetchWithPay("http://localhost:4021/query", {
       method: "POST",

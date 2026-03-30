@@ -1,3 +1,10 @@
+//! Simplified SQL query parser and validator.
+//!
+//! Parses SQL strings into a restricted AST ([`AnalyzedQuery`]) that only
+//! allows simple `SELECT … FROM … WHERE … ORDER BY … LIMIT` queries against
+//! a single table. Subqueries, joins, aggregations, and other advanced SQL
+//! features are explicitly rejected.
+
 use anyhow::{Result, anyhow};
 use sqlparser::ast::{
     Expr, GroupByExpr, LimitClause, ObjectNamePart, SelectFlavor, SelectItem, SetExpr, Statement,
@@ -6,6 +13,10 @@ use sqlparser::ast::{
 use sqlparser::parser::Parser;
 use sqlparser::{ast::OrderByKind, dialect::AnsiDialect};
 
+/// A validated, simplified representation of a SQL SELECT query.
+///
+/// Contains the parsed SELECT body, optional ORDER BY clause, and optional
+/// LIMIT/OFFSET clause. Only single-table, non-aggregated queries are representable.
 #[derive(Debug, Clone)]
 pub struct AnalyzedQuery {
     pub body: AnalyzedSelect,
@@ -23,6 +34,7 @@ impl AnalyzedQuery {
     }
 }
 
+/// The core SELECT clause of an analyzed query: projection, table, and optional WHERE filter.
 #[derive(Debug, Clone)]
 pub struct AnalyzedSelect {
     pub projection: Vec<AnalyzedSelectItem>, // Items in SELECT clause
@@ -42,12 +54,14 @@ impl AnalyzedSelect {
     }
 }
 
+/// A single column in the SELECT projection, with an optional alias.
 #[derive(Debug, Clone)]
 pub struct AnalyzedSelectItem {
     pub ident: String,
     pub alias: Option<String>,
 }
 
+/// A single ORDER BY expression with sort direction and NULLS ordering.
 #[derive(Debug, Clone)]
 pub struct AnalyzedOrderByExpr {
     pub expr: Expr,
@@ -55,12 +69,18 @@ pub struct AnalyzedOrderByExpr {
     pub nulls_first: Option<bool>,
 }
 
+/// LIMIT and OFFSET values extracted from the query.
 #[derive(Debug, Clone)]
 pub struct AnalyzedLimitClause {
     pub limit: Option<Expr>,
     pub offset: Option<Expr>,
 }
 
+/// Parses a SQL string into an [`AnalyzedQuery`], rejecting unsupported features.
+///
+/// Only single-statement, single-table SELECT queries are accepted. Joins,
+/// subqueries, aggregations, UNION, and other advanced SQL are rejected with
+/// descriptive error messages.
 pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
     let mut analyzed_query = AnalyzedQuery::new();
 
@@ -322,13 +342,13 @@ pub fn analyze_query(sql: &str) -> Result<AnalyzedQuery> {
     Ok(analyzed_query)
 }
 
-// Helper function to create a query to estimate row count for a query
+/// Wraps the given SQL in a `SELECT COUNT(*) FROM (...)` to estimate row count.
 pub fn create_estimate_rows_query(duckdb_sql: &str) -> String {
     // wrap the query in a SELECT COUNT(*)
     format!("SELECT COUNT(*) as num_rows FROM ({})", duckdb_sql)
 }
 
-// Trait for types that can be checked for being unsupported
+/// Trait for types that can be checked for being unsupported in simplified SQL.
 trait UnsupportedCheck {
     fn is_supported(&self) -> bool;
     // Return the name of the field that is unsupported, for error message
@@ -368,6 +388,7 @@ impl UnsupportedCheck for bool {
     }
 }
 
+/// Returns an error if `field` represents an unsupported SQL feature.
 fn check_unsupported_field<T: UnsupportedCheck + std::fmt::Debug>(field: &T) -> Result<()> {
     if !field.is_supported() {
         return Err(anyhow!(
@@ -378,7 +399,8 @@ fn check_unsupported_field<T: UnsupportedCheck + std::fmt::Debug>(field: &T) -> 
     Ok(())
 }
 
-// Only support expressions that don't take subqueries or deep down expressions
+/// Validates that an expression only uses supported constructs (no subqueries,
+/// compound identifiers, or aggregate functions). Recursively checks sub-expressions.
 fn check_unsupported_expr(expr: Option<Expr>) -> Result<Option<Expr>> {
     match expr {
         Some(expr) => {

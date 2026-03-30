@@ -1,3 +1,9 @@
+//! Example: paid data server using tiders-x402-server with DuckDB.
+//!
+//! Demonstrates how to configure a database backend, set up per-row USDC
+//! pricing via the x402 protocol, and start the HTTP server. Commented-out
+//! sections show PostgreSQL and ClickHouse alternatives.
+
 use x402_chain_eip155::chain::ChecksummedAddress;
 use x402_chain_eip155::KnownNetworkEip155;
 use x402_types::networks::USDC;
@@ -7,7 +13,7 @@ use url::Url;
 
 use tiders_x402_server::facilitator_client::FacilitatorClient;
 use tiders_x402_server::payment_config::GlobalPaymentConfig;
-use tiders_x402_server::price::{PriceTag, TablePaymentOffers, TokenAmount};
+use tiders_x402_server::price::{PriceTag, PricingModel, TablePaymentOffers, TokenAmount};
 use tiders_x402_server::{AppState, Database, start_server};
 
 #[tokio::main]
@@ -120,11 +126,13 @@ async fn main() {
 
     let swap_price_tag = PriceTag{
         pay_to: ChecksummedAddress::from_str("0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7").unwrap(),
-        amount_per_item: TokenAmount(usdc.parse("0.002").unwrap().amount),
+        pricing: PricingModel::PerRow {
+            amount_per_item: TokenAmount(usdc.parse("0.002").unwrap().amount),
+            min_total_amount: None,
+            min_items: None,
+            max_items: None,
+        },
         token: usdc.clone(),
-        min_total_amount: None,
-        min_items: None,
-        max_items: None,
         description: None,
         is_default: true
     };
@@ -144,11 +152,13 @@ async fn main() {
 
     let swap_price_tag_2 = PriceTag{
         pay_to: ChecksummedAddress::from_str("0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7").unwrap(),
-        amount_per_item: TokenAmount(usdc.parse("0.001").unwrap().amount),
+        pricing: PricingModel::PerRow {
+            amount_per_item: TokenAmount(usdc.parse("0.001").unwrap().amount),
+            min_total_amount: None,
+            min_items: Some(2),
+            max_items: None,
+        },
         token: usdc.clone(),
-        min_total_amount: None,
-        min_items: Some(2),
-        max_items: None,
         description: None,
         is_default: false
     };

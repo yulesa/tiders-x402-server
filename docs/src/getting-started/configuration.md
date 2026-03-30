@@ -145,46 +145,74 @@ config = GlobalPaymentConfig(
 
 ## PriceTag
 
-A single pricing tier for a table. Defines who gets paid, how much per row, and in which token. A table can have multiple price tags for tiered pricing.
+A single pricing tier for a table. Defines who gets paid, how much, and in which token. A table can have multiple price tags for tiered pricing. The pricing model (per-row or fixed) is specified via the `pricing` field.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `pay_to` | `ChecksummedAddress` | Recipient wallet address |
-| `amount_per_item` | `TokenAmount` | Price per row in the token's smallest unit |
+| `pricing` | `PricingModel` | Per-row or fixed pricing (see below) |
 | `token` | `Eip155TokenDeployment` | ERC-20 token (chain, contract address, transfer method) |
-| `min_total_amount` | `Option<TokenAmount>` | Minimum charge regardless of row count |
-| `min_items` | `Option<usize>` | Minimum rows for this tier to apply (inclusive) |
-| `max_items` | `Option<usize>` | Maximum rows for this tier to apply (inclusive) |
 | `description` | `Option<String>` | Human-readable label for this tier |
 | `is_default` | `bool` | Whether this is the default pricing tier |
 
-**Construction**
+### PricingModel
+
+| Variant | Fields | Description |
+|---------|--------|-------------|
+| `PerRow` | `amount_per_item`, `min_items`, `max_items`, `min_total_amount` | Price scales with row count |
+| `Fixed` | `amount` | Flat fee regardless of row count |
+
+**Construction (Per-Row)**
 
 ```rust
 // Rust
 let price_tag = PriceTag {
     pay_to: ChecksummedAddress::from_str("0x...").unwrap(),
-    amount_per_item: TokenAmount(usdc.parse("0.002").unwrap().amount),
+    pricing: PricingModel::PerRow {
+        amount_per_item: TokenAmount(usdc.parse("0.002").unwrap().amount),
+        min_total_amount: None,
+        min_items: None,
+        max_items: None,
+    },
     token: usdc.clone(),
-    min_total_amount: None,
-    min_items: None,
-    max_items: None,
     description: None,
     is_default: true,
 };
 ```
 
 ```python
-# Python
+# Python — per-row pricing (constructor)
 # amount_per_item accepts a string ("0.002") or int (2000) for smallest token units
 price_tag = PriceTag(
     pay_to="0x...",
     amount_per_item="0.002",
     token=usdc,
-    min_total_amount=None,
-    min_items=None,
-    max_items=None,
-    description=None,
+    is_default=True,
+)
+```
+
+**Construction (Fixed)**
+
+```rust
+// Rust
+let price_tag = PriceTag {
+    pay_to: ChecksummedAddress::from_str("0x...").unwrap(),
+    pricing: PricingModel::Fixed {
+        amount: TokenAmount(usdc.parse("1.00").unwrap().amount),
+    },
+    token: usdc.clone(),
+    description: Some("Fixed price query".to_string()),
+    is_default: true,
+};
+```
+
+```python
+# Python — fixed pricing (static method)
+price_tag = PriceTag.fixed(
+    pay_to="0x...",
+    fixed_amount="1.00",
+    token=usdc,
+    description="Fixed price query",
     is_default=True,
 )
 ```
@@ -247,32 +275,20 @@ free = TablePaymentOffers.new_free_table("public_table", schema=schema, descript
 
 ## Tiered Pricing Example
 
-Charge less per row for larger queries:
+Charge less per row for larger queries (per-row pricing):
 
 ```rust
 // Default: $0.002/row for any query
-let default_tier = PriceTag {
-    amount_per_item: TokenAmount(usdc.parse("0.002").unwrap().amount),
-    min_items: None,
-    max_items: None,
-    is_default: true,
-    ..base_tag.clone()
-};
+let default_tier = PriceTag {...}
 
 // Bulk: $0.001/row for queries returning 100+ rows
-let bulk_tier = PriceTag {
-    amount_per_item: TokenAmount(usdc.parse("0.001").unwrap().amount),
-    min_items: Some(100),
-    max_items: None,
-    is_default: false,
-    ..base_tag
-};
+let bulk_tier = PriceTag {...}
 
 let offer = TablePaymentOffers::new("my_table".to_string(), vec![default_tier], Some(schema))
     .add_payment_offer(bulk_tier);
 ```
 
-When a query estimates 200 rows, both tiers apply (since 200 >= 100 and the default has no minimum). The client receives both options in the 402 response and can choose the cheaper one.
+The client receives both options in the 402 response and can choose the cheaper one.
 
 ---
 

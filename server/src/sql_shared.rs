@@ -1,3 +1,9 @@
+//! Shared SQL generation utilities used by all database backends.
+//!
+//! Provides [`create_query`] for converting an [`AnalyzedQuery`] AST back into
+//! a SQL string, and [`display_common_expr`] for rendering standard SQL
+//! expressions that are identical across dialects.
+
 use crate::sqp_parser::AnalyzedQuery;
 use anyhow::{Result, anyhow};
 use sqlparser::ast::{CastKind, Expr, TrimWhereField, Value};

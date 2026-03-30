@@ -1,8 +1,8 @@
 # Payment Flow
 
-The server implements a two-step HTTP payment flow based on the [x402 protocol](https://www.x402.org/) (V2).
+The server implements a two-step HTTP payment flow based on the [x402 protocol](https://www.x402.org/) (V2). The flow differs slightly depending on whether the table uses **per-row** or **fixed** pricing.
 
-## Sequence Diagram
+## Per-Row Pricing Flow
 
 ```
           Client                        Server                       Facilitator
@@ -40,14 +40,55 @@ The server implements a two-step HTTP payment flow based on the [x402 protocol](
             |<-----------------------------|                              |
 ```
 
+## Fixed Pricing Flow
+
+For fixed-price tables, the server verifies the payment **before** executing the query. This prevents bogus payment headers from triggering expensive queries.
+
+```
+          Client                        Server                       Facilitator
+            |                              |                              |
+            |  POST /query (no payment)    |                              |
+            |----------------------------->|                              |
+            |                              | Parse & validate SQL         |
+            |                              | (skip row count estimation)  |
+            |                              | Return fixed pricing         |
+            |  402 Payment Required        |                              |
+            |<-----------------------------|                              |
+            |  { accepts: [...] }          |                              |
+            |                              |                              |
+  Sign with |                              |                              |
+    wallet  |                              |                              |
+            |                              |                              |
+            |  POST /query                 |                              |
+            |  + Payment-Signature header  |                              |
+            |----------------------------->|                              |
+            |                              | Decode payment payload       |
+            |                              | Match payment requirements   |
+            |                              |                              |
+            |                              |  POST /verify                |
+            |                              |----------------------------->|
+            |                              |  VerifyResponse              |
+            |                              |<-----------------------------|
+            |                              |                              |
+            |                              | Execute query                |
+            |                              |                              |
+            |                              |  POST /settle                |
+            |                              |----------------------------->|
+            |                              |  SettleResponse              |
+            |                              |<-----------------------------|
+            |                              |                              |
+            |  200 OK (Arrow IPC)          |                              |
+            |<-----------------------------|                              |
+```
+
 ## Step 1: Estimation
 
 When a client sends a query without a `Payment-Signature` header:
 
 1. The server parses and validates the SQL.
-2. It wraps the query in `SELECT COUNT(*) FROM (...)` to estimate the row count.
-3. It calculates applicable pricing tiers based on the estimated row count.
-4. It returns HTTP **402 Payment Required** with:
+2. For **per-row** tables: it wraps the query in `SELECT COUNT(*) FROM (...)` to estimate the row count. It then calculates applicable pricing tiers based on the estimated row count.
+   For **fixed-price** tables: this step is skipped (the price doesn't depend on row count).
+3. It returns HTTP **402 Payment Required** with:
    - A JSON body containing the error message, resource info, and all applicable payment options.
    - A `Payment-Required` header with the same information, base64-encoded.
 
@@ -78,13 +119,24 @@ Each entry in `accepts` represents a valid payment option. If multiple pricing t
 
 ## Step 2: Execution and Settlement
 
-When the client resubmits with a `Payment-Signature` header (base64-encoded payment payload):
+When the client resubmits with a `Payment-Signature` header (base64-encoded payment payload). THe process differs for each pricing model:
+
+### Per-Row Tables
 
 1. The server decodes and deserializes the payment payload into a V2 `PaymentPayload`.
 2. It executes the actual query to get the real row count.
-3. It matches the payload's `accepted` field against the generated payment requirements using direct equality (V2 exact matching).
+3. It matches the payload's `accepted` field against the generated payment requirements.
 4. It sends a **verify** request to the facilitator to confirm the payment is valid and funded.
 5. If verified, it sends a **settle** request to execute the on-chain transfer.
+6. It returns the query results as Arrow IPC with HTTP 200.
+
+### Fixed-Price Tables
+
+1. The server decodes and deserializes the payment payload into a V2 `PaymentPayload`.
+2. It matches the payload's `accepted` field against the generated payment requirements.
+3. It sends a **verify** request to the facilitator to confirm the payment is valid and funded.
+4. **Only after verification succeeds**, it executes the actual query.
+5. It sends a **settle** request to execute the on-chain transfer.
 6. It returns the query results as Arrow IPC with HTTP 200.
 
 ## Error Cases

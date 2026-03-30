@@ -58,7 +58,7 @@ use crate::root_handler::root_handler;
 pub use database::Database;
 pub use facilitator_client::FacilitatorClient;
 pub use payment_config::GlobalPaymentConfig;
-pub use price::{PriceTag, TablePaymentOffers};
+pub use price::{PriceTag, PricingModel, TablePaymentOffers};
 
 /// Shared application state accessible by every request handler.
 ///

@@ -81,11 +81,23 @@ pub async fn query_handler(
         Some(true) => {}
     }
 
+    let offers_table = state
+        .payment_config
+        .get_offers_table(table_name)
+        .ok_or_else(|| {
+            QueryError::BadRequest(format!("Table not supported: {}", table_name))
+        })?;
+    let is_fixed = offers_table.is_all_fixed_price();
+
     match headers.get("Payment-Signature") {
         None => {
             // Step 1: No payment header - return 402 with pricing info
-            // Estimate row count
-            let estimated_rows = estimate_row_count(&state, &sql).await?;
+            // For fixed-price tables, skip the COUNT(*) estimation query
+            let estimated_rows = if is_fixed {
+                0
+            } else {
+                estimate_row_count(&state, &sql).await?
+            };
             Err(QueryError::payment(
                 &state.payment_config,
                 "No crypto payment found. Implement x402 protocol (https://www.x402.org/) to pay for this API request.".to_string(),
@@ -97,21 +109,35 @@ pub async fn query_handler(
         }
 
         // Step 2: Payment header present - verify payment and return data
-        // Parse payment payload
         Some(payment_header) => {
             let payment_payload = decode_payment_payload(payment_header)?;
-            let batches = execute_db_query(&state, &sql).await?;
-            let actual_rows = batches.iter().map(|b| b.num_rows()).sum::<usize>();
 
-            process_payment(
-                &state,
-                &payment_payload,
-                table_name,
-                actual_rows,
-                path,
-                &batches,
-            )
-            .await
+            if is_fixed {
+                // Fixed-price flow: verify payment BEFORE executing the query
+                // to prevent bogus payment headers from triggering expensive queries
+                process_fixed_price_payment(
+                    &state,
+                    &payment_payload,
+                    table_name,
+                    path,
+                    &sql,
+                )
+                .await
+            } else {
+                // Per-row flow: execute query first to get actual row count
+                let batches = execute_db_query(&state, &sql).await?;
+                let actual_rows = batches.iter().map(|b| b.num_rows()).sum::<usize>();
+
+                process_payment(
+                    &state,
+                    &payment_payload,
+                    table_name,
+                    actual_rows,
+                    path,
+                    &batches,
+                )
+                .await
+            }
         }
     }
 }
@@ -230,6 +256,88 @@ async fn process_payment(
     })?;
 
     let buffer = serialize_batches_to_arrow_ipc(batches).map_err(|e| {
+        QueryError::Internal(format!("Failed to serialize batches to Arrow IPC: {}", e))
+    })?;
+
+    Ok(success_response(buffer))
+}
+
+/// Handles the fixed-price payment flow: verify payment before executing the query.
+///
+/// This prevents an attack vector where bogus `Payment-Signature` headers trigger
+/// expensive queries. The flow is:
+/// 1. Match payment requirements (row count irrelevant for fixed pricing)
+/// 2. Verify payment with the facilitator
+/// 3. Execute the query
+/// 4. Settle payment
+/// 5. Return Arrow IPC data
+async fn process_fixed_price_payment(
+    state: &AppState,
+    payment_payload: &PaymentPayload<PaymentRequirements, serde_json::Value>,
+    table_name: &str,
+    path: &str,
+    sql: &str,
+) -> Result<axum::response::Response, QueryError> {
+    // Match payment requirements — row count is irrelevant for fixed pricing
+    let payment_requirement = state
+        .payment_config
+        .find_matching_payment_requirements(table_name, 0, &payment_payload.accepted)
+        .ok_or_else(|| {
+            QueryError::Internal(
+                "No payment offer was found matching the provided payment payload".to_string(),
+            )
+        })?;
+
+    // Verify payment with the facilitator BEFORE executing the query
+    let (verify_request, verify_response) = verify_payment(
+        &state.payment_config.facilitator,
+        payment_payload,
+        &payment_requirement,
+    )
+    .await
+    .map_err(|e| {
+        QueryError::Internal(format!(
+            "Payment verification failed due to facilitator error: {}",
+            e
+        ))
+    })?;
+
+    if let VerifyResponse::Invalid { reason, .. } = &verify_response {
+        return Err(QueryError::payment(
+            &state.payment_config,
+            format!(
+                "Payment provided is invalid, verification failed: {}",
+                reason
+            ),
+            table_name,
+            0,
+            path,
+            &state.server_base_url,
+        ));
+    }
+
+    // Payment verified — now execute the query
+    let batches = execute_db_query(state, sql).await?;
+
+    // Settle payment
+    settle_payment(
+        verify_response,
+        &state.payment_config.facilitator,
+        verify_request,
+    )
+    .await
+    .map_err(|e| {
+        QueryError::payment(
+            &state.payment_config,
+            format!("Settlement of the provided payment failed: {}", e),
+            table_name,
+            0,
+            path,
+            &state.server_base_url,
+        )
+    })?;
+
+    let buffer = serialize_batches_to_arrow_ipc(&batches).map_err(|e| {
         QueryError::Internal(format!("Failed to serialize batches to Arrow IPC: {}", e))
     })?;
 

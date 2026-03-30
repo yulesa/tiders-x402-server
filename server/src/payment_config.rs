@@ -11,7 +11,7 @@ use url::Url;
 use x402_types::proto::v2::{PaymentRequired, PaymentRequirements, ResourceInfo, X402Version2};
 
 use crate::facilitator_client::FacilitatorClient;
-use crate::price::{PriceTag, TablePaymentOffers};
+use crate::price::{PriceTag, PricingModel, TablePaymentOffers};
 
 /// Central payment configuration shared across all request handlers.
 ///
@@ -135,12 +135,18 @@ impl GlobalPaymentConfig {
             .unwrap_or(&self.default_description)
             .clone();
 
+        let resource_description = if offers_table.is_all_fixed_price() {
+            format!("{} - fixed price", description)
+        } else {
+            format!("{} - {} rows", description, estimated_items)
+        };
+
         Some(PaymentRequired {
             x402_version: X402Version2,
             error: Some(error.to_string()),
             resource: Some(ResourceInfo {
                 url: resource_url.to_string(),
-                description: Some(format!("{} - {} rows", description, estimated_items)),
+                description: Some(resource_description),
                 mime_type: Some(self.mime_type.clone()),
             }),
             accepts: payment_requirements,
@@ -185,15 +191,12 @@ impl GlobalPaymentConfig {
         offer: &PriceTag,
     ) -> Option<PaymentRequirements> {
         let calculated_price = offer.calculate_total_price(item_count);
-        let total_price = match offer.min_total_amount {
-            Some(ref min_total_amount) => {
-                if calculated_price.0 > min_total_amount.0 {
-                    calculated_price
-                } else {
-                    min_total_amount.clone()
-                }
-            }
-            None => calculated_price,
+        let total_price = match &offer.pricing {
+            PricingModel::PerRow {
+                min_total_amount: Some(min_total_amount),
+                ..
+            } if calculated_price.0 <= min_total_amount.0 => min_total_amount.clone(),
+            _ => calculated_price,
         };
 
         let chain_id: x402_types::chain::ChainId = offer.token.chain_reference.into();

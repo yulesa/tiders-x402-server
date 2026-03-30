@@ -58,18 +58,20 @@ Each paid table needs a price tag that describes how much to charge and in which
 use std::str::FromStr;
 use x402_chain_eip155::chain::ChecksummedAddress;
 use x402_types::networks::USDC;
-use tiders_x402_server::price::{PriceTag, TablePaymentOffers, TokenAmount};
+use tiders_x402_server::price::{PriceTag, PricingModel, TablePaymentOffers, TokenAmount};
 use tiders_x402_server::Database;
 
 let usdc = USDC::base_sepolia();
 
 let price_tag = PriceTag {
     pay_to: ChecksummedAddress::from_str("0x[your_address]").unwrap(),
-    amount_per_item: TokenAmount(usdc.parse("0.002").unwrap().amount),
+    pricing: PricingModel::PerRow {
+        amount_per_item: TokenAmount(usdc.parse("0.002").unwrap().amount),
+        min_total_amount: None,
+        min_items: None,
+        max_items: None,
+    },
     token: usdc.clone(),
-    min_total_amount: None,
-    min_items: None,
-    max_items: None,
     description: None,
     is_default: true,
 };
@@ -94,10 +96,6 @@ price_tag = tiders_x402_server.PriceTag(
     pay_to="0x[your_address]",
     amount_per_item="$0.002",
     token=usdc,
-    min_total_amount=None,
-    min_items=None,
-    max_items=None,
-    description=None,
     is_default=True,
 )
 

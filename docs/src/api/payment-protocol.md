@@ -35,9 +35,9 @@ The `X-Payment` header contains a base64-encoded JSON `PaymentPayload`:
 }
 ```
 
-## Payment Schemes
+## x402 Payment Schemes
 
-Currently the only supported scheme is `"exact"`, which requires the client to pay the exact `max_amount_required` specified in the 402 response.
+Currently the only supported scheme is `"exact"`, which requires the client to pay the exact amount specified in the 402 response. The amount is either calculated from the row count (per-row pricing) or a flat fee (fixed pricing). From the client's perspective, the protocol is identical — only the server-side calculation differs.
 
 ## Verification Flow
 
@@ -45,7 +45,7 @@ Currently the only supported scheme is `"exact"`, which requires the client to p
 Server                            Facilitator
   |                                    |
   |  POST /verify                      |
-  |  { payment_payload,               |
+  |  { payment_payload,                |
   |    payment_requirements }          |
   |----------------------------------->|
   |                                    | Validates signature
@@ -62,7 +62,7 @@ If valid, the server proceeds to settle:
 Server                            Facilitator
   |                                    |
   |  POST /settle                      |
-  |  { verify_response,               |
+  |  { verify_response,                |
   |    verify_request }                |
   |----------------------------------->|
   |                                    | Executes on-chain transfer
@@ -87,11 +87,11 @@ The token's EIP-712 domain info (`name`, `version`) is included in the `extra` f
 | Polygon | `USDC::polygon()` | `USDC("polygon")` |
 | Polygon Amoy (testnet) | `USDC::polygon_amoy()` | `USDC("polygon_amoy")` |
 
-See the [Configuration Reference](../server/configuration.md) for full pricing and payment configuration details.
+See the [Configuration Reference](../getting-started/configuration.md) for full pricing and payment configuration details.
 
 ## Client Libraries
 
 The x402 protocol has client libraries that handle the payment flow automatically:
 
 - **TypeScript/JavaScript**: [`x402-fetch`](https://www.npmjs.com/package/x402-fetch) -- wraps `fetch()` to automatically handle 402 responses
-- **Python**: See the [Python bindings](../clients/python.md) for server-side usage
+- **Python**: See the [Python example](../../examples/python/duckdb_server.py) for server-side usage

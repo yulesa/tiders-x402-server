@@ -1,3 +1,9 @@
+"""Example: paid data server using tiders-x402-server with DuckDB (Python).
+
+Demonstrates how to configure a DuckDB backend, set up per-row USDC pricing
+via the x402 protocol, and start the HTTP server using the Python bindings.
+"""
+
 import tiders_x402_server
 
 def main():
@@ -9,29 +15,30 @@ def main():
     # Create USDC token instance for Sepolia
     usdc = tiders_x402_server.USDC("base_sepolia")
 
-    # First price tag: 0.002 USDC per item (default)
+    # First price tag: 0.002 USDC per item (default, per-row pricing)
     price_tag_1 = tiders_x402_server.PriceTag(
         pay_to="0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7",
         amount_per_item="$0.002",
         token=usdc,
-        min_total_amount=None,
-        min_items=None,
-        max_items=None,
-        description=None,
-        is_default=True
+        is_default=True,
     )
-    
-    # Second price tag: 0.001 USDC per item for 2+ items
+
+    # Second price tag: 0.001 USDC per item for 2+ items (per-row pricing)
     price_tag_2 = tiders_x402_server.PriceTag(
         pay_to="0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7",
         amount_per_item="0.001",
         token=usdc,
-        min_total_amount=None,
         min_items=2,
-        max_items=None,
-        description=None,
-        is_default=False
+        is_default=False,
     )
+
+    # Example: Fixed price tag (flat fee regardless of row count)
+    # price_tag_fixed = tiders_x402_server.PriceTag.fixed(
+    #     pay_to="0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7",
+    #     fixed_amount="1.00",
+    #     token=usdc,
+    #     is_default=True,
+    # )
     
     # Load sample data from CSV into a DuckDB database file.
     # Replace this with your own database path for production use.

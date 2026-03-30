@@ -30,7 +30,8 @@ use ::tiders_x402_server::database_duckdb::DuckDbDatabase;
 use ::tiders_x402_server::database_postgresql::PostgresqlDatabase;
 use ::tiders_x402_server::price::TokenAmount;
 use ::tiders_x402_server::{
-    AppState, FacilitatorClient, GlobalPaymentConfig, PriceTag, TablePaymentOffers, start_server,
+    AppState, FacilitatorClient, GlobalPaymentConfig, PriceTag, PricingModel, TablePaymentOffers,
+    start_server,
 };
 use alloy::primitives::U256;
 use arrow::pyarrow::FromPyArrow;
@@ -66,24 +67,58 @@ pub struct PyPriceTag {
     inner: PriceTag,
 }
 
+/// Parses a token amount from a Python object (string or integer).
+///
+/// If a string (e.g., "0.002"), it is interpreted as a human-readable amount
+/// and converted using the token's decimals. If an integer, it is treated
+/// as an amount in the token's smallest unit.
+fn parse_token_amount(
+    obj: &Py<PyAny>,
+    token: &Eip155TokenDeployment,
+    param_name: &str,
+    py: Python,
+) -> PyResult<TokenAmount> {
+    if let Ok(amount_str) = obj.extract::<String>(py) {
+        let deployed_amount = token
+            .parse(amount_str.as_str())
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        Ok(TokenAmount(deployed_amount.amount))
+    } else if let Ok(amount_int) = obj.extract::<i64>(py) {
+        if amount_int < 0 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("{} cannot be negative", param_name),
+            ));
+        }
+        Ok(TokenAmount(U256::from(amount_int as u64)))
+    } else {
+        Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            format!(
+                "{} must be either a string (e.g., '0.001') or an integer representing the smallest token unit",
+                param_name
+            ),
+        ))
+    }
+}
+
 #[pymethods]
 impl PyPriceTag {
-    /// Create a new PriceTag.
+    /// Create a per-row PriceTag where price scales with the number of rows returned.
     ///
     /// Args:
     ///     pay_to (str): EVM address to pay to.
-    ///     amount_per_item (Union[str, int]): Amount per item (rows or tuples). If a string (e.g., "0.002" or "$1.23") it is interpreted as a MoneyAmount and converted to a TokenAmount using decimals from the token. If an integer it is interpreted as an amount in the smallest token unit ( without decimals, e.g. 1000000 for 1 USDC).
+    ///     amount_per_item (Union[str, int]): Amount per item (rows or tuples). If a string (e.g., "0.002") it is interpreted as a human-readable amount and converted using the token's decimals. If an integer it is the amount in the token's smallest unit.
     ///     token (USDC): Token with decimals and EIP712 information, currently only USDC is supported.
-    ///     min_total_amount (Optional[Union[str, int]]): Minimum total amount for this offer to be valid (optional). Can be a string (e.g., "0.01") or an integer representing the smallest token unit.
-    ///     min_items (Optional[int]): Minimum number of items (rows or tuples) for this offer to be valid (optional).
-    ///     max_items (Optional[int]): Maximum number of items (rows or tuples) for this offer to be valid (optional).
+    ///     min_total_amount (Optional[Union[str, int]]): Minimum total amount for this offer (optional). Can be a string or integer.
+    ///     min_items (Optional[int]): Minimum number of items for this tier (optional).
+    ///     max_items (Optional[int]): Maximum number of items for this tier (optional).
     ///     description (Optional[str]): Description of the offer (optional).
     ///     is_default (bool): Whether this is the default offer.
     ///
     /// Returns:
-    ///     PriceTag: A new PriceTag object.
+    ///     PriceTag: A new per-row PriceTag object.
     #[new]
     #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (pay_to, amount_per_item, token, min_total_amount=None, min_items=None, max_items=None, description=None, is_default=true))]
     fn new(
         pay_to: &str,
         amount_per_item: Py<PyAny>,
@@ -99,46 +134,15 @@ impl PyPriceTag {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
 
         let token_deployment = &token.inner;
-
-        // Handle amount_per_item as either string or integer
-        let amount_per_item = if let Ok(amount_str) = amount_per_item.extract::<String>(py) {
-            // Parse as string (MoneyAmount) using token's parse method
-            let deployed_amount = token_deployment
-                .parse(amount_str.as_str())
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            TokenAmount(deployed_amount.amount)
-        } else if let Ok(amount_int) = amount_per_item.extract::<i64>(py) {
-            // Parse as integer - treat as smallest token unit
-            if amount_int < 0 {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "Amount cannot be negative",
-                ));
-            }
-            TokenAmount(U256::from(amount_int as u64))
-        } else {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "amount_per_item must be either a string (e.g., '0.001') or an integer representing the smallest token unit",
-            ));
-        };
-
-        let min_total_amount = if let Some(min_obj) = min_total_amount {
-            if let Ok(min_str) = min_obj.extract::<String>(py) {
-                let deployed_amount = token_deployment
-                    .parse(min_str.as_str())
-                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-                Some(TokenAmount(deployed_amount.amount))
-            } else if let Ok(min_int) = min_obj.extract::<i64>(py) {
-                if min_int < 0 {
-                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                        "Min total amount cannot be negative",
-                    ));
-                }
-                Some(TokenAmount(U256::from(min_int as u64)))
-            } else {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "min_total_amount must be either a string (e.g., '0.01') or an integer representing the smallest token unit",
-                ));
-            }
+        let amount =
+            parse_token_amount(&amount_per_item, token_deployment, "amount_per_item", py)?;
+        let min_total = if let Some(min_obj) = min_total_amount {
+            Some(parse_token_amount(
+                &min_obj,
+                token_deployment,
+                "min_total_amount",
+                py,
+            )?)
         } else {
             None
         };
@@ -146,11 +150,52 @@ impl PyPriceTag {
         Ok(Self {
             inner: PriceTag {
                 pay_to,
-                amount_per_item,
+                pricing: PricingModel::PerRow {
+                    amount_per_item: amount,
+                    min_items,
+                    max_items,
+                    min_total_amount: min_total,
+                },
                 token: token_deployment.clone(),
-                min_total_amount,
-                min_items,
-                max_items,
+                description,
+                is_default,
+            },
+        })
+    }
+
+    /// Create a fixed-price PriceTag where any query is charged the same flat fee.
+    ///
+    /// Args:
+    ///     pay_to (str): EVM address to pay to.
+    ///     fixed_amount (Union[str, int]): Fixed amount charged for any query. If a string (e.g., "1.00") it is interpreted as a human-readable amount and converted using the token's decimals. If an integer it is the amount in the token's smallest unit.
+    ///     token (USDC): Token with decimals and EIP712 information, currently only USDC is supported.
+    ///     description (Optional[str]): Description of the offer (optional).
+    ///     is_default (bool): Whether this is the default offer.
+    ///
+    /// Returns:
+    ///     PriceTag: A new fixed-price PriceTag object.
+    #[staticmethod]
+    #[pyo3(signature = (pay_to, fixed_amount, token, description=None, is_default=true))]
+    fn fixed(
+        pay_to: &str,
+        fixed_amount: Py<PyAny>,
+        token: &PyUSDC,
+        description: Option<String>,
+        is_default: bool,
+        py: Python,
+    ) -> PyResult<Self> {
+        let pay_to = ChecksummedAddress::from_str(pay_to)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+
+        let token_deployment = &token.inner;
+        let amount =
+            parse_token_amount(&fixed_amount, token_deployment, "fixed_amount", py)?;
+
+        Ok(Self {
+            inner: PriceTag {
+                pay_to,
+                pricing: PricingModel::Fixed { amount },
+                token: token_deployment.clone(),
                 description,
                 is_default,
             },

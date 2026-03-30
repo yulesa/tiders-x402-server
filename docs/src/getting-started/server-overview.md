@@ -32,7 +32,7 @@ The server is organized into the following modules:
 | `sqp_parser` | Parses and validates SQL, rejecting unsafe operations |
 | `duckdb_reader` | Converts analyzed queries to DuckDB-compatible SQL |
 | `database` | Executes queries against DuckDB and serializes results to Arrow IPC |
-| `price` | Pricing model: `PriceTag` and `TablePaymentOffers` data structures |
+| `price` | Pricing model: `PricingModel` (per-row or fixed), `PriceTag`, and `TablePaymentOffers` data structures |
 | `payment_config` | Determines pricing for a query and generates x402 V2 payment requirements |
 | `payment_processing` | Translates between V2 types and the facilitator's wire format |
 | `facilitator_client` | HTTP client for the remote x402 facilitator |

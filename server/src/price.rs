@@ -14,7 +14,28 @@ use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 #[derive(Clone, Debug, PartialEq)]
 pub struct TokenAmount(pub U256);
 
-/// A single pricing tier for a table, describing who gets paid, how much per row,
+/// How the total price for a query is calculated.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PricingModel {
+    /// Price scales linearly with the number of rows returned.
+    PerRow {
+        /// Price per row in the token's smallest unit.
+        amount_per_item: TokenAmount,
+        /// Minimum row count for this tier to apply (inclusive). `None` means no lower bound.
+        min_items: Option<usize>,
+        /// Maximum row count for this tier to apply (inclusive). `None` means no upper bound.
+        max_items: Option<usize>,
+        /// Optional minimum charge, enforced even if the per-row calculation is lower.
+        min_total_amount: Option<TokenAmount>,
+    },
+    /// A flat fee regardless of how many rows are returned.
+    Fixed {
+        /// The fixed amount charged for any query against this table.
+        amount: TokenAmount,
+    },
+}
+
+/// A single pricing tier for a table, describing who gets paid, how much,
 /// and in which token.
 ///
 /// A table can have multiple price tags (e.g., different tokens or tiers for
@@ -24,16 +45,10 @@ pub struct TokenAmount(pub U256);
 pub struct PriceTag {
     /// Recipient wallet address.
     pub pay_to: ChecksummedAddress,
-    /// Price per row in the token's smallest unit.
-    pub amount_per_item: TokenAmount,
+    /// The pricing model and its parameters.
+    pub pricing: PricingModel,
     /// The ERC-20 token used for payment (chain, contract address, transfer method).
     pub token: Eip155TokenDeployment,
-    /// Optional minimum charge, enforced even if the per-row calculation is lower.
-    pub min_total_amount: Option<TokenAmount>,
-    /// Minimum row count for this tier to apply (inclusive). `None` means no lower bound.
-    pub min_items: Option<usize>,
-    /// Maximum row count for this tier to apply (inclusive). `None` means no upper bound.
-    pub max_items: Option<usize>,
     /// Optional human-readable label for this tier.
     pub description: Option<String>,
     /// Whether this is the default pricing tier for the table.
@@ -41,27 +56,54 @@ pub struct PriceTag {
 }
 
 impl PriceTag {
-    /// Returns `true` if `item_count` falls within this tier's `min_items..=max_items` range.
+    /// Returns `true` if `item_count` falls within this tier's range.
+    /// Fixed-price tiers always return `true` (row count is irrelevant).
     pub fn is_in_range(&self, item_count: usize) -> bool {
-        if let Some(min) = self.min_items
-            && item_count < min
-        {
-            return false;
+        match &self.pricing {
+            PricingModel::Fixed { .. } => true,
+            PricingModel::PerRow {
+                min_items,
+                max_items,
+                ..
+            } => {
+                if let Some(min) = min_items
+                    && item_count < *min
+                {
+                    return false;
+                }
+                if let Some(max) = max_items
+                    && item_count > *max
+                {
+                    return false;
+                }
+                true
+            }
         }
-        if let Some(max) = self.max_items
-            && item_count > max
-        {
-            return false;
-        }
-        true
     }
 
-    /// Calculates `amount_per_item * item_count`. Does **not** apply `min_total_amount`
-    /// — that enforcement happens in [`crate::payment_config`].
+    /// Calculates the total price for the given item count.
+    ///
+    /// For [`PricingModel::PerRow`], returns `amount_per_item * item_count`.
+    /// Does **not** apply `min_total_amount` — that enforcement happens in
+    /// [`crate::payment_config`].
+    ///
+    /// For [`PricingModel::Fixed`], returns the flat amount (ignores `item_count`).
     pub fn calculate_total_price(&self, item_count: usize) -> TokenAmount {
-        let items_u256 = U256::from(item_count);
-        let total = self.amount_per_item.0 * items_u256;
-        TokenAmount(total)
+        match &self.pricing {
+            PricingModel::PerRow {
+                amount_per_item, ..
+            } => {
+                let items_u256 = U256::from(item_count);
+                let total = amount_per_item.0 * items_u256;
+                TokenAmount(total)
+            }
+            PricingModel::Fixed { amount } => amount.clone(),
+        }
+    }
+
+    /// Returns `true` if this price tag uses fixed pricing.
+    pub fn is_fixed(&self) -> bool {
+        matches!(self.pricing, PricingModel::Fixed { .. })
     }
 }
 
@@ -141,5 +183,11 @@ impl TablePaymentOffers {
     pub fn make_free(&mut self) {
         self.price_tags.clear();
         self.requires_payment = false;
+    }
+
+    /// Returns `true` if all price tags use fixed pricing.
+    /// Returns `false` if there are no price tags or any use per-row pricing.
+    pub fn is_all_fixed_price(&self) -> bool {
+        !self.price_tags.is_empty() && self.price_tags.iter().all(|tag| tag.is_fixed())
     }
 }

@@ -89,16 +89,17 @@ The module answers four questions for the query handler:
 
 ## Price Calculation
 
-For each price tag, the total price is based on the number of rows:
+The price calculation depends on the pricing model:
 
+**Per-row pricing:**
 ```
 total = amount_per_item * item_count
+charge = max(total, min_total_amount)   // if min_total_amount is set
 ```
 
-If `min_total_amount` is set, the server enforces a minimum charge:
-
+**Fixed pricing:**
 ```
-charge = max(total, min_total_amount)
+charge = amount
 ```
 
 ## Payment Requirements

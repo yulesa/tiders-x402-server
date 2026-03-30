@@ -2,18 +2,46 @@
 
 The price module (`server/src/price.rs`) defines the pricing model for paid tables. It contains the data structures that describe how much a query costs and the builder methods used to configure tables at startup.
 
+## PricingModel
+
+A `PricingModel` determines how the total price for a query is calculated. There are two variants:
+
+- **`PerRow`** — price scales linearly with the number of rows returned.
+- **`Fixed`** — a flat fee regardless of how many rows are returned.
+
+```rust
+pub enum PricingModel {
+    PerRow {
+        amount_per_item: TokenAmount,
+        min_items: Option<usize>,
+        max_items: Option<usize>,
+        min_total_amount: Option<TokenAmount>,
+    },
+    Fixed {
+        amount: TokenAmount,
+    },
+}
+```
+
+### PerRow Fields
+
+- **`amount_per_item`** — the price per row (in the token's smallest unit).
+- **`min_items` / `max_items`** — optional range that determines when this tier applies. A price tag only matches if the row count falls within this range.
+- **`min_total_amount`** — optional minimum charge, enforced even if the per-row calculation is lower.
+
+### Fixed Fields
+
+- **`amount`** — the flat fee charged for any query against this table.
+
 ## PriceTag
 
-A `PriceTag` represents a single pricing tier for a table. It answers the question: "if a client requests N rows, how much should they pay and to whom?"
+A `PriceTag` represents a single pricing tier for a table. It combines a pricing model with payment details (who gets paid and in which token).
 
 ```rust
 pub struct PriceTag {
     pub pay_to: ChecksummedAddress,
-    pub amount_per_item: TokenAmount,
+    pub pricing: PricingModel,
     pub token: Eip155TokenDeployment,
-    pub min_total_amount: Option<TokenAmount>,
-    pub min_items: Option<usize>,
-    pub max_items: Option<usize>,
     pub description: Option<String>,
     pub is_default: bool,
 }
@@ -22,42 +50,63 @@ pub struct PriceTag {
 Each price tag specifies:
 
 - **`pay_to`** — the recipient wallet address.
-- **`amount_per_item`** — the price per row (in the token's smallest unit).
+- **`pricing`** — the pricing model (`PerRow` or `Fixed`) and its parameters.
 - **`token`** — the ERC-20 token used for payment (chain, contract address, transfer method).
-- **`min_total_amount`** — optional minimum charge, enforced even if the per-row calculation is lower.
-- **`min_items` / `max_items`** — optional range that determines when this tier applies. A price tag only matches if the row count falls within this range.
 - **`description`** — optional human-readable label for this tier.
 - **`is_default`** — whether this is the default pricing tier for the table.
 
 A table can have multiple price tags (e.g., different tokens, different tiers for small vs. large queries). The `payment_config` module selects which ones apply for a given row count.
 
-**Construction**
+**Construction (Per-Row)**
 
 ```rust
 // Rust
 let price_tag = PriceTag {
     pay_to: ChecksummedAddress::from_str("0x...").unwrap(),
-    amount_per_item: TokenAmount(usdc.parse("0.002").unwrap().amount),
+    pricing: PricingModel::PerRow {
+        amount_per_item: TokenAmount(usdc.parse("0.002").unwrap().amount),
+        min_total_amount: None,
+        min_items: None,
+        max_items: None,
+    },
     token: usdc.clone(),
-    min_total_amount: None,
-    min_items: None,
-    max_items: None,
     description: None,
     is_default: true,
 };
 ```
 
 ```python
-# Python
-# amount_per_item accepts a string ("0.002") or int (2000) for smallest token units
+# Python — per-row pricing (constructor)
 price_tag = PriceTag(
     pay_to="0x...",
     amount_per_item="0.002",
     token=usdc,
-    min_total_amount=None,
-    min_items=None,
-    max_items=None,
-    description=None,
+    is_default=True,
+)
+```
+
+**Construction (Fixed)**
+
+```rust
+// Rust
+let price_tag = PriceTag {
+    pay_to: ChecksummedAddress::from_str("0x...").unwrap(),
+    pricing: PricingModel::Fixed {
+        amount: TokenAmount(usdc.parse("1.00").unwrap().amount),
+    },
+    token: usdc.clone(),
+    description: Some("Fixed price query".to_string()),
+    is_default: true,
+};
+```
+
+```python
+# Python — fixed pricing (static method)
+price_tag = PriceTag.fixed(
+    pay_to="0x...",
+    fixed_amount="1.00",
+    token=usdc,
+    description="Fixed price query",
     is_default=True,
 )
 ```
@@ -66,7 +115,7 @@ price_tag = PriceTag(
 
 ### Price Calculation
 
-The total price for a query is:
+For **per-row** pricing:
 
 ```
 total = amount_per_item * row_count
@@ -76,6 +125,12 @@ If `min_total_amount` is set:
 
 ```
 charge = max(total, min_total_amount)
+```
+
+For **fixed** pricing:
+
+```
+charge = amount   (row count is ignored)
 ```
 
 ## TablePaymentOffers
@@ -115,6 +170,10 @@ Tables are created with constructors and modified with builder/mutator methods.
 | Add price tag | `.add_payment_offer(tag)` | `.add_payment_offer(tag)` | Add a pricing tier |
 | Remove price tag | `.remove_price_tag(index)` | `.remove_price_tag(index)` | Remove by index, returns `bool` |
 | Make free | `.make_free()` | `.make_free()` | Remove all price tags |
+
+**Helpers**
+
+- **`is_all_fixed_price()`** — returns `true` if all price tags use `PricingModel::Fixed`. Used by the query handler to skip the `COUNT(*)` estimation query.
 
 **Getters**
 

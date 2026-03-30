@@ -1,8 +1,14 @@
+//! DuckDB-specific SQL generation from an [`AnalyzedQuery`] AST.
+//!
+//! Handles DuckDB dialect differences such as `date_part()` for EXTRACT,
+//! `AT TIME ZONE` syntax, `TRY_CAST`, and typed string literals.
+
 use crate::sql_shared::{create_query, display_common_expr, format_value};
 use crate::sqp_parser::AnalyzedQuery;
 use anyhow::{Result, anyhow};
 use sqlparser::ast::{CastKind, Expr};
 
+/// Generates a DuckDB-dialect SQL string from an analyzed query AST.
 pub fn create_duckdb_query(ast: &AnalyzedQuery) -> Result<String> {
     create_query(ast, &duckdb_display_expr)
 }
