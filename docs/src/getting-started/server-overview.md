@@ -2,22 +2,7 @@
 
 ## System Components
 
-```
-                           +-------------------+
-                           |   x402 Facilitator|
-                           | (verify / settle) |
-                           +--------^----------+
-                                    |
-+----------+    HTTP    +-----------+-----------+         DB
-|  Client   +---------->+   Tiders x402 Server  +----------+
-| (TS/Py)  <------------+                       |   (data)  |
-+----------+   Arrow    |  +--query_handler--+  |           |
-               IPC      |  |  sqp_parser     |  |           |
-                        |  |  duckdb_reader  |  |           |
-                        |  |  payment_config |  |           |
-                        |  +-----------------+  |           |
-                        +-----------------------+-----------+
-```
+![Tiders-x402-Server Components](../resources/tiders_x402_server_components.png)
 
 The server sits between clients and a database. Clients submit SQL queries over HTTP. If a table requires payment, the server process the request, calculate the cost, coordinates with an external x402 facilitator to verify and settle the payment before returning data as Arrow IPC.
 
@@ -30,8 +15,8 @@ The server is organized into the following modules:
 | `root_handler` | `GET /` — returns server metadata and available tables |
 | `query_handler` | `POST /query` — main handler for query execution and payment flow |
 | `sqp_parser` | Parses and validates SQL, rejecting unsafe operations |
-| `duckdb_reader` | Converts analyzed queries to DuckDB-compatible SQL |
-| `database` | Executes queries against DuckDB and serializes results to Arrow IPC |
+| `sql_[database]` | Converts analyzed queries to Database-compatible SQL |
+| `database` | Implement the database trait to execute queries, get schemas and serializes results to Arrow IPC |
 | `price` | Pricing model: `PricingModel` (per-row or fixed), `PriceTag`, and `TablePaymentOffers` data structures |
 | `payment_config` | Determines pricing for a query and generates x402 V2 payment requirements |
 | `payment_processing` | Translates between V2 types and the facilitator's wire format |

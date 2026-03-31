@@ -9,6 +9,8 @@ Tiders-x402-server is a payment-enabled database API server that combines analyt
 
 Clients send SQL queries over HTTP, the server estimates the cost, and returns an HTTP 402 response with payment options. Once the client signs a payment and resends the request, the server verifies and settles the payment, then returns results as efficient Apache Arrow IPC streams.
 
+<img src="/resources/tiders_x402_server_components.png" alt="Tiders-x402-server Components"
+
 ## How It Works
 
 ```
@@ -18,14 +20,7 @@ Clients send SQL queries over HTTP, the server estimates the cost, and returns a
 4. Server verifies/settles payment via x402 facilitator
 5. Server executes query, returns results as Arrow IPC
 ```
-
-```
-Client (TS/Py/Rust) <──> Tiders x402 Server <──> Database (DuckDB / PostgreSQL / ClickHouse)
-                              │
-                              v
-                       x402 Facilitator
-                      (verify / settle)
-```
+<img src="/resources/payment_flow.png" alt="Server Payment Flow"
 
 ## Features
 

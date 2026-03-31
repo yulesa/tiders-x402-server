@@ -23,6 +23,7 @@ arrow = { workspace = true, features = ["pyarrow"] }
 http = { workspace = true }
 
 [features]
+default = ["duckdb", "postgresql", "clickhouse"]
 duckdb = ["tiders-x402-server/duckdb", "dep:duckdb"]
 postgresql = ["tiders-x402-server/postgresql"]
 clickhouse = ["tiders-x402-server/clickhouse"]

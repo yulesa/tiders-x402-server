@@ -2,84 +2,9 @@
 
 The server implements a two-step HTTP payment flow based on the [x402 protocol](https://www.x402.org/) (V2). The flow differs slightly depending on whether the table uses **per-row** or **fixed** pricing.
 
-## Per-Row Pricing Flow
+## Pricing Flow
 
-```
-          Client                        Server                       Facilitator
-            |                              |                              |
-            |  POST /query (no payment)    |                              |
-            |----------------------------->|                              |
-            |                              | Parse & validate SQL         |
-            |                              | Estimate row count           |
-            |                              | Calculate pricing            |
-            |  402 Payment Required        |                              |
-            |<-----------------------------|                              |
-            |  { accepts: [...] }          |                              |
-            |                              |                              |
-  Sign with |                              |                              |
-    wallet  |                              |                              |
-            |                              |                              |
-            |  POST /query                 |                              |
-            |  + Payment-Signature header  |                              |
-            |----------------------------->|                              |
-            |                              | Decode payment payload       |
-            |                              | Execute query (actual rows)  |
-            |                              | Match payment requirements   |
-            |                              |                              |
-            |                              |  POST /verify                |
-            |                              |----------------------------->|
-            |                              |  VerifyResponse              |
-            |                              |<-----------------------------|
-            |                              |                              |
-            |                              |  POST /settle                |
-            |                              |----------------------------->|
-            |                              |  SettleResponse              |
-            |                              |<-----------------------------|
-            |                              |                              |
-            |  200 OK (Arrow IPC)          |                              |
-            |<-----------------------------|                              |
-```
-
-## Fixed Pricing Flow
-
-For fixed-price tables, the server verifies the payment **before** executing the query. This prevents bogus payment headers from triggering expensive queries.
-
-```
-          Client                        Server                       Facilitator
-            |                              |                              |
-            |  POST /query (no payment)    |                              |
-            |----------------------------->|                              |
-            |                              | Parse & validate SQL         |
-            |                              | (skip row count estimation)  |
-            |                              | Return fixed pricing         |
-            |  402 Payment Required        |                              |
-            |<-----------------------------|                              |
-            |  { accepts: [...] }          |                              |
-            |                              |                              |
-  Sign with |                              |                              |
-    wallet  |                              |                              |
-            |                              |                              |
-            |  POST /query                 |                              |
-            |  + Payment-Signature header  |                              |
-            |----------------------------->|                              |
-            |                              | Decode payment payload       |
-            |                              | Match payment requirements   |
-            |                              |                              |
-            |                              |  POST /verify                |
-            |                              |----------------------------->|
-            |                              |  VerifyResponse              |
-            |                              |<-----------------------------|
-            |                              |                              |
-            |                              | Execute query                |
-            |                              |                              |
-            |                              |  POST /settle                |
-            |                              |----------------------------->|
-            |                              |  SettleResponse              |
-            |                              |<-----------------------------|
-            |                              |                              |
-            |  200 OK (Arrow IPC)          |                              |
-            |<-----------------------------|                              |
-```
+![Tiders-x402-server P Flow](../resources/payment_flow.png)
 
 ## Step 1: Estimation
 
