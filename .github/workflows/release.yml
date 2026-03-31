@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Publish tiders-x402-server
-        run: cargo publish -p tiders-x402-server
+        run: cargo publish -p tiders-x402-server || true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
