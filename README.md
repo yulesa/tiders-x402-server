@@ -4,6 +4,7 @@
 
 [![Documentation](https://img.shields.io/badge/documentation-blue?style=for-the-badge&logo=readthedocs)](https://yulesa.github.io/tiders-x402-server/)
 [![PyPI](https://img.shields.io/badge/PyPI-lightgreen?style=for-the-badge&logo=pypi&labelColor=white)](https://pypi.org/project/tiders-x402-server/)
+[![telegram](https://img.shields.io/badge/telegram-blue?style=for-the-badge&logo=telegram)](https://t.me/tidersindexer)
 
 Tiders-x402-server is a payment-enabled database API server that combines analytical databases with the [x402 payment protocol](https://www.x402.org/), enabling pay-per-query data access using cryptocurrency micropayments.
 
