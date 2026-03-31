@@ -27,7 +27,7 @@ jobs:
         run: cargo clippy --workspace --exclude tiders-x402-python -- -D warnings
       - name: Build
         run: cargo build --workspace --exclude tiders-x402-python
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install maturin
