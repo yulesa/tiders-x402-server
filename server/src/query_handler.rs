@@ -84,9 +84,7 @@ pub async fn query_handler(
     let offers_table = state
         .payment_config
         .get_offers_table(table_name)
-        .ok_or_else(|| {
-            QueryError::BadRequest(format!("Table not supported: {}", table_name))
-        })?;
+        .ok_or_else(|| QueryError::BadRequest(format!("Table not supported: {}", table_name)))?;
     let is_fixed = offers_table.is_all_fixed_price();
 
     match headers.get("Payment-Signature") {
@@ -115,14 +113,7 @@ pub async fn query_handler(
             if is_fixed {
                 // Fixed-price flow: verify payment BEFORE executing the query
                 // to prevent bogus payment headers from triggering expensive queries
-                process_fixed_price_payment(
-                    &state,
-                    &payment_payload,
-                    table_name,
-                    path,
-                    &sql,
-                )
-                .await
+                process_fixed_price_payment(&state, &payment_payload, table_name, path, &sql).await
             } else {
                 // Per-row flow: execute query first to get actual row count
                 let batches = execute_db_query(&state, &sql).await?;

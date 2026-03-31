@@ -71,6 +71,7 @@ impl PostgresqlDatabase {
     /// - `create_timeout_ms`: Max time (ms) to create a new connection (`None` = no timeout)
     /// - `recycle_timeout_ms`: Max time (ms) to recycle a connection (`None` = no timeout)
     /// - `recycling_method`: Connection recycling strategy: "fast" (default), "verified", or "clean"
+    #[allow(clippy::too_many_arguments)]
     pub async fn from_params(
         host: &str,
         port: u16,

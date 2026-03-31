@@ -85,18 +85,17 @@ fn parse_token_amount(
         Ok(TokenAmount(deployed_amount.amount))
     } else if let Ok(amount_int) = obj.extract::<i64>(py) {
         if amount_int < 0 {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("{} cannot be negative", param_name),
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "{} cannot be negative",
+                param_name
+            )));
         }
         Ok(TokenAmount(U256::from(amount_int as u64)))
     } else {
-        Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            format!(
-                "{} must be either a string (e.g., '0.001') or an integer representing the smallest token unit",
-                param_name
-            ),
-        ))
+        Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "{} must be either a string (e.g., '0.001') or an integer representing the smallest token unit",
+            param_name
+        )))
     }
 }
 
@@ -134,8 +133,7 @@ impl PyPriceTag {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
 
         let token_deployment = &token.inner;
-        let amount =
-            parse_token_amount(&amount_per_item, token_deployment, "amount_per_item", py)?;
+        let amount = parse_token_amount(&amount_per_item, token_deployment, "amount_per_item", py)?;
         let min_total = if let Some(min_obj) = min_total_amount {
             Some(parse_token_amount(
                 &min_obj,
@@ -188,8 +186,7 @@ impl PyPriceTag {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
 
         let token_deployment = &token.inner;
-        let amount =
-            parse_token_amount(&fixed_amount, token_deployment, "fixed_amount", py)?;
+        let amount = parse_token_amount(&fixed_amount, token_deployment, "fixed_amount", py)?;
 
         Ok(Self {
             inner: PriceTag {
@@ -713,6 +710,7 @@ impl PyPostgresqlDatabase {
     /// Returns:
     ///     PostgresqlDatabase: A new PostgresqlDatabase object.
     #[staticmethod]
+    #[allow(clippy::too_many_arguments)]
     fn from_params(
         host: &str,
         port: u16,
@@ -807,6 +805,7 @@ impl PyClickHouseDatabase {
     /// Returns:
     ///     ClickHouseDatabase: A new ClickHouseDatabase object.
     #[staticmethod]
+    #[allow(clippy::too_many_arguments)]
     fn from_params(
         url: &str,
         user: Option<&str>,

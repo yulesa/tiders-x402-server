@@ -50,6 +50,7 @@ impl ClickHouseDatabase {
     /// - `compression`: Compression mode: "none" or "lz4" (`None` for default)
     /// - `options`: Additional ClickHouse settings as key-value pairs
     /// - `headers`: Additional HTTP headers as key-value pairs
+    #[allow(clippy::too_many_arguments)]
     pub fn from_params(
         url: &str,
         user: Option<&str>,
@@ -277,10 +278,10 @@ fn parse_decimal_type(ch_type: &str) -> DataType {
         if let Some(s) = extract_single_param(ch_type) {
             return DataType::Decimal128(9, s as i8);
         }
-    } else if ch_type.starts_with("Decimal(") {
-        if let Some((p, s)) = extract_two_params(ch_type) {
-            return DataType::Decimal128(p.min(38) as u8, s as i8);
-        }
+    } else if ch_type.starts_with("Decimal(")
+        && let Some((p, s)) = extract_two_params(ch_type)
+    {
+        return DataType::Decimal128(p.min(38) as u8, s as i8);
     }
     DataType::Decimal128(38, 0)
 }
