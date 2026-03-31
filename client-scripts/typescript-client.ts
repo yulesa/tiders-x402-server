@@ -5,10 +5,22 @@ import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 import * as arrow from 'apache-arrow';
+import { config } from "dotenv";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
+
+// Load .env from the same directory as this script
+const __dirname = dirname(fileURLToPath(import.meta.url));
+config({ path: resolve(__dirname, ".env") });
 
 async function main() {
   // Create a viem wallet client and adapt to ClientEvmSigner interface
-  const account = privateKeyToAccount("0x9ad184158f40ee42b1c2d4de59cab95b1fd968bfd2b32c17b59f4a009b5a7757");
+  const pk = process.env.PK;
+  if (!pk) {
+    throw new Error("PK environment variable is not set. Copy .env.example to .env and fill in your private key. You can get test USDC at https://faucet.circle.com/ .");
+  }
+  const account = privateKeyToAccount(pk as `0x${string}`);
+  console.log("Account created: ", account.address);
   const walletClient = createWalletClient({
     account,
     chain: baseSepolia,
@@ -27,6 +39,12 @@ async function main() {
   const fetchWithPay = wrapFetchWithPayment(fetch, client);
 
   try {
+    // Discover server capabilities via the root endpoint
+    const rootResponse = await fetch("http://localhost:4021/");
+    console.log("=== Server Info ===");
+    console.log(await rootResponse.text());
+    console.log("===================\n");
+
     // First, make a plain fetch to see the 402 payment request response
     const initialResponse = await fetch("http://localhost:4021/query", {
       method: "POST",

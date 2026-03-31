@@ -5,6 +5,8 @@ via the x402 protocol, and start the HTTP server using the Python bindings.
 """
 
 import tiders_x402_server
+import duckdb
+import os
 
 def main():
     
@@ -28,22 +30,22 @@ def main():
         pay_to="0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7",
         amount_per_item="0.001",
         token=usdc,
-        min_items=2,
+        min_items=100,
         is_default=False,
     )
 
     # Example: Fixed price tag (flat fee regardless of row count)
-    # price_tag_fixed = tiders_x402_server.PriceTag.fixed(
-    #     pay_to="0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7",
-    #     fixed_amount="1.00",
-    #     token=usdc,
-    #     is_default=True,
-    # )
+    price_tag_fixed = tiders_x402_server.PriceTag.fixed(
+        pay_to="0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7",
+        fixed_amount="0.01",
+        token=usdc,
+        is_default=True,
+    )
     
     # Load sample data from CSV into a DuckDB database file.
     # Replace this with your own database path for production use.
-    import duckdb
     db_path = "../data/duckdb.db"
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = duckdb.connect(db_path)
     conn.execute(
         "CREATE TABLE IF NOT EXISTS uniswap_v3_pool_swap AS SELECT * FROM read_csv_auto('../uniswap_v3_pool_swap.csv');"
@@ -56,6 +58,7 @@ def main():
     swap_schema = db.get_table_schema("uniswap_v3_pool_swap")
     swaps_offer = tiders_x402_server.TablePaymentOffers("uniswap_v3_pool_swap", [price_tag_1], swap_schema)
     swaps_offer.add_payment_offer(price_tag_2)
+    swaps_offer.add_payment_offer(price_tag_fixed)
 
     server_base_url = "http://0.0.0.0:4021"
 

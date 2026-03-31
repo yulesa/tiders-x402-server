@@ -181,9 +181,18 @@ let reader = StreamReader::try_new(Cursor::new(bytes), None)?;
 | Example | Language | Database |
 |---|---|---|
 | [DuckDB Server](examples/python/duckdb_server.py) | Python | DuckDB |
-| [Rust Server](examples/rust/src/main.rs) | Rust | DuckDB |
+| [Rust Server](examples/rust/src/main.rs) | Rust | DuckDB / Clickhouse/ PostgreSQL |
 
 Both examples load sample Uniswap V3 swap data and serve it with tiered per-row pricing.
+
+### Client Scripts
+
+Sample client scripts are provided in [`client-scripts/`](client-scripts/) to test a running server. They send a query, handle the x402 payment flow automatically, and parse the Arrow IPC response.
+
+| Client | Language | Run |
+|---|---|---|
+| [TypeScript](client-scripts/typescript-client.ts) | TypeScript | `npx tsx typescript-client.ts` |
+| [Python](client-scripts/python-client.py) | Python | `uv run python-client.py` |
 
 ## Pricing Models
 
@@ -233,10 +242,10 @@ If you're modifying `tiders-x402-server` repo locally, you probably want to buil
 
 ```bash
 # Build
-cargo build --features duckdb  --config 'patch.crates-io.tiders-x402="../../server"'
+cargo build -p tiders-x402-server --features duckdb
 
 # Build Python bindings
-cd python && maturin develop --uv
+cd python && maturin develop --uv --features duckdb
 ```
 
 **Persistent local development**
@@ -245,10 +254,8 @@ For persistent local development, you can put this in `examples/rust/Cargo.toml`
 
 ```toml
 [patch.crates-io]
-tiders-x402 = { path = "../../server" }
+tiders-x402-server = { path = "../../server" }
 ```
-
-This avoids passing `--config` on every build command.
 
 ## License
 

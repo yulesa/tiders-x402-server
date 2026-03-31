@@ -1,14 +1,16 @@
 {
   "name": "x402-test",
   "version": "1.0.0",
+  "type": "module",
   "description": "Test for x402-fetch integration",
   "scripts": {
-    "test": "tsx testing.ts"
+    "test": "tsx"
   },
   "dependencies": {
     "@x402/evm": "^2.8.0",
     "@x402/fetch": "^2.8.0",
-    "apache-arrow": "^14.0.2"
+    "apache-arrow": "^14.0.2",
+    "dotenv": "^16.4.7"
   },
   "devDependencies": {
     "tsx": "^4.7.0",

@@ -137,6 +137,15 @@ async fn main() {
         is_default: true
     };
 
+    let swap_fixed = PriceTag {
+    pay_to: ChecksummedAddress::from_str("0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7").unwrap(),
+    pricing: PricingModel::Fixed {
+        amount: TokenAmount(usdc.parse("1.00").unwrap().amount),
+    },
+    token: usdc.clone(),
+    description: Some("Fixed price query".to_string()),
+    is_default: true,
+};
 
     // Create table payment offer
     let swaps_schema = db.get_table_schema("uniswap_v3_pool_swap")
@@ -149,13 +158,14 @@ async fn main() {
         Some(swaps_schema),
     ).with_description("Uniswap v2 swaps".to_string());
 
+    let swaps_offer = swaps_offer.add_payment_offer(swap_fixed);
 
     let swap_price_tag_2 = PriceTag{
         pay_to: ChecksummedAddress::from_str("0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7").unwrap(),
         pricing: PricingModel::PerRow {
             amount_per_item: TokenAmount(usdc.parse("0.001").unwrap().amount),
             min_total_amount: None,
-            min_items: Some(2),
+            min_items: Some(100),
             max_items: None,
         },
         token: usdc.clone(),
