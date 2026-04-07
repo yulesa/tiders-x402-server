@@ -22,7 +22,7 @@ tower-http = { version = "0.6.8", features = ["trace"] }
 tracing-opentelemetry = "0.32.1"
 url = "2.5.8"
 duckdb = { version = "1.10501.0", features = ["bundled"] }
-arrow = { version = "58.1.0", features = ["pyarrow", "ipc_compression"] }
+arrow = { version = "58.1.0", features = ["ipc_compression"] }
 serde = { version = "1.0.228", features = ["derive"] }
 anyhow = "1.0.102"
 sqlparser = "0.61.0"

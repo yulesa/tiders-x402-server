@@ -60,7 +60,8 @@ def main():
     swaps_offer.add_payment_offer(price_tag_2)
     swaps_offer.add_payment_offer(price_tag_fixed)
 
-    server_base_url = "http://0.0.0.0:4021"
+    server_base_url = "http://localhost:4021"
+    server_bind_address = "0.0.0.0:4021"
 
     global_payment_config = tiders_x402_server.GlobalPaymentConfig(
         facilitator,
@@ -72,6 +73,7 @@ def main():
         db,
         payment_config=global_payment_config,
         server_base_url=server_base_url,
+        server_bind_address=server_bind_address,
     )
 
     print("Starting server")

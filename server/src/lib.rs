@@ -71,8 +71,12 @@ pub struct AppState {
     pub db: Arc<dyn Database>,
     /// Global payment configuration: offer's tables, pricing rules, and facilitator settings.
     pub payment_config: Arc<GlobalPaymentConfig>,
-    /// The server's public URL, used for binding and for building resource URLs in payment requirements.
+    /// The server's public URL, used for building resource URLs in payment requirements
+    /// (e.g. "https://api.tiders.com"). This is the URL the x402 facilitator uses
+    /// for payment verification callbacks.
     pub server_base_url: Url,
+    /// The address and port the server binds to (e.g. "0.0.0.0:4021").
+    pub server_bind_address: String,
 }
 
 /// Starts the Axum HTTP server and blocks until a shutdown signal is received.
@@ -80,8 +84,7 @@ pub struct AppState {
 /// # Arguments
 /// * `state` — Shared application state (wrapped in `Arc` so it can be safely shared
 ///   across all request-handling tasks). Axum clones this `Arc` for each incoming
-///   request and passes it to the handler. The server binds to the host and port
-///   extracted from `state.server_base_url`.
+///   request and passes it to the handler. The server binds to `state.server_bind_address`.
 pub async fn start_server(state: Arc<AppState>) {
     // Load environment variables from a `.env` file if one exists.
     dotenv().ok();
@@ -127,10 +130,7 @@ pub async fn start_server(state: Arc<AppState>) {
             .init();
     };
 
-    // Extract host and port from the server base URL before moving state into the router.
-    let host = state.server_base_url.host_str().unwrap().to_string();
-    let port = state.server_base_url.port().unwrap();
-    let bind_addr = format!("{}:{}", host, port);
+    let bind_addr = state.server_bind_address.clone();
 
     // Build the Axum Router.
     // A Router maps HTTP method + path combinations to handler functions.
@@ -198,9 +198,14 @@ pub async fn start_server(state: Arc<AppState>) {
                 ),
         );
 
-    let listener = tokio::net::TcpListener::bind(bind_addr)
+    let listener = tokio::net::TcpListener::bind(&bind_addr)
         .await
-        .expect("Can not start server");
+        .unwrap_or_else(|e| {
+            panic!(
+                "Failed to bind to '{}': {}. server_bind_address must be in host:port format (e.g. \"0.0.0.0:4021\")",
+                bind_addr, e
+            )
+        });
     tracing::info!("Listening on {}", listener.local_addr().unwrap());
 
     // `axum::serve` takes the TCP listener and the router, and starts accepting

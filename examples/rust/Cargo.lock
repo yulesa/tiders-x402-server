@@ -5085,6 +5085,8 @@ dependencies = [
 [[package]]
 name = "tiders-x402-server"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f28ccddb05e05df4478e0f32ae2fe55e64c068ca31e5af40f7bad7dffbfd2ab3"
 dependencies = [
  "alloy",
  "anyhow",

@@ -28,8 +28,8 @@ async fn main() {
     );
 
     // Initialize payment configuration
-    let server_base_url = Url::parse("http://0.0.0.0:4021").expect("Failed to parse server base URL");
-    // let server_base_url = Url::parse("http://localhost:4021").expect("Failed to parse server base URL");
+    let server_base_url = Url::parse("http://localhost:4021").expect("Failed to parse server base URL");
+    let server_bind_address = "0.0.0.0:4021".to_string();
 
 
 
@@ -180,6 +180,7 @@ async fn main() {
         db: Arc::new(db),
         payment_config: Arc::new(global_payment_config),
         server_base_url,
+        server_bind_address,
     });
 
     start_server(state).await;

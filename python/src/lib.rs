@@ -867,7 +867,9 @@ impl PyAppState {
     /// Args:
     ///     database: A database object (DuckDbDatabase, PostgresqlDatabase, or ClickHouseDatabase).
     ///     payment_config (GlobalPaymentConfig): Global payment config.
-    ///     server_base_url (str): Base URL for the server (e.g., "http://0.0.0.0:4021").
+    ///     server_base_url (str): Public URL for the server (e.g., "https://api.tiders.com").
+    ///         Used for building resource URLs in payment requirements.
+    ///     server_bind_address (str): Address and port to bind the server to (e.g., "0.0.0.0:4021").
     ///
     /// Returns:
     ///     AppState: A new AppState object.
@@ -877,9 +879,11 @@ impl PyAppState {
         database: &Bound<'_, PyAny>,
         payment_config: &PyGlobalPaymentConfig,
         server_base_url: &str,
+        server_bind_address: &str,
     ) -> PyResult<Self> {
         let server_base_url = Url::parse(server_base_url)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        let server_bind_address = server_bind_address.to_string();
         // Try to downcast to each database type
         #[cfg(feature = "duckdb")]
         if let Ok(db) = database.extract::<PyRef<PyDuckDbDatabase>>() {
@@ -888,6 +892,7 @@ impl PyAppState {
                     db: db.inner.clone(),
                     payment_config: Arc::new(payment_config.inner.clone()),
                     server_base_url: server_base_url.clone(),
+                    server_bind_address: server_bind_address.clone(),
                 },
             });
         }
@@ -898,6 +903,7 @@ impl PyAppState {
                     db: db.inner.clone(),
                     payment_config: Arc::new(payment_config.inner.clone()),
                     server_base_url: server_base_url.clone(),
+                    server_bind_address: server_bind_address.clone(),
                 },
             });
         }
@@ -908,6 +914,7 @@ impl PyAppState {
                     db: db.inner.clone(),
                     payment_config: Arc::new(payment_config.inner.clone()),
                     server_base_url: server_base_url.clone(),
+                    server_bind_address: server_bind_address.clone(),
                 },
             });
         }
@@ -917,24 +924,6 @@ impl PyAppState {
         ))
     }
 
-    /// Get the server's public base URL.
-    ///
-    /// Returns:
-    ///     str: The server base URL.
-    #[getter]
-    fn server_base_url(&self) -> String {
-        self.inner.server_base_url.to_string()
-    }
-
-    /// Set the server's public base URL.
-    ///
-    /// Args:
-    ///     server_base_url (str): The new base URL (e.g., "http://0.0.0.0:4021").
-    fn set_server_base_url(&mut self, server_base_url: &str) -> PyResult<()> {
-        self.inner.server_base_url = Url::parse(server_base_url)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        Ok(())
-    }
 }
 
 /// Start a payment-enabled server (blocking call).
