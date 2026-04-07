@@ -8,8 +8,9 @@ import tiders_x402_server
 import duckdb
 import os
 
+
 def main():
-    
+
     # Create facilitator client
     facilitator_url = "https://facilitator.x402.rs"
     facilitator = tiders_x402_server.FacilitatorClient(facilitator_url)
@@ -41,7 +42,7 @@ def main():
         token=usdc,
         is_default=True,
     )
-    
+
     # Load sample data from CSV into a DuckDB database file.
     # Replace this with your own database path for production use.
     db_path = "../data/duckdb.db"
@@ -56,7 +57,9 @@ def main():
 
     # Get schema and create table payment offers
     swap_schema = db.get_table_schema("uniswap_v3_pool_swap")
-    swaps_offer = tiders_x402_server.TablePaymentOffers("uniswap_v3_pool_swap", [price_tag_1], swap_schema)
+    swaps_offer = tiders_x402_server.TablePaymentOffers(
+        "uniswap_v3_pool_swap", [price_tag_1], swap_schema
+    )
     swaps_offer.add_payment_offer(price_tag_2)
     swaps_offer.add_payment_offer(price_tag_fixed)
 
@@ -83,6 +86,7 @@ def main():
 
     # Start the server (blocking call)
     tiders_x402_server.start_server_py(state)
+
 
 if __name__ == "__main__":
     main()

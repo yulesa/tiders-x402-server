@@ -28,7 +28,9 @@ def main():
     try:
         pk = os.environ["PK"]
     except KeyError:
-        print("PK environment variable is not set. Copy .env.example to .env and fill in your private key. You can get test USDC at https://faucet.circle.com/ .")
+        print(
+            "PK environment variable is not set. Copy .env.example to .env and fill in your private key. You can get test USDC at https://faucet.circle.com/ ."
+        )
         return
     account = Account.from_key(pk)
     print("Accounted created: ", account.address)

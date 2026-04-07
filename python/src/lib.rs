@@ -923,7 +923,6 @@ impl PyAppState {
             "Expected a DuckDbDatabase, PostgresqlDatabase, or ClickHouseDatabase object",
         ))
     }
-
 }
 
 /// Start a payment-enabled server (blocking call).

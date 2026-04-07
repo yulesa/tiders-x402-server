@@ -5,5 +5,4 @@ providing access to database backends, payment configuration, pricing, and
 the HTTP server entry point.
 """
 
-from enum import Enum
-from .tiders_x402_server import *
+from .tiders_x402_server import *  # noqa: F403
