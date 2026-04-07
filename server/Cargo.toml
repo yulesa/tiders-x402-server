@@ -1,6 +1,6 @@
 [package]
 name = "tiders-x402-server"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Payment-enabled database API server that connects different databases with the x402 payment protocol to create a pay-per-query data marketplace."
 homepage = "https://github.com/yulesa/tiders-x402-server"
