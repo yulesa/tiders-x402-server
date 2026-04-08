@@ -41,7 +41,6 @@ The file includes a `pg_type_to_arrow` mapping that covers booleans, integers, f
 The ClickHouse backend (`server/src/database_clickhouse.rs`) uses the `clickhouse` crate, which is natively async. Queries request results in `FORMAT ArrowStream`, so the response arrives as Arrow IPC bytes that are decoded directly into `RecordBatch`es — no intermediate JSON step.
 
 Construction:
-- **`ClickHouseDatabase::from_url`** — from a ClickHouse HTTP endpoint URL (e.g. `http://localhost:8123`).
 - **`ClickHouseDatabase::from_params`** — accepts URL plus optional user, password, database, access token, compression mode (`none` or `lz4`), custom settings, and HTTP headers.
 - **`ClickHouseDatabase::from_client`** — from a user-managed `clickhouse::Client`.
 

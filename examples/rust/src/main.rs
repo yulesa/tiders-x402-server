@@ -103,9 +103,18 @@ async fn main() {
     // let ch_scheme = if ch_secure == "true" { "https" } else { "http" };
     // let ch_url = format!("{}://{}:{}", ch_scheme, ch_host, ch_port);
 
-    // --- Option A: Connect via URL ---
-    // let db = tiders_x402_server::database_clickhouse::ClickHouseDatabase::from_url(&ch_url)
-    //     .expect("Failed to create ClickHouse client");
+    // --- Option A: Connect via from_params ---
+    // let db = tiders_x402_server::database_clickhouse::ClickHouseDatabase::from_params(
+    //     &ch_url,
+    //     Some(&ch_user),
+    //     Some(&ch_password),
+    //     Some(&ch_database),
+    //     None,
+    //     None,
+    //     None,
+    //     None,
+    // )
+    // .expect("Failed to create ClickHouse client");
 
     // --- Option B: Connect via a user-managed client ---
     // let client = clickhouse::Client::default()

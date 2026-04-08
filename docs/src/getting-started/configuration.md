@@ -4,13 +4,14 @@ The server is configured programmatically -- there are no config files. You set 
 
 ## AppState
 
-The shared application state accessible by every request handler. Holds the database connection, payment configuration, and server URL.
+The shared application state accessible by every request handler. Holds the database connection, payment configuration, server URL, and bind address.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `db` | `Arc<dyn Database>` | Database backend (DuckDB, Postgres, ClickHouse) |
 | `payment_config` | `Arc<GlobalPaymentConfig>` | Global payment configuration |
-| `server_base_url` | `Url` | Server's public URL, used for binding and resource URLs in payment requirements |
+| `server_base_url` | `Url` | Server's public URL, used for building resource URLs in payment requirements (e.g. `https://api.tiders.com`) |
+| `server_bind_address` | `String` | Address and port the server binds to (e.g. `0.0.0.0:4021`) |
 
 **Construction**
 
@@ -19,26 +20,15 @@ The shared application state accessible by every request handler. Holds the data
 let state = AppState {
     db: Arc::new(db),
     payment_config: Arc::new(config),
-    server_base_url: Url::parse("http://0.0.0.0:4021").unwrap(),
+    server_base_url: Url::parse("https://api.tiders.com").unwrap(),
+    server_bind_address: "0.0.0.0:4021".to_string(),
 };
 ```
 
 ```python
 # Python
-state = AppState(database, payment_config, "http://0.0.0.0:4021")
+state = AppState(database, payment_config, "https://api.tiders.com", "0.0.0.0:4021")
 ```
-
-**Getters**
-
-| Getter | Rust | Python | Returns |
-|--------|------|--------|---------|
-| Server base URL | `state.server_base_url` (pub field) | `state.server_base_url` | `Url` / `str` |
-
-**Setters**
-
-| Setter | Rust | Python |
-|--------|------|--------|
-| Set server base URL | `state.server_base_url = Url::parse("...").unwrap()` | `state.set_server_base_url("http://0.0.0.0:4021")` |
 
 ---
 

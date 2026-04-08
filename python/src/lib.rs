@@ -778,22 +778,6 @@ impl PyClickHouseDatabase {
     ///
     /// Args:
     ///     url (str): ClickHouse HTTP endpoint URL (e.g., "http://localhost:8123").
-    ///
-    /// Returns:
-    ///     ClickHouseDatabase: A new ClickHouseDatabase object.
-    #[new]
-    fn new(url: &str) -> PyResult<Self> {
-        let db = ClickHouseDatabase::from_url(url)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        Ok(Self {
-            inner: Arc::new(db),
-        })
-    }
-
-    /// Create a new ClickHouseDatabase with full client configuration.
-    ///
-    /// Args:
-    ///     url (str): ClickHouse HTTP endpoint URL (e.g., "http://localhost:8123").
     ///     user (Optional[str]): Database user.
     ///     password (Optional[str]): Database password.
     ///     database (Optional[str]): Database name.
@@ -804,9 +788,10 @@ impl PyClickHouseDatabase {
     ///
     /// Returns:
     ///     ClickHouseDatabase: A new ClickHouseDatabase object.
-    #[staticmethod]
+    #[new]
+    #[pyo3(signature = (url, user=None, password=None, database=None, access_token=None, compression=None, options=None, headers=None))]
     #[allow(clippy::too_many_arguments)]
-    fn from_params(
+    fn new(
         url: &str,
         user: Option<&str>,
         password: Option<&str>,

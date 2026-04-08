@@ -133,14 +133,15 @@ Wrap the database and payment configuration into the application state, then sta
 
 **Rust:**
 ```rust
-use Url
+use url::Url;
 use tiders_x402_server::{AppState, start_server};
 
-let server_base_url = Url::parse("http://0.0.0.0:4021").expect("Failed to parse server base URL");
+let server_base_url = Url::parse("http://localhost:4021").expect("Failed to parse server base URL");
 let state = Arc::new(AppState {
     db: Arc::new(db),
     payment_config: Arc::new(global_payment_config),
-    server_base_url
+    server_base_url,
+    server_bind_address: "0.0.0.0:4021".to_string(),
 });
 
 start_server(state).await;
@@ -150,10 +151,12 @@ start_server(state).await;
 ```python
 state = tiders_x402_server.AppState(
     db,
-    payment_config=global_payment_config,
+    global_payment_config,
+    "http://localhost:4021",
+    "0.0.0.0:4021",
 )
 
-tiders_x402_server.start_server_py(state)
+tiders_x402_server.start_server(state)
 ```
 
 The server blocks until it receives a shutdown signal (Ctrl+C or SIGTERM).

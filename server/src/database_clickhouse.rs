@@ -30,16 +30,7 @@ impl std::fmt::Debug for ClickHouseDatabase {
 }
 
 impl ClickHouseDatabase {
-    /// Creates a new `ClickHouseDatabase` from a URL.
-    ///
-    /// The URL should point to the ClickHouse HTTP endpoint, e.g.
-    /// `http://localhost:8123`.
-    pub fn from_url(url: &str) -> Result<Self> {
-        let client = Client::default().with_url(url);
-        Ok(Self { client })
-    }
-
-    /// Creates a new `ClickHouseDatabase` from a URL with full client configuration.
+    /// Creates a new `ClickHouseDatabase` with full client configuration.
     ///
     /// # Parameters
     /// - `url`: ClickHouse HTTP endpoint (e.g., "http://localhost:8123")
@@ -174,7 +165,7 @@ impl Database for ClickHouseDatabase {
     }
 
     async fn get_table_schema(&self, table_name: &str) -> Result<Schema> {
-        let query_str = format!("DESCRIBE TABLE {}", table_name);
+        let query_str = format!("SELECT name, type FROM system.columns WHERE table = '{}' AND database = currentDatabase()", table_name);
 
         let rows = self
             .client
