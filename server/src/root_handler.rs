@@ -1,13 +1,11 @@
-//! Axum handlers for the `GET /` (root) and `GET /table/:name` endpoints.
+//! Axum handler for the `GET /` (root) endpoint.
 //!
-//! The root endpoint returns a plain-text overview listing available tables.
-//! The table detail endpoint returns full schema and payment offer details as JSON.
+//! Returns a plain-text overview of the server: usage instructions,
+//! available tables with their names, descriptions, and payment status.
 
 use crate::AppState;
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::extract::State;
 use axum::response::IntoResponse;
-use axum::Json;
 use std::fmt::Write as _;
 use std::sync::Arc;
 
@@ -60,22 +58,4 @@ pub async fn root_handler(State(state): State<Arc<AppState>>) -> impl IntoRespon
     )
     .unwrap();
     response
-}
-
-/// Handles `GET /table/:name` — returns full schema and payment offers as JSON.
-#[axum::debug_handler]
-#[allow(dead_code)]
-pub async fn table_detail_handler(
-    State(state): State<Arc<AppState>>,
-    Path(name): Path<String>,
-) -> impl IntoResponse {
-    let payment_config = state.payment_config.read().await.clone();
-
-    match payment_config.offers_tables.get(&name) {
-        Some(offer) => Ok(Json(offer.clone())),
-        None => Err((
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({"error": format!("Table '{name}' not found")})),
-        )),
-    }
 }

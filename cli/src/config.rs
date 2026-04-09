@@ -155,4 +155,19 @@ pub enum PriceTagConfig {
         #[serde(default)]
         is_default: bool,
     },
+    /// A flat fee for accessing table metadata (schema + payment offers) via GET /table/:name.
+    #[serde(rename = "metadata_price")]
+    MetadataPrice {
+        /// Recipient wallet address.
+        pay_to: String,
+        /// Token identifier (e.g., "usdc/base_sepolia").
+        token: String,
+        /// Fixed amount as a human-readable decimal string (e.g., "0.01").
+        amount: String,
+        /// Optional label for this tier.
+        description: Option<String>,
+        /// Whether this is the default tier (default: false).
+        #[serde(default)]
+        is_default: bool,
+    },
 }

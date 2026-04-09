@@ -273,6 +273,34 @@ fn build_price_tag(tag_cfg: &PriceTagConfig) -> Result<PriceTag> {
                 is_default: *is_default,
             })
         }
+        PriceTagConfig::MetadataPrice {
+            pay_to,
+            token,
+            amount,
+            description,
+            is_default,
+        } => {
+            let token_deployment = resolve_token(token)?;
+            let pay_to_addr = ChecksummedAddress::from_str(pay_to)
+                .map_err(|e| anyhow!("Invalid pay_to address \"{pay_to}\": {e}"))?;
+
+            let metadata_amount = TokenAmount(
+                token_deployment
+                    .parse(amount.as_str())
+                    .map_err(|e| anyhow!("Invalid amount \"{amount}\": {e}"))?
+                    .amount,
+            );
+
+            Ok(PriceTag {
+                pay_to: pay_to_addr,
+                pricing: PricingModel::MetadataPrice {
+                    amount: metadata_amount,
+                },
+                token: token_deployment,
+                description: description.clone(),
+                is_default: *is_default,
+            })
+        }
     }
 }
 

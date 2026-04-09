@@ -31,6 +31,7 @@ pub mod payment_processing;
 pub mod price;
 pub mod query_handler;
 pub mod root_handler;
+pub mod table_detail_handler;
 #[cfg(feature = "clickhouse")]
 pub mod sql_clickhouse;
 #[cfg(feature = "duckdb")]
@@ -54,7 +55,8 @@ use tracing_subscriber::util::SubscriberInitExt;
 use url::Url;
 
 use crate::query_handler::query_handler;
-use crate::root_handler::{root_handler, table_detail_handler};
+use crate::root_handler::root_handler;
+use crate::table_detail_handler::table_detail_handler;
 pub use database::Database;
 pub use facilitator_client::FacilitatorClient;
 pub use payment_config::GlobalPaymentConfig;

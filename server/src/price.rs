@@ -35,6 +35,11 @@ pub enum PricingModel {
         /// The fixed amount charged for any query against this table.
         amount: TokenAmount,
     },
+    /// A flat fee for accessing table metadata (schema + payment offers).
+    MetadataPrice {
+        /// The fixed amount charged for metadata access.
+        amount: TokenAmount,
+    },
 }
 
 /// A single pricing tier for a table, describing who gets paid, how much,
@@ -63,7 +68,7 @@ impl PriceTag {
     /// Fixed-price tiers always return `true` (row count is irrelevant).
     pub fn is_in_range(&self, item_count: usize) -> bool {
         match &self.pricing {
-            PricingModel::Fixed { .. } => true,
+            PricingModel::Fixed { .. } | PricingModel::MetadataPrice { .. } => true,
             PricingModel::PerRow {
                 min_items,
                 max_items,
@@ -100,13 +105,20 @@ impl PriceTag {
                 let total = amount_per_item.0 * items_u256;
                 TokenAmount(total)
             }
-            PricingModel::Fixed { amount } => amount.clone(),
+            PricingModel::Fixed { amount } | PricingModel::MetadataPrice { amount } => {
+                amount.clone()
+            }
         }
     }
 
     /// Returns `true` if this price tag uses fixed pricing.
     pub fn is_fixed(&self) -> bool {
         matches!(self.pricing, PricingModel::Fixed { .. })
+    }
+
+    /// Returns `true` if this price tag is a metadata price.
+    pub fn is_metadata_price(&self) -> bool {
+        matches!(self.pricing, PricingModel::MetadataPrice { .. })
     }
 }
 
@@ -192,6 +204,19 @@ impl TablePaymentOffers {
     /// Returns `false` if there are no price tags or any use per-row pricing.
     pub fn is_all_fixed_price(&self) -> bool {
         !self.price_tags.is_empty() && self.price_tags.iter().all(|tag| tag.is_fixed())
+    }
+
+    /// Returns `true` if any price tag uses metadata pricing.
+    pub fn has_metadata_price(&self) -> bool {
+        self.price_tags.iter().any(|tag| tag.is_metadata_price())
+    }
+
+    /// Returns only the metadata price tags.
+    pub fn metadata_price_tags(&self) -> Vec<&PriceTag> {
+        self.price_tags
+            .iter()
+            .filter(|tag| tag.is_metadata_price())
+            .collect()
     }
 }
 

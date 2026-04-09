@@ -153,6 +153,74 @@ impl GlobalPaymentConfig {
         })
     }
 
+    /// Returns whether a table has metadata behind a paywall.
+    pub fn table_metadata_requires_payment(&self, table_name: &str) -> bool {
+        self.offers_tables
+            .get(table_name)
+            .is_some_and(|offer| offer.has_metadata_price())
+    }
+
+    /// Returns payment requirements for metadata access on a table.
+    pub fn get_metadata_payment_requirements(
+        &self,
+        table_name: &str,
+    ) -> Vec<PaymentRequirements> {
+        let Some(offers_table) = self.get_offers_table(table_name) else {
+            return Vec::new();
+        };
+
+        let mut requirements = Vec::new();
+        for offer in offers_table.metadata_price_tags() {
+            if let Some(req) = self.create_payment_requirements_for_offer(0, offer) {
+                requirements.push(req);
+            }
+        }
+        requirements
+    }
+
+    /// Assembles a 402 response for metadata access on a table.
+    pub fn create_metadata_payment_required_response(
+        &self,
+        error: &str,
+        table_name: &str,
+        path: &str,
+        server_base_url: &Url,
+    ) -> Option<PaymentRequired> {
+        let payment_requirements = self.get_metadata_payment_requirements(table_name);
+        if payment_requirements.is_empty() {
+            return None;
+        }
+
+        let resource_url = server_base_url.join(path).ok()?;
+        let offers_table = self.get_offers_table(table_name)?;
+        let description = offers_table
+            .description
+            .as_ref()
+            .unwrap_or(&self.default_description)
+            .clone();
+
+        Some(PaymentRequired {
+            x402_version: X402Version2,
+            error: Some(error.to_string()),
+            resource: Some(ResourceInfo {
+                url: resource_url.to_string(),
+                description: Some(format!("{description} - metadata access")),
+                mime_type: Some("application/json".to_string()),
+            }),
+            accepts: payment_requirements,
+        })
+    }
+
+    /// Finds a matching metadata payment requirement for the provided V2 payment payload.
+    pub fn find_matching_metadata_payment_requirements(
+        &self,
+        table_name: &str,
+        accepted: &PaymentRequirements,
+    ) -> Option<PaymentRequirements> {
+        let requirements = self.get_metadata_payment_requirements(table_name);
+        requirements.into_iter().find(|req| req == accepted)
+    }
+
     /// Returns all payment requirements whose price tag range covers `estimated_items`.
     ///
     /// Each price tag with a matching `min_items`/`max_items` range produces one
@@ -170,6 +238,10 @@ impl GlobalPaymentConfig {
         let offers_table = offers_table.unwrap();
 
         for offer in &offers_table.price_tags {
+            // Skip metadata price tags — they are only for table detail access
+            if offer.is_metadata_price() {
+                continue;
+            }
             if offer.is_in_range(estimated_items)
                 && let Some(req) =
                     self.create_payment_requirements_for_offer(estimated_items, offer)

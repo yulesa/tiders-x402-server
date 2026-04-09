@@ -206,6 +206,12 @@ fn validate_price_tag(
             token,
             amount,
             ..
+        }
+        | PriceTagConfig::MetadataPrice {
+            pay_to,
+            token,
+            amount,
+            ..
         } => {
             if amount.is_empty() {
                 errors.push(ValidationError {
