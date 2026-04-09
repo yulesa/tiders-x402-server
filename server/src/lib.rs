@@ -54,7 +54,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 use url::Url;
 
 use crate::query_handler::query_handler;
-use crate::root_handler::root_handler;
+use crate::root_handler::{root_handler, table_detail_handler};
 pub use database::Database;
 pub use facilitator_client::FacilitatorClient;
 pub use payment_config::GlobalPaymentConfig;
@@ -162,6 +162,7 @@ pub async fn start_server(state: AppState) {
         .route("/query", post(query_handler))
         // Register `GET /` → handled by `root_handler`.
         .route("/", axum::routing::get(root_handler))
+        .route("/table/{name}", axum::routing::get(table_detail_handler))
         // Attach shared state so handlers can access it via Axum's `State` extractor.
         // Axum "extractors" are typed parameters on handler functions that Axum
         // automatically populates from the incoming request (e.g., State, Json, Path).

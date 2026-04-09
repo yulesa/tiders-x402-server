@@ -24,13 +24,14 @@ tracing-opentelemetry = "0.32.1"
 url = "2.5.8"
 duckdb = { version = "1.10501.0", features = ["bundled"] }
 arrow = { version = "58.1.0", features = ["ipc_compression"] }
+arrow-schema = { version = "58.0.0", features = ["serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
 anyhow = "1.0.102"
 sqlparser = "0.61.0"
 http = { version = "1.4.0" }
 reqwest = { version = "0.13.2", features = ["json"] }
 thiserror = { version = "2.0.18" }
-alloy-primitives = { version = "1.5.7" }
+alloy-primitives = { version = "1.5.7", features = ["serde"] }
 pyo3 = { version = "0.28", features = ["anyhow"]}
 async-trait = "0.1"
 tokio-postgres = "0.7"

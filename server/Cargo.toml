@@ -25,6 +25,7 @@ tracing-opentelemetry = { workspace = true }
 url = { workspace = true }
 duckdb = { workspace = true, features = ["bundled"], optional = true }
 arrow = { workspace = true }
+arrow-schema = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 anyhow = { workspace = true }
 sqlparser = { workspace = true }

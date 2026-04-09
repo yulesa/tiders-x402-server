@@ -1,22 +1,17 @@
-//! Axum handler for the `GET /` (root) endpoint.
+//! Axum handlers for the `GET /` (root) and `GET /table/:name` endpoints.
 //!
-//! Returns a plain-text overview of the server: usage instructions,
-//! available tables with their schemas, and SQL parser rules. Designed
-//! for both human users and AI agents to discover what data is available
-//! before making paid queries.
+//! The root endpoint returns a plain-text overview listing available tables.
+//! The table detail endpoint returns full schema and payment offer details as JSON.
 
 use crate::AppState;
-use axum::extract::State;
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use axum::Json;
 use std::fmt::Write as _;
 use std::sync::Arc;
 
-/// Handles `GET /` — returns a plain-text summary of the server's capabilities.
-///
-/// The response includes:
-/// - How to submit queries via `POST /query`.
-/// - A list of supported tables with their schemas, descriptions, and payment status.
-/// - The SQL restrictions enforced by the parser.
+/// Handles `GET /` — returns a plain-text summary of available tables.
 #[axum::debug_handler]
 #[allow(dead_code)]
 pub async fn root_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
@@ -42,19 +37,12 @@ pub async fn root_handler(State(state): State<Arc<AppState>>) -> impl IntoRespon
     .unwrap();
     writeln!(response, "Supported tables:").unwrap();
     for (table, offer) in &payment_config.offers_tables {
-        writeln!(response, "- Table: {}", table).unwrap();
-        if let Some(schema) = &offer.schema {
-            writeln!(response, "  Schema:").unwrap();
-            for field in schema.fields() {
-                writeln!(response, "    - {}: {}", field.name(), field.data_type()).unwrap();
-            }
-        } else {
-            writeln!(response, "  Schema: unavailable").unwrap();
-        }
+        writeln!(response, "- Table: {table}").unwrap();
         if let Some(desc) = &offer.description {
-            writeln!(response, "  Description: {}", desc).unwrap();
+            writeln!(response, "  Description: {desc}").unwrap();
         }
         writeln!(response, "  Payment required: {}", offer.requires_payment).unwrap();
+        writeln!(response, "  Details: GET /table/{table}").unwrap();
     }
     writeln!(response, "\nSQL parser rules:").unwrap();
     writeln!(response, "- Only SELECT statements are supported.").unwrap();
@@ -72,4 +60,22 @@ pub async fn root_handler(State(state): State<Arc<AppState>>) -> impl IntoRespon
     )
     .unwrap();
     response
+}
+
+/// Handles `GET /table/:name` — returns full schema and payment offers as JSON.
+#[axum::debug_handler]
+#[allow(dead_code)]
+pub async fn table_detail_handler(
+    State(state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+) -> impl IntoResponse {
+    let payment_config = state.payment_config.read().await.clone();
+
+    match payment_config.offers_tables.get(&name) {
+        Some(offer) => Ok(Json(offer.clone())),
+        None => Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": format!("Table '{name}' not found")})),
+        )),
+    }
 }

@@ -643,6 +643,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c30a1365d7a7dc50cc847e54154e6af49e4c4b0fddc9f607b687f29212082743"
 dependencies = [
  "bitflags 2.11.0",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -4552,6 +4554,7 @@ dependencies = [
  "alloy-primitives",
  "anyhow",
  "arrow",
+ "arrow-schema",
  "async-trait",
  "axum",
  "bytes",
