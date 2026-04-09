@@ -139,7 +139,7 @@ async fn build_database(db_config: &crate::config::DatabaseConfig) -> Result<Arc
     bail!("No database backend configured.")
 }
 
-fn build_facilitator(
+pub fn build_facilitator(
     fac_config: &crate::config::FacilitatorConfig,
 ) -> Result<Arc<FacilitatorClient>> {
     let mut client = FacilitatorClient::try_from(fac_config.url.as_str())

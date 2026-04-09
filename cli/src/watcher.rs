@@ -11,7 +11,6 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::RwLock;
 
 use tiders_x402_server::Database;
-use tiders_x402_server::facilitator_client::FacilitatorClient;
 use tiders_x402_server::payment_config::GlobalPaymentConfig;
 
 use crate::config::Config;
@@ -31,11 +30,9 @@ pub fn start_watcher(
     original_config: &Config,
     payment_config: SharedPaymentConfig,
     db: Arc<dyn Database>,
-    facilitator: Arc<FacilitatorClient>,
 ) -> Result<RecommendedWatcher, notify::Error> {
     let original_bind = original_config.server.bind_address.clone();
     let original_base_url = original_config.server.base_url.clone();
-    let original_facilitator_url = original_config.facilitator.url.clone();
     let original_db_fingerprint = db_fingerprint(&original_config.database);
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(1);
@@ -93,18 +90,26 @@ pub fn start_watcher(
             if new_config.server.base_url != original_base_url {
                 tracing::warn!("server.base_url changed — restart required to take effect.");
             }
-            if new_config.facilitator.url != original_facilitator_url {
-                tracing::warn!("facilitator.url changed — restart required to take effect.");
-            }
             if db_fingerprint(&new_config.database) != original_db_fingerprint {
                 tracing::warn!("database configuration changed — restart required to take effect.");
             }
 
-            // Rebuild payment config (hot-reloadable)
+            // Rebuild facilitator (hot-reloadable)
+            let facilitator = match crate::builder::build_facilitator(&new_config.facilitator) {
+                Ok(f) => f,
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to rebuild facilitator from reloaded config: {e}. Keeping current configuration."
+                    );
+                    continue;
+                }
+            };
+
+            // Rebuild payment config with new facilitator and tables (hot-reloadable)
             match crate::builder::build_payment_config_from_tables(
                 &new_config,
                 db.as_ref(),
-                facilitator.clone(),
+                facilitator,
             )
             .await
             {

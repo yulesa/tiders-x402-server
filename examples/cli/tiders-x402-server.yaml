@@ -27,10 +27,10 @@ database:
   #   max_pool_size: 16
 
   # clickhouse:
-  #   url: "http://${CH_HOST}:8123"
-  #   user: "${CH_USER}"
-  #   password: "${CH_PASSWORD}"
-  #   database: "default"
+  #   url: "http://${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}"
+  #   user: "${CLICKHOUSE_USER}"
+  #   password: "${CLICKHOUSE_PASSWORD}"
+  #   database: "${CLICKHOUSE_DB}"
   #   compression: "lz4"   # "none" or "lz4"
 
 payment:
@@ -63,5 +63,5 @@ tables:
         description: "Fixed price query"
 
   # Example: a free table (no price_tags = no payment required)
-  # - name: public_stats
-  #   description: "Public statistics, no payment required"
+  # - name: blocks
+  #   description: "blocks, no payment required"

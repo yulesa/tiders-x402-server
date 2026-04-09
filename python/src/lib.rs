@@ -557,8 +557,7 @@ impl PyGlobalPaymentConfig {
     /// Args:
     ///     facilitator (FacilitatorClient): The new facilitator client.
     fn set_facilitator(&mut self, facilitator: &PyFacilitatorClient) {
-        self.inner
-            .set_facilitator(facilitator.inner.clone());
+        self.inner.set_facilitator(facilitator.inner.clone());
     }
 
     /// Set the MIME type advertised to clients.

@@ -138,18 +138,18 @@ pub async fn start_server(state: AppState) {
         let tracer = provider.tracer("tiders-x402");
         let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
 
-        tracing_subscriber::registry()
+        let _ = tracing_subscriber::registry()
             .with(env_filter)
             .with(fmt_layer)
             .with(otel_layer)
-            .init();
+            .try_init();
 
         tracing::info!("OTLP tracing exporter enabled");
     } else {
-        tracing_subscriber::registry()
+        let _ = tracing_subscriber::registry()
             .with(env_filter)
             .with(fmt_layer)
-            .init();
+            .try_init();
     };
 
     let bind_addr = state.server_bind_address.clone();

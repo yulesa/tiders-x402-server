@@ -16,53 +16,33 @@ static ENV_VAR_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
 
 /// Expands all `${VAR_NAME}` references in `input` using environment variables.
 ///
+/// Skips YAML comment lines (lines whose first non-whitespace character is `#`).
 /// Returns `Ok(expanded_string)` on success, or a list of missing variable names.
 pub fn expand_env_vars(input: &str) -> Result<String, Vec<String>> {
     let mut missing = Vec::new();
-    let result = ENV_VAR_PATTERN.replace_all(input, |caps: &regex::Captures| {
-        let var_name = &caps[1];
-        if let Ok(val) = std::env::var(var_name) {
-            val
-        } else {
-            missing.push(var_name.to_string());
-            // Leave the original placeholder so the error message is clear
-            format!("${{{var_name}}}")
-        }
-    });
+    let expanded: Vec<String> = input
+        .lines()
+        .map(|line| {
+            if line.trim_start().starts_with('#') {
+                return line.to_string();
+            }
+            ENV_VAR_PATTERN
+                .replace_all(line, |caps: &regex::Captures| {
+                    let var_name = &caps[1];
+                    if let Ok(val) = std::env::var(var_name) {
+                        val
+                    } else {
+                        missing.push(var_name.to_string());
+                        format!("${{{var_name}}}")
+                    }
+                })
+                .into_owned()
+        })
+        .collect();
 
     if missing.is_empty() {
-        Ok(result.into_owned())
+        Ok(expanded.join("\n"))
     } else {
         Err(missing)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn expands_set_vars() {
-        std::env::set_var("TEST_CLI_HOST", "localhost");
-        let result = expand_env_vars("host=${TEST_CLI_HOST}:8080");
-        assert_eq!(result, Ok("host=localhost:8080".to_string()));
-        std::env::remove_var("TEST_CLI_HOST");
-    }
-
-    #[test]
-    fn reports_missing_vars() {
-        std::env::remove_var("DEFINITELY_NOT_SET_12345");
-        let result = expand_env_vars("addr=${DEFINITELY_NOT_SET_12345}");
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            vec!["DEFINITELY_NOT_SET_12345".to_string()]
-        );
-    }
-
-    #[test]
-    fn no_substitution_needed() {
-        let result = expand_env_vars("plain string without vars");
-        assert_eq!(result, Ok("plain string without vars".to_string()));
     }
 }

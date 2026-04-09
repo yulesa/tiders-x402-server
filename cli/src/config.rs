@@ -72,8 +72,6 @@ pub struct DuckDbConfig {
 pub struct PostgresqlConfig {
     /// PostgreSQL connection string (e.g., "host=localhost port=5432 user=postgres ...").
     pub connection_string: String,
-    /// Maximum number of connections in the pool (default: 16).
-    pub max_pool_size: Option<usize>,
 }
 
 /// ClickHouse-specific configuration.

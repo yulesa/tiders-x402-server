@@ -217,8 +217,8 @@ fn validate_price_tag(
         }
     };
 
-    // Validate pay_to looks like an Ethereum address
-    if !pay_to.starts_with("0x") || pay_to.len() != 42 {
+    // Validate pay_to is a valid Ethereum address
+    if pay_to.parse::<alloy::primitives::Address>().is_err() {
         errors.push(ValidationError {
             message: format!("{prefix}.pay_to: \"{pay_to}\" is not a valid Ethereum address."),
             hint: Some("Use a checksummed 0x-prefixed address (42 characters).".into()),
