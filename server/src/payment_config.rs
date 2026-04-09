@@ -36,14 +36,14 @@ pub struct GlobalPaymentConfig {
 impl GlobalPaymentConfig {
     /// Creates a configuration with all fields specified. Optional fields fall back to sensible defaults.
     pub fn new(
-        facilitator: Arc<FacilitatorClient>,
+        facilitator: impl Into<Arc<FacilitatorClient>>,
         mime_type: Option<String>,
         max_timeout_seconds: Option<u64>,
         default_description: Option<String>,
         offers_tables: Option<HashMap<String, TablePaymentOffers>>,
     ) -> Self {
         Self {
-            facilitator,
+            facilitator: facilitator.into(),
             mime_type: mime_type
                 .unwrap_or_else(|| "application/vnd.apache.arrow.stream".to_string()),
             max_timeout_seconds: max_timeout_seconds.unwrap_or(300),
@@ -54,13 +54,13 @@ impl GlobalPaymentConfig {
     }
 
     /// Creates a configuration with sensible defaults (Arrow IPC mime type, 300s timeout).
-    pub fn default(facilitator: Arc<FacilitatorClient>) -> Self {
+    pub fn default(facilitator: impl Into<Arc<FacilitatorClient>>) -> Self {
         Self::new(facilitator, None, None, None, None)
     }
 
     /// Sets the facilitator client.
-    pub fn set_facilitator(&mut self, facilitator: Arc<FacilitatorClient>) {
-        self.facilitator = facilitator;
+    pub fn set_facilitator(&mut self, facilitator: impl Into<Arc<FacilitatorClient>>) {
+        self.facilitator = facilitator.into();
     }
 
     /// Sets the MIME type advertised to clients.

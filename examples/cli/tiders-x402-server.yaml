@@ -1,0 +1,67 @@
+# Example tiders-x402-server configuration.
+#
+# Run with:
+#   tiders-x402-server --config config.yaml
+#
+# Environment variables can be referenced with ${VAR_NAME} syntax.
+# Set them in your shell or a .env file before starting the server.
+
+server:
+  bind_address: "0.0.0.0:4021"
+  base_url: "http://localhost:4021"
+
+facilitator:
+  url: "https://facilitator.x402.rs"
+  # timeout: 30          # optional, request timeout in seconds
+  # headers:             # optional custom headers
+  #   X-Api-Key: "${FACILITATOR_API_KEY}"
+
+database:
+  # Exactly one database backend must be specified.
+
+  duckdb:
+    path: "./data/duckdb.db"
+
+  # postgresql:
+  #   connection_string: "host=${PG_HOST} port=5432 user=${PG_USER} password=${PG_PASSWORD} dbname=tiders"
+  #   max_pool_size: 16
+
+  # clickhouse:
+  #   url: "http://${CH_HOST}:8123"
+  #   user: "${CH_USER}"
+  #   password: "${CH_PASSWORD}"
+  #   database: "default"
+  #   compression: "lz4"   # "none" or "lz4"
+
+payment:
+  max_timeout_seconds: 300
+  default_description: "Query execution payment"
+
+tables:
+  - name: uniswap_v3_pool_swap
+    description: "Uniswap V3 pool swaps"
+    price_tags:
+      # Per-row pricing: 0.002 USDC per row (default tier)
+      - type: per_row
+        pay_to: "0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7"
+        token: usdc/base_sepolia
+        amount_per_item: "0.002"
+        is_default: true
+
+      # Per-row pricing: 0.001 USDC per row for bulk queries (100+ rows)
+      - type: per_row
+        pay_to: "0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7"
+        token: usdc/base_sepolia
+        amount_per_item: "0.001"
+        min_items: 100
+
+      # Fixed pricing: 1.00 USDC flat fee
+      - type: fixed
+        pay_to: "0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7"
+        token: usdc/base_sepolia
+        amount: "1.00"
+        description: "Fixed price query"
+
+  # Example: a free table (no price_tags = no payment required)
+  # - name: public_stats
+  #   description: "Public statistics, no payment required"

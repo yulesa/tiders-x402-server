@@ -70,7 +70,8 @@ pub struct AppState {
     /// Database backend (DuckDB, Postgres, ClickHouse, etc.) behind a trait object.
     pub db: Arc<dyn Database>,
     /// Global payment configuration: offer's tables, pricing rules, and facilitator settings.
-    pub payment_config: Arc<GlobalPaymentConfig>,
+    /// Wrapped in `RwLock` to support hot-reloading the configuration at runtime.
+    pub payment_config: Arc<tokio::sync::RwLock<Arc<GlobalPaymentConfig>>>,
     /// The server's public URL, used for building resource URLs in payment requirements
     /// (e.g. "https://api.tiders.com"). This is the URL the x402 facilitator uses
     /// for payment verification callbacks.
@@ -79,13 +80,34 @@ pub struct AppState {
     pub server_bind_address: String,
 }
 
+impl AppState {
+    /// Creates a new `AppState`.
+    ///
+    /// Accepts either a concrete `impl Database` or a pre-wrapped
+    /// `Arc<dyn Database>` — all other wrapping is handled internally.
+    pub fn new(
+        db: impl Into<Arc<dyn Database>>,
+        payment_config: GlobalPaymentConfig,
+        server_base_url: Url,
+        server_bind_address: String,
+    ) -> Self {
+        Self {
+            db: db.into(),
+            payment_config: Arc::new(tokio::sync::RwLock::new(Arc::new(payment_config))),
+            server_base_url,
+            server_bind_address,
+        }
+    }
+}
+
 /// Starts the Axum HTTP server and blocks until a shutdown signal is received.
 ///
 /// # Arguments
-/// * `state` — Shared application state (wrapped in `Arc` so it can be safely shared
-///   across all request-handling tasks). Axum clones this `Arc` for each incoming
-///   request and passes it to the handler. The server binds to `state.server_bind_address`.
-pub async fn start_server(state: Arc<AppState>) {
+/// * `state` — Application state. Wrapped in `Arc` internally so it can be
+///   safely shared across all request-handling tasks. The server binds to
+///   `state.server_bind_address`.
+pub async fn start_server(state: AppState) {
+    let state = Arc::new(state);
     // Load environment variables from a `.env` file if one exists.
     dotenv().ok();
 

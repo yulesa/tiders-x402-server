@@ -8,24 +8,21 @@ use x402_chain_eip155::chain::ChecksummedAddress;
 use x402_chain_eip155::KnownNetworkEip155;
 use x402_types::networks::USDC;
 use std::str::FromStr;
-use std::sync::Arc;
 use url::Url;
 
 use tiders_x402_server::facilitator_client::FacilitatorClient;
 use tiders_x402_server::payment_config::GlobalPaymentConfig;
 use tiders_x402_server::price::{PriceTag, PricingModel, TablePaymentOffers, TokenAmount};
-use tiders_x402_server::{AppState, Database, start_server};
+use tiders_x402_server::{start_server, AppState, Database};
 
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
 
     // Initialize facilitator client
-    let facilitator = Arc::new(
-        FacilitatorClient::try_from("https://facilitator.x402.rs")
+    let facilitator = FacilitatorClient::try_from("https://facilitator.x402.rs")
         // FacilitatorClient::try_from("http://localhost:4022")
-            .expect("Failed to create facilitator client")
-    );
+        .expect("Failed to create facilitator client");
 
     // Initialize payment configuration
     let server_base_url = Url::parse("http://localhost:4021").expect("Failed to parse server base URL");
@@ -185,12 +182,12 @@ async fn main() {
     let swaps_offer = swaps_offer.add_payment_offer(swap_price_tag_2);
     global_payment_config.add_offers_table(swaps_offer);
 
-    let state = Arc::new(AppState {
-        db: Arc::new(db),
-        payment_config: Arc::new(global_payment_config),
+    let state = AppState::new(
+        db,
+        global_payment_config,
         server_base_url,
         server_bind_address,
-    });
+    );
 
     start_server(state).await;
 }

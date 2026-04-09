@@ -20,6 +20,8 @@ use std::sync::Arc;
 #[axum::debug_handler]
 #[allow(dead_code)]
 pub async fn root_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let payment_config = state.payment_config.read().await.clone();
+
     let mut response = String::new();
     writeln!(response, "Welcome to the Tiders-x402 API!\n").unwrap();
     writeln!(response, "Usage:").unwrap();
@@ -39,7 +41,7 @@ pub async fn root_handler(State(state): State<Arc<AppState>>) -> impl IntoRespon
     )
     .unwrap();
     writeln!(response, "Supported tables:").unwrap();
-    for (table, offer) in &state.payment_config.offers_tables {
+    for (table, offer) in &payment_config.offers_tables {
         writeln!(response, "- Table: {}", table).unwrap();
         if let Some(schema) = &offer.schema {
             writeln!(response, "  Schema:").unwrap();

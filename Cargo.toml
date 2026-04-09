@@ -2,7 +2,8 @@
 resolver = "2"
 members = [
   "server",
-  "python"
+  "python",
+  "cli"
 ]
 exclude = ["examples/rust"]
 

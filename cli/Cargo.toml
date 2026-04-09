@@ -1,0 +1,35 @@
+[package]
+name = "tiders-x402-cli"
+version = "0.1.0"
+edition = "2024"
+description = "CLI for tiders-x402-server: run a payment-enabled database API server from a YAML config file."
+homepage = "https://github.com/yulesa/tiders-x402-server"
+repository = "https://github.com/yulesa/tiders-x402-server"
+authors = ["Yulesa <yulesa@gmail.com>"]
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "tiders-x402-server"
+path = "src/main.rs"
+
+[dependencies]
+tiders-x402-server = { path = "../server", features = ["duckdb", "postgresql", "clickhouse"] }
+clap = { version = "4", features = ["derive"] }
+serde = { workspace = true }
+serde_yaml = "0.9"
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+url = { workspace = true }
+notify = { version = "7", features = ["macos_kqueue"] }
+x402-types = { workspace = true }
+x402-chain-eip155 = { workspace = true }
+alloy = { workspace = true }
+arrow = { workspace = true }
+http = { workspace = true }
+dotenvy = { workspace = true }
+regex = "1"
+
+[lints]
+workspace = true

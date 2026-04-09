@@ -519,10 +519,9 @@ impl PyGlobalPaymentConfig {
         max_timeout_seconds: Option<u64>,
         default_description: Option<String>,
     ) -> PyResult<Self> {
-        let facilitator = std::sync::Arc::new(facilitator.inner.clone());
         Ok(Self {
             inner: GlobalPaymentConfig::new(
-                facilitator,
+                facilitator.inner.clone(),
                 mime_type,
                 max_timeout_seconds,
                 default_description,
@@ -559,7 +558,7 @@ impl PyGlobalPaymentConfig {
     ///     facilitator (FacilitatorClient): The new facilitator client.
     fn set_facilitator(&mut self, facilitator: &PyFacilitatorClient) {
         self.inner
-            .set_facilitator(Arc::new(facilitator.inner.clone()));
+            .set_facilitator(facilitator.inner.clone());
     }
 
     /// Set the MIME type advertised to clients.
@@ -873,34 +872,34 @@ impl PyAppState {
         #[cfg(feature = "duckdb")]
         if let Ok(db) = database.extract::<PyRef<PyDuckDbDatabase>>() {
             return Ok(Self {
-                inner: AppState {
-                    db: db.inner.clone(),
-                    payment_config: Arc::new(payment_config.inner.clone()),
-                    server_base_url: server_base_url.clone(),
-                    server_bind_address: server_bind_address.clone(),
-                },
+                inner: AppState::new(
+                    db.inner.clone(),
+                    payment_config.inner.clone(),
+                    server_base_url.clone(),
+                    server_bind_address.clone(),
+                ),
             });
         }
         #[cfg(feature = "postgresql")]
         if let Ok(db) = database.extract::<PyRef<PyPostgresqlDatabase>>() {
             return Ok(Self {
-                inner: AppState {
-                    db: db.inner.clone(),
-                    payment_config: Arc::new(payment_config.inner.clone()),
-                    server_base_url: server_base_url.clone(),
-                    server_bind_address: server_bind_address.clone(),
-                },
+                inner: AppState::new(
+                    db.inner.clone(),
+                    payment_config.inner.clone(),
+                    server_base_url.clone(),
+                    server_bind_address.clone(),
+                ),
             });
         }
         #[cfg(feature = "clickhouse")]
         if let Ok(db) = database.extract::<PyRef<PyClickHouseDatabase>>() {
             return Ok(Self {
-                inner: AppState {
-                    db: db.inner.clone(),
-                    payment_config: Arc::new(payment_config.inner.clone()),
-                    server_base_url: server_base_url.clone(),
-                    server_bind_address: server_bind_address.clone(),
-                },
+                inner: AppState::new(
+                    db.inner.clone(),
+                    payment_config.inner.clone(),
+                    server_base_url,
+                    server_bind_address,
+                ),
             });
         }
 
@@ -916,7 +915,7 @@ impl PyAppState {
 ///     state (AppState): Application state with database and payment config.
 #[pyfunction]
 fn start_server_py(state: &PyAppState) -> PyResult<()> {
-    let state = Arc::new(state.inner.clone());
+    let state = state.inner.clone();
     let rt = Runtime::new()
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
     rt.block_on(async {
