@@ -61,6 +61,13 @@ tables:
         token: usdc/base_sepolia
         amount: "1.00"
         description: "Fixed price query"
+        
+      # fetching GET /table/:name metadata price. 
+      - type: metadata_price
+        pay_to: "0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7"
+        token: usdc/base_sepolia
+        amount: "1.00"
+        description: "Fixed price query"
 
   # Example: a free table (no price_tags = no payment required)
   # - name: blocks
