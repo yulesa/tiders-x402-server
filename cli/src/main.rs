@@ -11,7 +11,7 @@ mod loader;
 mod validate;
 mod watcher;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::Parser;
@@ -98,7 +98,7 @@ fn main() -> ExitCode {
 /// Returns the path if exactly one candidate is found, or an error otherwise.
 fn discover_config() -> anyhow::Result<PathBuf> {
     let candidates: Vec<PathBuf> = std::fs::read_dir(".")?
-        .filter_map(|entry| entry.ok())
+        .filter_map(std::result::Result::ok)
         .map(|e| e.path())
         .filter(|p| matches!(p.extension().and_then(|e| e.to_str()), Some("yaml" | "yml")))
         .filter(|p| {
@@ -114,7 +114,7 @@ fn discover_config() -> anyhow::Result<PathBuf> {
             };
             ["server", "facilitator", "database"]
                 .iter()
-                .all(|key| map.contains_key(&serde_yaml::Value::String((*key).to_string())))
+                .all(|key| map.contains_key(serde_yaml::Value::String((*key).to_string())))
         })
         .collect();
 
@@ -125,7 +125,9 @@ fn discover_config() -> anyhow::Result<PathBuf> {
              tiders-x402-server start path/to/config.yaml"
         ),
         1 => {
-            let path = candidates.into_iter().next().unwrap();
+            let Some(path) = candidates.into_iter().next() else {
+                unreachable!("length checked above");
+            };
             tracing::info!("Auto-discovered config: {}", path.display());
             Ok(path)
         }
@@ -176,7 +178,7 @@ fn run_validate(config: &config::Config) -> ExitCode {
     })
 }
 
-fn run_server(config_path: &PathBuf, no_watch: bool, config: &config::Config) -> ExitCode {
+fn run_server(config_path: &Path, no_watch: bool, config: &config::Config) -> ExitCode {
     let rt = match tokio::runtime::Runtime::new() {
         Ok(rt) => rt,
         Err(e) => {
@@ -205,7 +207,7 @@ fn run_server(config_path: &PathBuf, no_watch: bool, config: &config::Config) ->
                     tracing::warn!(
                         "Could not resolve config path for watcher: {e}. Hot reload disabled."
                     );
-                    config_path.clone()
+                    config_path.to_path_buf()
                 }
             };
 
@@ -213,7 +215,7 @@ fn run_server(config_path: &PathBuf, no_watch: bool, config: &config::Config) ->
             let db_handle = state.db.clone();
 
             match watcher::start_watcher(
-                config_path,
+                &config_path,
                 config,
                 payment_config_handle,
                 db_handle,

@@ -224,7 +224,10 @@ fn validate_price_tag(
     };
 
     // Validate pay_to is a valid Ethereum address
-    if pay_to.parse::<x402_chain_eip155::chain::ChecksummedAddress>().is_err() {
+    if pay_to
+        .parse::<x402_chain_eip155::chain::ChecksummedAddress>()
+        .is_err()
+    {
         errors.push(ValidationError {
             message: format!("{prefix}.pay_to: \"{pay_to}\" is not a valid Ethereum address."),
             hint: Some("Use a checksummed 0x-prefixed address (42 characters).".into()),

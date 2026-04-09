@@ -31,7 +31,6 @@ pub mod payment_processing;
 pub mod price;
 pub mod query_handler;
 pub mod root_handler;
-pub mod table_detail_handler;
 #[cfg(feature = "clickhouse")]
 pub mod sql_clickhouse;
 #[cfg(feature = "duckdb")]
@@ -40,6 +39,7 @@ pub mod sql_duckdb;
 pub mod sql_postgresql;
 pub mod sql_shared;
 pub mod sqp_parser;
+pub mod table_detail_handler;
 
 use std::sync::Arc;
 

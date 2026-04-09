@@ -161,10 +161,7 @@ impl GlobalPaymentConfig {
     }
 
     /// Returns payment requirements for metadata access on a table.
-    pub fn get_metadata_payment_requirements(
-        &self,
-        table_name: &str,
-    ) -> Vec<PaymentRequirements> {
+    pub fn get_metadata_payment_requirements(&self, table_name: &str) -> Vec<PaymentRequirements> {
         let Some(offers_table) = self.get_offers_table(table_name) else {
             return Vec::new();
         };

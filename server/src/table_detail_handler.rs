@@ -7,11 +7,11 @@
 use crate::AppState;
 use crate::payment_config::GlobalPaymentConfig;
 use crate::payment_processing::{settle_payment, verify_payment};
+use axum::Json;
 use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::IntoResponse;
-use axum::Json;
 use std::sync::Arc;
 use tracing::instrument;
 use x402_types::proto::v2::{PaymentPayload, PaymentRequirements, VerifyResponse};
@@ -113,9 +113,8 @@ fn decode_payment_payload(
     let decoded = base64.decode().map_err(|e| {
         TableDetailError::BadRequest(format!("Failed to decode payment header: {e}"))
     })?;
-    serde_json::from_slice(&decoded).map_err(|e| {
-        TableDetailError::BadRequest(format!("Failed to parse payment payload: {e}"))
-    })
+    serde_json::from_slice(&decoded)
+        .map_err(|e| TableDetailError::BadRequest(format!("Failed to parse payment payload: {e}")))
 }
 
 #[derive(Debug)]

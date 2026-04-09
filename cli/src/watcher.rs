@@ -4,7 +4,7 @@
 //! configuration when hot-reloadable fields change. Logs warnings for
 //! fields that require a server restart.
 
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -26,7 +26,7 @@ pub type SharedPaymentConfig = Arc<RwLock<Arc<GlobalPaymentConfig>>>;
 /// Fields that require a restart (server bind address, database, facilitator)
 /// are detected and logged as warnings — they are not applied until restart.
 pub fn start_watcher(
-    config_path: PathBuf,
+    config_path: &Path,
     original_config: &Config,
     payment_config: SharedPaymentConfig,
     db: Arc<dyn Database>,
@@ -59,7 +59,7 @@ pub fn start_watcher(
         .unwrap_or_else(|| std::path::Path::new("."));
     watcher.watch(watch_dir, RecursiveMode::NonRecursive)?;
 
-    let config_path_clone = config_path.clone();
+    let config_path_clone = config_path.to_path_buf();
 
     // Spawn the reload loop
     tokio::spawn(async move {
