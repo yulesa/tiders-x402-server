@@ -31,9 +31,8 @@ sqlparser = { workspace = true }
 http = { workspace = true }
 reqwest = { workspace = true }
 thiserror = { workspace = true }
-alloy = { workspace = true }
+alloy-primitives = { workspace = true }
 pyo3 = { workspace = true, features = ["anyhow"], optional = true }
-faster-hex = { workspace = true }
 async-trait = { workspace = true }
 tokio-postgres = { workspace = true, optional = true }
 deadpool-postgres = { workspace = true, optional = true }

@@ -5,7 +5,7 @@
 //! (`TablePaymentOffers`). Used by [`crate::payment_config`] to
 //! generate x402 payment requirements.
 
-use alloy::primitives::U256;
+use alloy_primitives::U256;
 use arrow::datatypes::Schema;
 use std::fmt::Debug;
 use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};

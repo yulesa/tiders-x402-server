@@ -33,7 +33,7 @@ use ::tiders_x402_server::{
     AppState, FacilitatorClient, GlobalPaymentConfig, PriceTag, PricingModel, TablePaymentOffers,
     start_server,
 };
-use alloy::primitives::U256;
+use alloy_primitives::U256;
 use arrow::pyarrow::FromPyArrow;
 #[cfg(any(feature = "duckdb", feature = "postgresql", feature = "clickhouse"))]
 use arrow::pyarrow::ToPyArrow;
