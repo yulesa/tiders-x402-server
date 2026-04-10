@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - v*
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -137,11 +138,14 @@ jobs:
             target: aarch64
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
       - name: Build CLI wheel
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --zig
+          args: --release --out dist --interpreter python3.12 --zig
           working-directory: cli-python
           manylinux: auto
       - name: Upload CLI wheel
@@ -162,11 +166,14 @@ jobs:
             target: x86_64
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
       - name: Build CLI wheel
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist
+          args: --release --out dist --interpreter python3.12
           working-directory: cli-python
       - name: Upload CLI wheel
         uses: actions/upload-artifact@v5
@@ -183,11 +190,14 @@ jobs:
           - target: x86_64
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
       - name: Build CLI wheel
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist
+          args: --release --out dist --interpreter python3.12
           working-directory: cli-python
       - name: Upload CLI wheel
         uses: actions/upload-artifact@v5
