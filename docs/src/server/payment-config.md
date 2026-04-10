@@ -73,8 +73,6 @@ config = GlobalPaymentConfig(
 | Set default description | `config.set_default_description("...".to_string())` | `config.set_default_description("...")` |
 | Add table offers | `config.add_offers_table(offer)` | `config.add_offers_table(offer)` |
 
-See the [Configuration Reference](./configuration.md#globalpaymentconfig) for the full API.
-
 ## What It Does
 
 The module answers four questions for the query handler:

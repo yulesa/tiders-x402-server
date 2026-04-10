@@ -33,7 +33,7 @@ use ::tiders_x402_server::{
     AppState, FacilitatorClient, GlobalPaymentConfig, PriceTag, PricingModel, TablePaymentOffers,
     start_server,
 };
-use alloy::primitives::U256;
+use alloy_primitives::U256;
 use arrow::pyarrow::FromPyArrow;
 #[cfg(any(feature = "duckdb", feature = "postgresql", feature = "clickhouse"))]
 use arrow::pyarrow::ToPyArrow;
@@ -192,6 +192,48 @@ impl PyPriceTag {
             inner: PriceTag {
                 pay_to,
                 pricing: PricingModel::Fixed { amount },
+                token: token_deployment.clone(),
+                description,
+                is_default,
+            },
+        })
+    }
+
+    /// Create a metadata-price PriceTag that charges a flat fee for accessing
+    /// table metadata via the `GET /table/:name` endpoint.
+    ///
+    /// Without a metadata price tag, the metadata endpoint returns data freely.
+    /// Charging for metadata access can help prevent API abuse.
+    ///
+    /// Args:
+    ///     pay_to (str): EVM address to pay to.
+    ///     amount (Union[str, int]): Flat fee for metadata access. If a string (e.g., "1.00") it is interpreted as a human-readable amount and converted using the token's decimals. If an integer it is the amount in the token's smallest unit.
+    ///     token (USDC): Token with decimals and EIP712 information, currently only USDC is supported.
+    ///     description (Optional[str]): Description of the offer (optional).
+    ///     is_default (bool): Whether this is the default offer.
+    ///
+    /// Returns:
+    ///     PriceTag: A new metadata-price PriceTag object.
+    #[staticmethod]
+    #[pyo3(signature = (pay_to, amount, token, description=None, is_default=false))]
+    fn metadata_price(
+        pay_to: &str,
+        amount: Py<PyAny>,
+        token: &PyUSDC,
+        description: Option<String>,
+        is_default: bool,
+        py: Python,
+    ) -> PyResult<Self> {
+        let pay_to = ChecksummedAddress::from_str(pay_to)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+
+        let token_deployment = &token.inner;
+        let amount = parse_token_amount(&amount, token_deployment, "amount", py)?;
+
+        Ok(Self {
+            inner: PriceTag {
+                pay_to,
+                pricing: PricingModel::MetadataPrice { amount },
                 token: token_deployment.clone(),
                 description,
                 is_default,
@@ -519,10 +561,9 @@ impl PyGlobalPaymentConfig {
         max_timeout_seconds: Option<u64>,
         default_description: Option<String>,
     ) -> PyResult<Self> {
-        let facilitator = std::sync::Arc::new(facilitator.inner.clone());
         Ok(Self {
             inner: GlobalPaymentConfig::new(
-                facilitator,
+                facilitator.inner.clone(),
                 mime_type,
                 max_timeout_seconds,
                 default_description,
@@ -558,8 +599,7 @@ impl PyGlobalPaymentConfig {
     /// Args:
     ///     facilitator (FacilitatorClient): The new facilitator client.
     fn set_facilitator(&mut self, facilitator: &PyFacilitatorClient) {
-        self.inner
-            .set_facilitator(Arc::new(facilitator.inner.clone()));
+        self.inner.set_facilitator(facilitator.inner.clone());
     }
 
     /// Set the MIME type advertised to clients.
@@ -873,34 +913,34 @@ impl PyAppState {
         #[cfg(feature = "duckdb")]
         if let Ok(db) = database.extract::<PyRef<PyDuckDbDatabase>>() {
             return Ok(Self {
-                inner: AppState {
-                    db: db.inner.clone(),
-                    payment_config: Arc::new(payment_config.inner.clone()),
-                    server_base_url: server_base_url.clone(),
-                    server_bind_address: server_bind_address.clone(),
-                },
+                inner: AppState::new(
+                    db.inner.clone(),
+                    payment_config.inner.clone(),
+                    server_base_url.clone(),
+                    server_bind_address.clone(),
+                ),
             });
         }
         #[cfg(feature = "postgresql")]
         if let Ok(db) = database.extract::<PyRef<PyPostgresqlDatabase>>() {
             return Ok(Self {
-                inner: AppState {
-                    db: db.inner.clone(),
-                    payment_config: Arc::new(payment_config.inner.clone()),
-                    server_base_url: server_base_url.clone(),
-                    server_bind_address: server_bind_address.clone(),
-                },
+                inner: AppState::new(
+                    db.inner.clone(),
+                    payment_config.inner.clone(),
+                    server_base_url.clone(),
+                    server_bind_address.clone(),
+                ),
             });
         }
         #[cfg(feature = "clickhouse")]
         if let Ok(db) = database.extract::<PyRef<PyClickHouseDatabase>>() {
             return Ok(Self {
-                inner: AppState {
-                    db: db.inner.clone(),
-                    payment_config: Arc::new(payment_config.inner.clone()),
-                    server_base_url: server_base_url.clone(),
-                    server_bind_address: server_bind_address.clone(),
-                },
+                inner: AppState::new(
+                    db.inner.clone(),
+                    payment_config.inner.clone(),
+                    server_base_url,
+                    server_bind_address,
+                ),
             });
         }
 
@@ -916,7 +956,7 @@ impl PyAppState {
 ///     state (AppState): Application state with database and payment config.
 #[pyfunction]
 fn start_server_py(state: &PyAppState) -> PyResult<()> {
-    let state = Arc::new(state.inner.clone());
+    let state = state.inner.clone();
     let rt = Runtime::new()
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
     rt.block_on(async {

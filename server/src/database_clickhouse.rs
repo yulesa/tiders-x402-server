@@ -165,7 +165,10 @@ impl Database for ClickHouseDatabase {
     }
 
     async fn get_table_schema(&self, table_name: &str) -> Result<Schema> {
-        let query_str = format!("SELECT name, type FROM system.columns WHERE table = '{}' AND database = currentDatabase()", table_name);
+        let query_str = format!(
+            "SELECT name, type FROM system.columns WHERE table = '{}' AND database = currentDatabase()",
+            table_name
+        );
 
         let rows = self
             .client

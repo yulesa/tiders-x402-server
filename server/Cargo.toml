@@ -1,12 +1,17 @@
 [package]
 name = "tiders-x402-server"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "Payment-enabled database API server that connects different databases with the x402 payment protocol to create a pay-per-query data marketplace."
 homepage = "https://github.com/yulesa/tiders-x402-server"
 repository = "https://github.com/yulesa/tiders-x402-server"
+documentation = "https://yulesa.github.io/tiders-x402-server/"
+readme = "README.md"
 authors = ["Yulesa <yulesa@gmail.com>"]
 license = "MIT OR Apache-2.0"
+keywords = ["x402", "payments", "api", "database", "arrow"]
+categories = ["database", "web-programming::http-server", "api-bindings"]
+rust-version = "1.85"
 
 [dependencies]
 x402-types = { workspace = true }
@@ -25,24 +30,39 @@ tracing-opentelemetry = { workspace = true }
 url = { workspace = true }
 duckdb = { workspace = true, features = ["bundled"], optional = true }
 arrow = { workspace = true }
+arrow-schema = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 anyhow = { workspace = true }
 sqlparser = { workspace = true }
 http = { workspace = true }
 reqwest = { workspace = true }
 thiserror = { workspace = true }
-alloy = { workspace = true }
+alloy-primitives = { workspace = true }
 pyo3 = { workspace = true, features = ["anyhow"], optional = true }
-faster-hex = { workspace = true }
 async-trait = { workspace = true }
 tokio-postgres = { workspace = true, optional = true }
 deadpool-postgres = { workspace = true, optional = true }
 postgres-types = { workspace = true, optional = true }
 bytes = { workspace = true, optional = true }
 clickhouse = { workspace = true, optional = true }
+clap = { version = "4", features = ["derive"], optional = true }
+serde_yaml = { version = "0.9", optional = true }
+notify = { version = "7", features = ["macos_kqueue"], optional = true }
+regex = { version = "1", optional = true }
+
+[[bin]]
+name = "tiders-x402-server"
+path = "src/bin/tiders-x402-server.rs"
+required-features = ["cli"]
 
 [features]
+default = ["cli", "duckdb", "postgresql", "clickhouse"]
+cli = ["dep:clap", "dep:serde_yaml", "dep:notify", "dep:regex"]
 duckdb = ["dep:duckdb"]
 postgresql = ["dep:tokio-postgres", "dep:deadpool-postgres", "dep:postgres-types", "dep:bytes"]
 clickhouse = ["dep:clickhouse"]
 pyo3 = ["dep:pyo3"]
+
+[package.metadata.docs.rs]
+features = ["duckdb", "postgresql", "clickhouse"]
+rustdoc-args = ["--cfg", "docsrs"]

@@ -13,12 +13,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
       - name: Publish tiders-x402-server
-        run: cargo publish -p tiders-x402-server || true
+        run: |
+          set -o pipefail
+          if cargo publish -p tiders-x402-server 2>&1 | tee /tmp/publish-server.log; then
+            echo "Published tiders-x402-server"
+          elif grep -q "already exists on crates.io index\|already uploaded" /tmp/publish-server.log; then
+            echo "tiders-x402-server version already published, skipping"
+          else
+            exit 1
+          fi
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-  publish-python-linux:
+  publish-sdk-linux:
     runs-on: ${{ matrix.platform.runner }}
     needs: [publish-crates]
     strategy:
@@ -35,19 +44,19 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
-      - name: Build wheels
+      - name: Build SDK wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --interpreter python${{ matrix.python-version }} --zig --manifest-path ./python/Cargo.toml
           manylinux: auto
-      - name: Upload wheels
+      - name: Upload SDK wheels
         uses: actions/upload-artifact@v5
         with:
-          name: wheels-linux-${{ matrix.platform.target }}-python${{ matrix.python-version }}
+          name: sdk-wheels-linux-${{ matrix.platform.target }}-python${{ matrix.python-version }}
           path: dist
 
-  publish-python-macos:
+  publish-sdk-macos:
     runs-on: ${{ matrix.platform.runner }}
     needs: [publish-crates]
     strategy:
@@ -64,18 +73,18 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
-      - name: Build wheels
+      - name: Build SDK wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --interpreter python${{ matrix.python-version }} --manifest-path ./python/Cargo.toml
-      - name: Upload wheels
+      - name: Upload SDK wheels
         uses: actions/upload-artifact@v5
         with:
-          name: wheels-macos-${{ matrix.platform.target }}-python${{ matrix.python-version }}
+          name: sdk-wheels-macos-${{ matrix.platform.target }}-python${{ matrix.python-version }}
           path: dist
 
-  publish-python-windows:
+  publish-sdk-windows:
     runs-on: windows-latest
     needs: [publish-crates]
     strategy:
@@ -89,41 +98,129 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
-      - name: Build wheels
+      - name: Build SDK wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --interpreter python${{ matrix.python-version }} --manifest-path ./python/Cargo.toml
-      - name: Upload wheels
+      - name: Upload SDK wheels
         uses: actions/upload-artifact@v5
         with:
-          name: wheels-windows-${{ matrix.platform.target }}-python${{ matrix.python-version }}
+          name: sdk-wheels-windows-${{ matrix.platform.target }}-python${{ matrix.python-version }}
           path: dist
 
-  publish-python-sdist:
+  publish-sdk-sdist:
     runs-on: ubuntu-latest
     needs: [publish-crates]
     steps:
       - uses: actions/checkout@v5
-      - name: Build sdist
+      - name: Build SDK sdist
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
           args: --out dist --manifest-path ./python/Cargo.toml
-      - name: Upload sdist
+      - name: Upload SDK sdist
         uses: actions/upload-artifact@v5
         with:
-          name: wheels-sdist
+          name: sdk-wheels-sdist
           path: dist
 
-  upload-pypi:
+  publish-cli-linux:
+    runs-on: ${{ matrix.platform.runner }}
+    needs: [publish-crates]
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64
+          - runner: ubuntu-latest
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build CLI wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --zig
+          working-directory: cli-python
+          manylinux: auto
+      - name: Upload CLI wheel
+        uses: actions/upload-artifact@v5
+        with:
+          name: cli-wheels-linux-${{ matrix.platform.target }}
+          path: cli-python/dist
+
+  publish-cli-macos:
+    runs-on: ${{ matrix.platform.runner }}
+    needs: [publish-crates]
+    strategy:
+      matrix:
+        platform:
+          - runner: macos-14
+            target: aarch64
+          - runner: macos-15
+            target: x86_64
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build CLI wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          working-directory: cli-python
+      - name: Upload CLI wheel
+        uses: actions/upload-artifact@v5
+        with:
+          name: cli-wheels-macos-${{ matrix.platform.target }}
+          path: cli-python/dist
+
+  publish-cli-windows:
+    runs-on: windows-latest
+    needs: [publish-crates]
+    strategy:
+      matrix:
+        platform:
+          - target: x86_64
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build CLI wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          working-directory: cli-python
+      - name: Upload CLI wheel
+        uses: actions/upload-artifact@v5
+        with:
+          name: cli-wheels-windows-${{ matrix.platform.target }}
+          path: cli-python/dist
+
+  upload-sdk-pypi:
+    name: Publish SDK to PyPI (tiders-x402-server-sdk)
     runs-on: ubuntu-latest
-    needs: [publish-python-linux, publish-python-macos, publish-python-windows, publish-python-sdist]
+    needs: [publish-sdk-linux, publish-sdk-macos, publish-sdk-windows, publish-sdk-sdist]
     steps:
       - uses: actions/download-artifact@v5
+        with:
+          pattern: sdk-wheels-*
       - name: Install maturin
         run: pip install maturin
-      - name: Publish to PyPI
-        run: maturin upload --skip-existing wheels-*/*
+      - name: Publish SDK to PyPI
+        run: maturin upload --skip-existing sdk-wheels-*/*
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+
+  upload-cli-pypi:
+    name: Publish CLI to PyPI (tiders-x402-server)
+    runs-on: ubuntu-latest
+    needs: [publish-cli-linux, publish-cli-macos, publish-cli-windows]
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: cli-wheels-*
+      - name: Install maturin
+        run: pip install maturin
+      - name: Publish CLI to PyPI
+        run: maturin upload --skip-existing cli-wheels-*/*
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}

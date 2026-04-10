@@ -5,17 +5,19 @@
 //! (`TablePaymentOffers`). Used by [`crate::payment_config`] to
 //! generate x402 payment requirements.
 
-use alloy::primitives::U256;
+use alloy_primitives::U256;
 use arrow::datatypes::Schema;
+use serde::{Serialize, Serializer};
 use std::fmt::Debug;
 use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 
 /// A token amount in the token's smallest unit (e.g., wei for ETH, 10^-6 for USDC).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct TokenAmount(pub U256);
 
 /// How the total price for a query is calculated.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(tag = "model")]
 pub enum PricingModel {
     /// Price scales linearly with the number of rows returned.
     PerRow {
@@ -33,6 +35,11 @@ pub enum PricingModel {
         /// The fixed amount charged for any query against this table.
         amount: TokenAmount,
     },
+    /// A flat fee for accessing table metadata (schema + payment offers).
+    MetadataPrice {
+        /// The fixed amount charged for metadata access.
+        amount: TokenAmount,
+    },
 }
 
 /// A single pricing tier for a table, describing who gets paid, how much,
@@ -41,13 +48,14 @@ pub enum PricingModel {
 /// A table can have multiple price tags (e.g., different tokens or tiers for
 /// small vs. large queries). The [`crate::payment_config`] module selects which
 /// ones apply for a given row count.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct PriceTag {
     /// Recipient wallet address.
     pub pay_to: ChecksummedAddress,
     /// The pricing model and its parameters.
     pub pricing: PricingModel,
     /// The ERC-20 token used for payment (chain, contract address, transfer method).
+    #[serde(serialize_with = "serialize_token_deployment")]
     pub token: Eip155TokenDeployment,
     /// Optional human-readable label for this tier.
     pub description: Option<String>,
@@ -60,7 +68,7 @@ impl PriceTag {
     /// Fixed-price tiers always return `true` (row count is irrelevant).
     pub fn is_in_range(&self, item_count: usize) -> bool {
         match &self.pricing {
-            PricingModel::Fixed { .. } => true,
+            PricingModel::Fixed { .. } | PricingModel::MetadataPrice { .. } => true,
             PricingModel::PerRow {
                 min_items,
                 max_items,
@@ -97,13 +105,20 @@ impl PriceTag {
                 let total = amount_per_item.0 * items_u256;
                 TokenAmount(total)
             }
-            PricingModel::Fixed { amount } => amount.clone(),
+            PricingModel::Fixed { amount } | PricingModel::MetadataPrice { amount } => {
+                amount.clone()
+            }
         }
     }
 
     /// Returns `true` if this price tag uses fixed pricing.
     pub fn is_fixed(&self) -> bool {
         matches!(self.pricing, PricingModel::Fixed { .. })
+    }
+
+    /// Returns `true` if this price tag is a metadata price.
+    pub fn is_metadata_price(&self) -> bool {
+        matches!(self.pricing, PricingModel::MetadataPrice { .. })
     }
 }
 
@@ -115,7 +130,7 @@ impl From<PriceTag> for Vec<PriceTag> {
 
 /// Groups the payment configuration for a single table: its pricing tiers,
 /// whether payment is required, and metadata shown to clients.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct TablePaymentOffers {
     /// The table this configuration applies to.
     pub table_name: String,
@@ -190,4 +205,30 @@ impl TablePaymentOffers {
     pub fn is_all_fixed_price(&self) -> bool {
         !self.price_tags.is_empty() && self.price_tags.iter().all(|tag| tag.is_fixed())
     }
+
+    /// Returns `true` if any price tag uses metadata pricing.
+    pub fn has_metadata_price(&self) -> bool {
+        self.price_tags.iter().any(|tag| tag.is_metadata_price())
+    }
+
+    /// Returns only the metadata price tags.
+    pub fn metadata_price_tags(&self) -> Vec<&PriceTag> {
+        self.price_tags
+            .iter()
+            .filter(|tag| tag.is_metadata_price())
+            .collect()
+    }
+}
+
+fn serialize_token_deployment<S: Serializer>(
+    token: &Eip155TokenDeployment,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    use serde::ser::SerializeMap;
+    let mut map = serializer.serialize_map(Some(4))?;
+    map.serialize_entry("chain", &format!("{}", token.chain_reference))?;
+    map.serialize_entry("address", &format!("{}", token.address))?;
+    map.serialize_entry("decimals", &token.decimals)?;
+    map.serialize_entry("transfer_method", &token.transfer_method)?;
+    map.end()
 }
