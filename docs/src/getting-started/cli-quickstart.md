@@ -84,7 +84,7 @@ By default, the CLI watches the config file for changes and hot-reloads payment 
 
 ## Next Steps
 
-- [CLI Overview](../cli/index.md) -- commands, auto-discovery, hot-reload, and logging
+- [CLI Overview](../cli/cli-overview.md) -- commands, auto-discovery, hot-reload, and logging
 - [YAML Configuration Reference](../cli/yaml-reference.md) -- all config sections and options
 - [API Endpoints](../api/endpoints.md) -- the HTTP API exposed by the server
 - [Payment Flow](./payment-flow.md) -- how the x402 payment protocol works

@@ -13,7 +13,7 @@ Data providers can expose DuckDB tables through a REST API where each query requ
 | **CLI** | Write a YAML config file, run `tiders-x402-server start` | Quick setup, no coding required, config-driven deployments |
 | **SDK Library** | Import in Rust or Python, configure programmatically | Custom logic, embedding in larger applications, maximum flexibility |
 
-See [CLI Quick Start](./getting-started/cli-quickstart.md) or [SDK Library Quick Start](./sdk-library/running.md) to get started.
+See [CLI Quick Start](./getting-started/cli-quickstart.md) or [SDK Library Overview](./sdk-library/sdk-building.md) to get started.
 
 ## Key Features
 

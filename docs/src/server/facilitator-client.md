@@ -67,8 +67,6 @@ print(facilitator.settle_url)
 print(facilitator.timeout_ms)  # returns int or None
 ```
 
-See the [Configuration Reference](./configuration.md#facilitatorclient) for the full API.
-
 ## Facilitator Trait
 
 The client implements the `x402_types::facilitator::Facilitator` trait, which defines the `verify`, `settle`, and `supported` methods. This allows it to be used interchangeably with other facilitator implementations (e.g., a local one for testing).
