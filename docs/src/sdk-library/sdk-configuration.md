@@ -1,6 +1,6 @@
 # Configuration Reference
 
-The server is configured programmatically -- there are no config files. You set up payment rules, database connections, and server parameters in code. All configuration objects provide both Rust functions and Python bindings.
+This page covers programmatic configuration via the Rust and Python SDKs. All configuration objects provide both Rust functions and Python bindings.
 
 ## AppState
 
@@ -9,7 +9,7 @@ The shared application state accessible by every request handler. Holds the data
 | Field | Type | Description |
 |-------|------|-------------|
 | `db` | `Arc<dyn Database>` | Database backend (DuckDB, Postgres, ClickHouse) |
-| `payment_config` | `Arc<GlobalPaymentConfig>` | Global payment configuration |
+| `payment_config` | `Arc<RwLock<Arc<GlobalPaymentConfig>>>` | Global payment configuration (wrapped in `RwLock` to support hot-reload) |
 | `server_base_url` | `Url` | Server's public URL, used for building resource URLs in payment requirements (e.g. `https://api.tiders.com`) |
 | `server_bind_address` | `String` | Address and port the server binds to (e.g. `0.0.0.0:4021`) |
 
@@ -17,12 +17,7 @@ The shared application state accessible by every request handler. Holds the data
 
 ```rust
 // Rust
-let state = AppState {
-    db: Arc::new(db),
-    payment_config: Arc::new(config),
-    server_base_url: Url::parse("https://api.tiders.com").unwrap(),
-    server_bind_address: "0.0.0.0:4021".to_string(),
-};
+let state = AppState::new(db, config, Url::parse("https://api.tiders.com").unwrap(), "0.0.0.0:4021".to_string());
 ```
 
 ```python
@@ -86,11 +81,11 @@ All fields except `facilitator` are optional and fall back to sensible defaults.
 
 ```rust
 // Rust - with defaults
-let config = GlobalPaymentConfig::default(Arc::new(facilitator));
+let config = GlobalPaymentConfig::default(facilitator);
 
 // Rust - with custom values
 let config = GlobalPaymentConfig::new(
-    Arc::new(facilitator),
+    facilitator,
     Some("text/csv".to_string()),       // mime_type
     Some(600),                           // max_timeout_seconds
     Some("Custom description".to_string()), // default_description
@@ -125,7 +120,7 @@ config = GlobalPaymentConfig(
 
 | Setter | Rust | Python |
 |--------|------|--------|
-| Set facilitator | `config.set_facilitator(arc_client)` | `config.set_facilitator(facilitator)` |
+| Set facilitator | `config.set_facilitator(facilitator)` | `config.set_facilitator(facilitator)` |
 | Set MIME type | `config.set_mime_type("text/csv".to_string())` | `config.set_mime_type("text/csv")` |
 | Set max timeout | `config.set_max_timeout_seconds(600)` | `config.set_max_timeout_seconds(600)` |
 | Set default description | `config.set_default_description("...".to_string())` | `config.set_default_description("...")` |
@@ -151,6 +146,7 @@ A single pricing tier for a table. Defines who gets paid, how much, and in which
 |---------|--------|-------------|
 | `PerRow` | `amount_per_item`, `min_items`, `max_items`, `min_total_amount` | Price scales with row count |
 | `Fixed` | `amount` | Flat fee regardless of row count |
+| `MetadataPrice` | `amount` | Flat fee for accessing table metadata via `GET /table/:name` |
 
 **Construction (Per-Row)**
 
@@ -205,6 +201,21 @@ price_tag = PriceTag.fixed(
     description="Fixed price query",
     is_default=True,
 )
+```
+
+**Construction (Metadata Price)**
+
+```rust
+// Rust
+let price_tag = PriceTag {
+    pay_to: ChecksummedAddress::from_str("0x...").unwrap(),
+    pricing: PricingModel::MetadataPrice {
+        amount: TokenAmount(usdc.parse("1.00").unwrap().amount),
+    },
+    token: usdc.clone(),
+    description: Some("Metadata access fee".to_string()),
+    is_default: false,
+};
 ```
 
 `PriceTag` is immutable after creation -- create a new one to change values.

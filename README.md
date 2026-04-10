@@ -26,11 +26,12 @@ Clients send SQL queries over HTTP, the server estimates the cost, and returns a
 ## Features
 
 - **Pay-per-query data access** — monetize your datasets with cryptocurrency micropayments
-- **Tiered pricing** — per-row pricing with volume tiers, or fixed pricing per query
+- **Tiered pricing** — per-row pricing with volume tiers, fixed pricing per query, or metadata access fees
 - **Multiple databases** — DuckDB, PostgreSQL, and ClickHouse backends
+- **CLI and SDK** — run from a YAML config file (no code) or embed as a Rust/Python library
 - **Apache Arrow responses** — efficient binary columnar format, significantly faster than JSON
 - **Familiar simplified SQL** — parser prevents JOINs, GROUP BY, subqueries, and other expensive operations
-- **Multi-language** — Rust server for efficience, Python bindings (PyO3) for convenience
+- **Multi-language** — Rust server for efficiency, Python bindings (PyO3) for convenience
 - **Observability** — built-in OpenTelemetry tracing support
 
 ## Documentation
@@ -57,6 +58,49 @@ tiders-x402 = { version = "0.1.0", features = ["duckdb"] }
 Available features: `duckdb`, `postgresql`, `clickhouse`
 
 ## Quick Start
+
+### CLI (No Code)
+
+1. Install the CLI:
+
+```bash
+cargo install tiders-x402-server-cli
+```
+
+> **Note:** The crate is not yet published. For now, build from source: `cargo build -p tiders-x402-server-cli --release`
+
+2. Create a `tiders-x402-server.yaml`:
+
+```yaml
+server:
+  bind_address: "0.0.0.0:4021"
+  base_url: "http://localhost:4021"
+
+facilitator:
+  url: "https://facilitator.x402.rs"
+
+database:
+  duckdb:
+    path: "./data/my_data.duckdb"
+
+tables:
+  - name: my_table
+    description: "My dataset"
+    price_tags:
+      - type: per_row
+        pay_to: "0xYourWalletAddress"
+        token: usdc/base_sepolia
+        amount_per_item: "0.002"
+        is_default: true
+```
+
+3. Start the server:
+
+```bash
+tiders-x402-server start
+```
+
+The CLI auto-discovers YAML config files, supports `${VAR_NAME}` environment variable expansion, and hot-reloads payment configuration on file changes.
 
 ### Python
 
@@ -98,7 +142,7 @@ use tiders_x402::{
     PriceTag, PricingModel, FacilitatorClient,
 };
 
-let facilitator = Arc::new(FacilitatorClient::try_from("https://facilitator.x402.rs")?);
+let facilitator = FacilitatorClient::try_from("https://facilitator.x402.rs")?;
 let db = DuckDbDatabase::in_memory()?;
 
 let price_tag = PriceTag::new(pay_to, PricingModel::per_row("2000000000000000"), token);
@@ -109,7 +153,7 @@ let mut payment_config = GlobalPaymentConfig::new(facilitator);
 payment_config.add_offers_table(offers);
 
 let server_base_url = Url::parse("http://0.0.0.0:4021").expect("Failed to parse server base URL");
-let state = AppState::new(db, payment_config, server_base_url);
+let state = AppState::new(db, payment_config, server_base_url, "0.0.0.0:4021".to_string());
 start_server(state).await?;
 ```
 
@@ -125,9 +169,16 @@ curl http://localhost:4021/
 
 Returns server metadata: available tables, schemas, payment requirements, and SQL parser rules.
 
+### `GET /table/:name`
+
+Returns full schema and payment offers for a specific table as JSON. If the table has a `MetadataPrice` tag, requires payment via the x402 protocol.
+
 ### `POST /query`
 
 Execute a SQL query. 
+
+Queries must conform to a restricted SQL dialect ("Simplified SQL") whose AST permits only `SELECT` statements against a single table, with a limited set of `WHERE`, `ORDER BY`, and `LIMIT` expressions. JOINs, subqueries, GROUP BY, CTEs, window functions, and aggregates are rejected. See the [SQL Parser](../server/sql-parser.md) page for the full grammar and list of supported features.
+
 When a payment is necessary, the server returns 402 with payment options. A client implementing x-402 protocol resend the request with `X-Payment` payload containing the signed payment.
 
 ```bash
@@ -176,8 +227,9 @@ let reader = StreamReader::try_new(Cursor::new(bytes), None)?;
 
 | Example | Language | Database |
 |---|---|---|
+| [CLI Config](examples/cli/tiders-x402-server.yaml) | YAML | DuckDB / ClickHouse / PostgreSQL |
 | [DuckDB Server](examples/python/duckdb_server.py) | Python | DuckDB |
-| [Rust Server](examples/rust/src/main.rs) | Rust | DuckDB / Clickhouse/ PostgreSQL |
+| [Rust Server](examples/rust/src/main.rs) | Rust | DuckDB / ClickHouse / PostgreSQL |
 
 Both examples load sample Uniswap V3 swap data and serve it with tiered per-row pricing.
 
@@ -206,6 +258,12 @@ bulk_tag = PriceTag(pay_to, PricingModel.per_row("1000000000000000", min_items=1
 
 ```python
 fixed_tag = PriceTag(pay_to, PricingModel.fixed("5000000000000000"), token)
+```
+
+**Metadata pricing** charges a flat fee for accessing table metadata (schema and payment offers) via `GET /table/:name`:
+
+```python
+metadata_tag = PriceTag.metadata_price(pay_to, "1.00", token)
 ```
 
 Tables can also be marked as free, requiring no payment.

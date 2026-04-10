@@ -1,5 +1,15 @@
 # Installation
 
+## CLI
+
+Install from crates or pip.
+
+```bash
+cargo install tiders-x402-server-cli
+```
+
+Once installed, see the [CLI Quick Start](./cli-quickstart.md) to get running.
+
 ## Python
 
 Using uv (recommended):
@@ -59,6 +69,12 @@ The Rust example (`examples/rust/Cargo.toml`) enables all three backends by defa
 
 ## Development Setup
 
+Build the CLI from source:
+
+ ```bash
+ cargo install --path cli
+ ```
+ 
 If you're modifying `tiders-x402-server` repo locally, you probably want to build it against your local version.
 
 ### Python

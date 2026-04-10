@@ -6,11 +6,21 @@ Tiders x402 Server is a **payment-enabled database API server** that combines [D
 
 Data providers can expose DuckDB tables through a REST API where each query requires a cryptocurrency micropayment. Pricing is calculated per row returned, with support for tiered pricing based on result size.
 
+## Two Ways to Use
+
+| Mode | How | When to use |
+|------|-----|-------------|
+| **CLI** | Write a YAML config file, run `tiders-x402-server start` | Quick setup, no coding required, config-driven deployments |
+| **SDK Library** | Import in Rust or Python, configure programmatically | Custom logic, embedding in larger applications, maximum flexibility |
+
+See [CLI Quick Start](./getting-started/cli-quickstart.md) or [SDK Library Quick Start](./sdk-library/running.md) to get started.
+
 ## Key Features
 
 - **Pay-per-query data access** -- Charge users fixed or per row of data returned using cryptocurrency micropayments.
 - **x402 protocol integration** -- Standard HTTP 402 Payment Required flow with automatic payment negotiation.
-- **DuckDB backend** -- Fast, in-process analytical database with no separate database server required.
+- **Multiple databases** -- DuckDB, PostgreSQL, and ClickHouse backends.
+- **CLI and SDK** -- Run from a YAML config file (no code) or embed as a Rust/Python library.
 - **Apache Arrow responses** -- Efficient columnar data transfer using Arrow IPC format instead of JSON.
 - **Tiered pricing** -- Multiple price tiers based on the number of rows requested (e.g., bulk discounts).
 - **Multi-language support** -- Rust server with Python bindings (via PyO3).
@@ -28,10 +38,11 @@ Data providers can expose DuckDB tables through a REST API where each query requ
 
 ```
 tiders-x402-server/
-  server/          # Rust server (Axum-based REST API)
+  server/          # Rust server library (Axum-based REST API)
+  cli/             # CLI binary — run a server from a YAML config file
   python/          # Python bindings via PyO3 + maturin
-  examples         # Python and Rust server examples
-  client-scripts/  # Python and TypeScript clients scripts using x402-fetch
+  examples/        # Python, Rust, and CLI server examples
+  client-scripts/  # Python and TypeScript client scripts using x402-fetch
   docs/            # MDbook documentation page
   Cargo.toml       # Workspace configuration
 ```
