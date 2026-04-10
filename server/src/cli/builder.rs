@@ -14,12 +14,12 @@ use x402_chain_eip155::KnownNetworkEip155;
 use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use x402_types::networks::USDC;
 
-use tiders_x402_server::facilitator_client::FacilitatorClient;
-use tiders_x402_server::payment_config::GlobalPaymentConfig;
-use tiders_x402_server::price::{PriceTag, PricingModel, TablePaymentOffers, TokenAmount};
-use tiders_x402_server::{AppState, Database};
+use crate::facilitator_client::FacilitatorClient;
+use crate::payment_config::GlobalPaymentConfig;
+use crate::price::{PriceTag, PricingModel, TablePaymentOffers, TokenAmount};
+use crate::{AppState, Database};
 
-use crate::config::{Config, PriceTagConfig};
+use super::config::{Config, PriceTagConfig};
 
 /// Builds an [`AppState`] from a validated config.
 ///
@@ -107,23 +107,37 @@ pub async fn build_payment_config_from_tables(
     Ok(payment_config)
 }
 
-async fn build_database(db_config: &crate::config::DatabaseConfig) -> Result<Arc<dyn Database>> {
+async fn build_database(db_config: &super::config::DatabaseConfig) -> Result<Arc<dyn Database>> {
+    #[cfg(feature = "duckdb")]
     if let Some(duck) = &db_config.duckdb {
-        let db = tiders_x402_server::database_duckdb::DuckDbDatabase::from_path(&duck.path)?;
+        let db = crate::database_duckdb::DuckDbDatabase::from_path(&duck.path)?;
         return Ok(Arc::new(db));
     }
+    #[cfg(not(feature = "duckdb"))]
+    if db_config.duckdb.is_some() {
+        bail!(
+            "Config specifies a DuckDB backend but this build was compiled without the \"duckdb\" feature."
+        );
+    }
 
+    #[cfg(feature = "postgresql")]
     if let Some(pg) = &db_config.postgresql {
-        let db =
-            tiders_x402_server::database_postgresql::PostgresqlDatabase::from_connection_string(
-                &pg.connection_string,
-            )
-            .await?;
+        let db = crate::database_postgresql::PostgresqlDatabase::from_connection_string(
+            &pg.connection_string,
+        )
+        .await?;
         return Ok(Arc::new(db));
     }
+    #[cfg(not(feature = "postgresql"))]
+    if db_config.postgresql.is_some() {
+        bail!(
+            "Config specifies a PostgreSQL backend but this build was compiled without the \"postgresql\" feature."
+        );
+    }
 
+    #[cfg(feature = "clickhouse")]
     if let Some(ch) = &db_config.clickhouse {
-        let db = tiders_x402_server::database_clickhouse::ClickHouseDatabase::from_params(
+        let db = crate::database_clickhouse::ClickHouseDatabase::from_params(
             &ch.url,
             ch.user.as_deref(),
             ch.password.as_deref(),
@@ -135,12 +149,18 @@ async fn build_database(db_config: &crate::config::DatabaseConfig) -> Result<Arc
         )?;
         return Ok(Arc::new(db));
     }
+    #[cfg(not(feature = "clickhouse"))]
+    if db_config.clickhouse.is_some() {
+        bail!(
+            "Config specifies a ClickHouse backend but this build was compiled without the \"clickhouse\" feature."
+        );
+    }
 
     bail!("No database backend configured.")
 }
 
 pub fn build_facilitator(
-    fac_config: &crate::config::FacilitatorConfig,
+    fac_config: &super::config::FacilitatorConfig,
 ) -> Result<Arc<FacilitatorClient>> {
     let mut client = FacilitatorClient::try_from(fac_config.url.as_str())
         .map_err(|e| anyhow!("Failed to create facilitator client: {e}"))?;
@@ -165,7 +185,7 @@ pub fn build_facilitator(
 }
 
 async fn build_table_offer(
-    table_cfg: &crate::config::TableConfig,
+    table_cfg: &super::config::TableConfig,
     db: &dyn Database,
 ) -> Result<TablePaymentOffers> {
     // Fetch schema from DB (this also validates the table exists)

@@ -38,9 +38,9 @@ See [CLI Quick Start](./getting-started/cli-quickstart.md) or [SDK Library Overv
 
 ```
 tiders-x402-server/
-  server/          # Rust server library (Axum-based REST API)
-  cli/             # CLI binary — run a server from a YAML config file
-  python/          # Python bindings via PyO3 + maturin
+  server/          # Rust server library + CLI binary (Axum-based REST API)
+  python/          # Python SDK bindings via PyO3 + maturin
+  cli-python/      # Python wheel that ships the CLI binary as pip install tiders-x402-server
   examples/        # Python, Rust, and CLI server examples
   client-scripts/  # Python and TypeScript client scripts using x402-fetch
   docs/            # MDbook documentation page

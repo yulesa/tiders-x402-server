@@ -4,9 +4,9 @@ use std::path::Path;
 
 use anyhow::{Result, bail};
 
-use crate::config::Config;
-use crate::env::expand_env_vars;
-use crate::validate::validate_config;
+use super::config::Config;
+use super::env::expand_env_vars;
+use super::validate::validate_config;
 
 /// Loads, expands, parses, and validates a config file.
 ///

@@ -10,11 +10,11 @@ use std::sync::Arc;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::RwLock;
 
-use tiders_x402_server::Database;
-use tiders_x402_server::payment_config::GlobalPaymentConfig;
+use crate::Database;
+use crate::payment_config::GlobalPaymentConfig;
 
-use crate::config::Config;
-use crate::loader::load_config;
+use super::config::Config;
+use super::loader::load_config;
 
 /// Shared, swappable payment configuration used by the server.
 /// This is the same type as `AppState.payment_config`.
@@ -95,7 +95,7 @@ pub fn start_watcher(
             }
 
             // Rebuild facilitator (hot-reloadable)
-            let facilitator = match crate::builder::build_facilitator(&new_config.facilitator) {
+            let facilitator = match super::builder::build_facilitator(&new_config.facilitator) {
                 Ok(f) => f,
                 Err(e) => {
                     tracing::error!(
@@ -106,7 +106,7 @@ pub fn start_watcher(
             };
 
             // Rebuild payment config with new facilitator and tables (hot-reloadable)
-            match crate::builder::build_payment_config_from_tables(
+            match super::builder::build_payment_config_from_tables(
                 &new_config,
                 db.as_ref(),
                 facilitator,
@@ -131,7 +131,7 @@ pub fn start_watcher(
 }
 
 /// A rough fingerprint of the database config for change detection.
-fn db_fingerprint(db: &crate::config::DatabaseConfig) -> String {
+fn db_fingerprint(db: &super::config::DatabaseConfig) -> String {
     if let Some(d) = &db.duckdb {
         return format!("duckdb:{}", d.path);
     }

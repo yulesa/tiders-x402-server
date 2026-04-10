@@ -4508,28 +4508,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tiders-x402-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arrow",
- "clap",
- "dotenvy",
- "http",
- "notify",
- "regex",
- "serde",
- "serde_yaml",
- "tiders-x402-server",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "url",
- "x402-chain-eip155",
- "x402-types",
-]
-
-[[package]]
 name = "tiders-x402-python"
 version = "0.1.0"
 dependencies = [
@@ -4549,7 +4527,7 @@ dependencies = [
 
 [[package]]
 name = "tiders-x402-server"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -4558,19 +4536,23 @@ dependencies = [
  "async-trait",
  "axum",
  "bytes",
+ "clap",
  "clickhouse",
  "deadpool-postgres",
  "dotenvy",
  "duckdb",
  "http",
+ "notify",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "postgres-types",
  "pyo3",
+ "regex",
  "reqwest 0.13.2",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sqlparser",
  "thiserror 2.0.18",
  "tokio",

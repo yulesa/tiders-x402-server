@@ -2,7 +2,7 @@
 //!
 //! These types are deserialized from the user's YAML config file and then
 //! converted into the runtime types (`AppState`, `GlobalPaymentConfig`, etc.)
-//! by the [`crate::builder`] module.
+//! by the [`super::builder`] module.
 
 use serde::Deserialize;
 

@@ -18,6 +18,8 @@
 //! - `POST /query` — the main endpoint where clients submit paid data queries.
 //! - `GET /` — a root endpoint that returns server metadata and available data offers.
 
+#[cfg(feature = "cli")]
+pub mod cli;
 pub mod database;
 #[cfg(feature = "clickhouse")]
 pub mod database_clickhouse;

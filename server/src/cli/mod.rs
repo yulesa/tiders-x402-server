@@ -1,8 +1,11 @@
-//! CLI entry point for tiders-x402-server.
+//! YAML-configured CLI for running the server from a config file.
 //!
-//! Reads a YAML config file, builds the server state, and starts the
-//! HTTP server. Optionally watches the config file for hot-reloading
-//! payment configuration changes.
+//! This module powers the `tiders-x402-server` binary. It reads a YAML config,
+//! builds the runtime state, and either starts the server (with optional
+//! hot reload) or validates the config and exits.
+//!
+//! The binary entrypoint lives in `src/bin/tiders-x402-server.rs` and calls
+//! [`run`] after parsing command-line arguments.
 
 mod builder;
 mod config;
@@ -21,13 +24,13 @@ use tracing_subscriber::util::SubscriberInitExt;
 /// Run a payment-enabled database API server from a YAML config file.
 #[derive(Parser, Debug)]
 #[command(name = "tiders-x402-server", version, about)]
-struct Cli {
+pub struct Cli {
     #[command(subcommand)]
-    command: Command,
+    pub command: Command,
 }
 
 #[derive(clap::Subcommand, Debug)]
-enum Command {
+pub enum Command {
     /// Start the server.
     Start {
         /// Path to the YAML configuration file.
@@ -57,7 +60,8 @@ enum Command {
     },
 }
 
-fn main() -> ExitCode {
+/// Runs the CLI. Parses argv, loads the config, and dispatches to the subcommand.
+pub fn run() -> ExitCode {
     // Initialize tracing early so all errors are logged consistently.
     let env_filter =
         tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
@@ -257,7 +261,7 @@ fn run_server(config_path: &Path, no_watch: bool, config: &config::Config) -> Ex
             }
         };
 
-        tiders_x402_server::start_server(state).await;
+        crate::start_server(state).await;
         ExitCode::SUCCESS
     })
 }

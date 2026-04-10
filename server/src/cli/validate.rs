@@ -4,7 +4,7 @@
 //! can enforce: exactly one database backend, valid token identifiers, valid
 //! URLs, etc.
 
-use crate::config::{Config, PriceTagConfig};
+use super::config::{Config, PriceTagConfig};
 
 /// A validation error with an optional hint for the user.
 #[derive(Debug)]

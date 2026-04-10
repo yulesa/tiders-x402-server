@@ -3,7 +3,8 @@
 # Tiders x402 Server
 
 [![Documentation](https://img.shields.io/badge/documentation-blue?style=for-the-badge&logo=readthedocs)](https://yulesa.github.io/tiders-x402-server/)
-[![PyPI](https://img.shields.io/badge/PyPI-lightgreen?style=for-the-badge&logo=pypi&labelColor=white)](https://pypi.org/project/tiders-x402-server/)
+[![PyPI CLI](https://img.shields.io/badge/PyPI%20CLI-lightgreen?style=for-the-badge&logo=pypi&labelColor=white)](https://pypi.org/project/tiders-x402-server/)
+[![PyPI SDK](https://img.shields.io/badge/PyPI%20SDK-lightgreen?style=for-the-badge&logo=pypi&labelColor=white)](https://pypi.org/project/tiders-x402-server-sdk/)
 [![telegram](https://img.shields.io/badge/telegram-blue?style=for-the-badge&logo=telegram)](https://t.me/tidersindexer)
 
 Tiders-x402-server is a payment-enabled database API server that combines analytical databases with the [x402 payment protocol](https://www.x402.org/), enabling pay-per-query data access using cryptocurrency micropayments.
@@ -40,22 +41,36 @@ Full documentation is available at the [documentation site](https://yulesa.githu
 
 ## Installation
 
-### Python
+### CLI (prebuilt binary, no Rust toolchain needed)
 
 ```bash
-uv pip install tiders-x402-server
+pip install tiders-x402-server
+# or
+cargo install tiders-x402-server
 ```
 
-### Rust
+Both commands install the same `tiders-x402-server` binary with DuckDB, PostgreSQL, and ClickHouse backends bundled.
 
-Add to your `Cargo.toml` with at least one database feature enabled:
+### Python SDK
+
+```bash
+uv pip install tiders-x402-server-sdk
+```
+
+```python
+import tiders_x402_server
+```
+
+### Rust SDK
+
+Add to your `Cargo.toml`. By default all backends and the CLI deps are enabled — opt out with `default-features = false` and pick only the backends you need:
 
 ```toml
 [dependencies]
-tiders-x402 = { version = "0.1.0", features = ["duckdb"] }
+tiders-x402-server = { version = "0.2", default-features = false, features = ["duckdb"] }
 ```
 
-Available features: `duckdb`, `postgresql`, `clickhouse`
+Available features: `duckdb`, `postgresql`, `clickhouse`, `cli`, `pyo3`
 
 ## Quick Start
 
@@ -64,10 +79,10 @@ Available features: `duckdb`, `postgresql`, `clickhouse`
 1. Install the CLI:
 
 ```bash
-cargo install tiders-x402-server-cli
+pip install tiders-x402-server
+# or 
+cargo install tiders-x402-server
 ```
-
-> **Note:** The crate is not yet published. For now, build from source: `cargo build -p tiders-x402-server-cli --release`
 
 2. Create a `tiders-x402-server.yaml`:
 

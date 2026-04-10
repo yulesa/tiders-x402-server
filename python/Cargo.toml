@@ -10,7 +10,7 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 pyo3 = { workspace = true, features = ["anyhow"] }
-tiders-x402-server = { path = "../server", features = ["pyo3"] }
+tiders-x402-server = { path = "../server", default-features = false, features = ["pyo3"] }
 x402-types = { workspace = true }
 x402-chain-eip155 = { workspace = true }
 url = { workspace = true }

@@ -5,13 +5,12 @@ The fastest way to run a tiders-x402-server -- no code required. Write a YAML co
 ## 1. Install
 
 ```bash
-cargo install tiders-x402-server-cli
+pip install tiders-x402-server
+# or
+cargo install tiders-x402-server
 ```
 
-> **Note:** The crate is not yet published. For now, build from source:
-> ```bash
-> cargo build -p tiders-x402-server-cli --release
-> ```
+Both commands install the same `tiders-x402-server` binary with DuckDB, PostgreSQL, and ClickHouse backends bundled.
 
 ## 2. Create a Config File
 
