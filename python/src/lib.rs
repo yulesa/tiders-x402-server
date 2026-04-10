@@ -198,6 +198,48 @@ impl PyPriceTag {
             },
         })
     }
+
+    /// Create a metadata-price PriceTag that charges a flat fee for accessing
+    /// table metadata via the `GET /table/:name` endpoint.
+    ///
+    /// Without a metadata price tag, the metadata endpoint returns data freely.
+    /// Charging for metadata access can help prevent API abuse.
+    ///
+    /// Args:
+    ///     pay_to (str): EVM address to pay to.
+    ///     amount (Union[str, int]): Flat fee for metadata access. If a string (e.g., "1.00") it is interpreted as a human-readable amount and converted using the token's decimals. If an integer it is the amount in the token's smallest unit.
+    ///     token (USDC): Token with decimals and EIP712 information, currently only USDC is supported.
+    ///     description (Optional[str]): Description of the offer (optional).
+    ///     is_default (bool): Whether this is the default offer.
+    ///
+    /// Returns:
+    ///     PriceTag: A new metadata-price PriceTag object.
+    #[staticmethod]
+    #[pyo3(signature = (pay_to, amount, token, description=None, is_default=false))]
+    fn metadata_price(
+        pay_to: &str,
+        amount: Py<PyAny>,
+        token: &PyUSDC,
+        description: Option<String>,
+        is_default: bool,
+        py: Python,
+    ) -> PyResult<Self> {
+        let pay_to = ChecksummedAddress::from_str(pay_to)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+
+        let token_deployment = &token.inner;
+        let amount = parse_token_amount(&amount, token_deployment, "amount", py)?;
+
+        Ok(Self {
+            inner: PriceTag {
+                pay_to,
+                pricing: PricingModel::MetadataPrice { amount },
+                token: token_deployment.clone(),
+                description,
+                is_default,
+            },
+        })
+    }
 }
 
 /// Represents a USDC token on a supported network.

@@ -130,7 +130,7 @@ config = GlobalPaymentConfig(
 
 ## PriceTag
 
-A single pricing tier for a table. Defines who gets paid, how much, and in which token. A table can have multiple price tags for tiered pricing. The pricing model (per-row or fixed) is specified via the `pricing` field.
+A single pricing tier for a table. Defines who gets paid, how much, and in which token. A table can have multiple price tags for tiered pricing. The pricing model (per-row, fixed, or metadata price) is specified via the `pricing` field.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -216,6 +216,16 @@ let price_tag = PriceTag {
     description: Some("Metadata access fee".to_string()),
     is_default: false,
 };
+```
+
+```python
+# Python — metadata pricing (static method)
+price_tag = PriceTag.metadata_price(
+    pay_to="0x...",
+    amount="1.00",
+    token=usdc,
+    description="Metadata access fee",
+)
 ```
 
 `PriceTag` is immutable after creation -- create a new one to change values.

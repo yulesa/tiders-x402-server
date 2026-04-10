@@ -52,7 +52,7 @@ database:
     connection_string: "host=${PG_HOST} user=${PG_USER} password=${PG_PASSWORD} dbname=tiders"
 ```
 
-At startup, the CLI automatically loads a `.env` file from the same directory as the config file, then substitutes all `${VAR_NAME}` placeholders with their values. If a variable is referenced in the YAML but not defined, the CLI raises an error.
+At startup, the CLI automatically loads a `.env` file from the current working directory, then substitutes all `${VAR_NAME}` placeholders with their values. If a variable is referenced in the YAML but not defined, the CLI raises an error.
 
 Create a `.env` file alongside your config:
 

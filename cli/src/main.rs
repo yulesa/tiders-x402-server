@@ -37,6 +37,11 @@ enum Command {
         /// Disable automatic config file watching (hot reload is enabled by default).
         #[arg(long)]
         no_watch: bool,
+
+        /// Path to a .env file to load before reading the config.
+        /// If omitted, looks for `.env` in the current directory (and parents).
+        #[arg(long)]
+        env_file: Option<PathBuf>,
     },
 
     /// Validate the config file and test database connectivity, then exit.
@@ -44,6 +49,11 @@ enum Command {
         /// Path to the YAML configuration file.
         /// If omitted, auto-discovers a single .yaml/.yml file in the current directory.
         config: Option<PathBuf>,
+
+        /// Path to a .env file to load before reading the config.
+        /// If omitted, looks for `.env` in the current directory (and parents).
+        #[arg(long)]
+        env_file: Option<PathBuf>,
     },
 }
 
@@ -58,13 +68,27 @@ fn main() -> ExitCode {
 
     let cli = Cli::parse();
 
-    // Load .env before anything else so env vars are available for config expansion
-    dotenvy::dotenv().ok();
-
-    let (explicit_path, no_watch, validate_only) = match &cli.command {
-        Command::Start { config, no_watch } => (config, *no_watch, false),
-        Command::Validate { config } => (config, false, true),
+    let (explicit_path, no_watch, validate_only, env_file) = match &cli.command {
+        Command::Start {
+            config,
+            no_watch,
+            env_file,
+        } => (config, *no_watch, false, env_file),
+        Command::Validate { config, env_file } => (config, false, true, env_file),
     };
+
+    // Load .env before anything else so env vars are available for config expansion
+    match env_file {
+        Some(path) => {
+            if let Err(e) = dotenvy::from_path(path) {
+                tracing::error!("Failed to load env file {}: {e}", path.display());
+                return ExitCode::FAILURE;
+            }
+        }
+        None => {
+            dotenvy::dotenv().ok();
+        }
+    }
 
     let config_path = match explicit_path {
         Some(p) => p.clone(),
