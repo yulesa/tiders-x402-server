@@ -240,16 +240,18 @@ fn run_server(config_path: &Path, no_watch: bool, config: &config::Config) -> Ex
             };
 
             let payment_config_handle = state.payment_config.clone();
+            let dashboard_state = state.dashboard.clone();
             let db_handle = state.db.clone();
 
             match watcher::start_watcher(
                 &config_path,
                 config,
                 payment_config_handle,
+                dashboard_state,
                 db_handle,
             ) {
                 Ok(w) => {
-                    tracing::info!("Config file watcher started. Changes to tables, payment settings, and facilitator will be hot-reloaded.");
+                    tracing::info!("Config file watcher started. Changes to tables, payment settings, facilitator, and dashboard charts will be hot-reloaded.");
                     Some(w)
                 }
                 Err(e) => {

@@ -1,7 +1,8 @@
 //! File watcher for hot-reloading the YAML config.
 //!
-//! Watches the config file for changes and atomically swaps the payment
-//! configuration when hot-reloadable fields change. Logs warnings for
+//! Watches the config file (and, when a dashboard is configured, its
+//! `charts/` directory) for changes and atomically swaps the payment and
+//! dashboard state when hot-reloadable fields change. Logs warnings for
 //! fields that require a server restart.
 
 use std::path::Path;
@@ -11,29 +12,35 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::RwLock;
 
 use crate::Database;
+use crate::dashboard::SharedDashboardState;
 use crate::payment_config::GlobalPaymentConfig;
 
 use super::config::Config;
 use super::loader::load_config;
+use super::validate::resolve_charts_dir;
 
 /// Shared, swappable payment configuration used by the server.
 /// This is the same type as `AppState.payment_config`.
 pub type SharedPaymentConfig = Arc<RwLock<Arc<GlobalPaymentConfig>>>;
 
-/// Starts a file watcher on the config file. When the file changes,
-/// re-parses it and swaps the payment configuration atomically.
+/// Starts a file watcher on the config file (and, when configured, the
+/// dashboard `charts/` directory). When anything in those paths changes,
+/// re-parses the config and swaps the payment + dashboard state atomically.
 ///
-/// Fields that require a restart (server bind address, database, facilitator)
-/// are detected and logged as warnings — they are not applied until restart.
+/// Fields that require a restart (server bind address, database, facilitator,
+/// dashboard add/remove) are detected and logged as warnings — they are not
+/// applied until restart.
 pub fn start_watcher(
     config_path: &Path,
     original_config: &Config,
     payment_config: SharedPaymentConfig,
+    dashboard_state: SharedDashboardState,
     db: Arc<dyn Database>,
 ) -> Result<RecommendedWatcher, notify::Error> {
     let original_bind = original_config.server.bind_address.clone();
     let original_base_url = original_config.server.base_url.clone();
     let original_db_fingerprint = db_fingerprint(&original_config.database);
+    let original_dashboard_present = original_config.dashboard.is_some();
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(1);
 
@@ -58,6 +65,29 @@ pub fn start_watcher(
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."));
     watcher.watch(watch_dir, RecursiveMode::NonRecursive)?;
+
+    // If a dashboard is configured, also watch its charts directory
+    // recursively. The directory is derived from the config path by
+    // `resolve_charts_dir` (no YAML field controls it). If the user adds
+    // or removes the dashboard section at runtime, they'll see a
+    // "restart required" warning on reload (see below).
+    if original_dashboard_present {
+        match resolve_charts_dir(original_config) {
+            Ok(charts_dir) => match watcher.watch(&charts_dir, RecursiveMode::Recursive) {
+                Ok(()) => tracing::info!(
+                    "Watching dashboard charts directory: {}",
+                    charts_dir.display()
+                ),
+                Err(e) => tracing::warn!(
+                    "Failed to watch dashboard charts directory \"{}\": {e}. Module files will not trigger hot reload.",
+                    charts_dir.display()
+                ),
+            },
+            Err(e) => tracing::warn!(
+                "Could not resolve dashboard charts directory: {e}. Module files will not trigger hot reload."
+            ),
+        }
+    }
 
     let config_path_clone = config_path.to_path_buf();
 
@@ -93,6 +123,16 @@ pub fn start_watcher(
             if db_fingerprint(&new_config.database) != original_db_fingerprint {
                 tracing::warn!("database configuration changed — restart required to take effect.");
             }
+            // Adding or removing the `dashboard:` section at runtime means
+            // the watcher would need to (de)register the `charts/` watch,
+            // which it can't do without being rebuilt. Warn and keep the
+            // previous dashboard state; catalog edits within an already-
+            // enabled dashboard still hot-reload below.
+            if new_config.dashboard.is_some() != original_dashboard_present {
+                tracing::warn!(
+                    "dashboard section added or removed — restart required to (un)watch the charts directory."
+                );
+            }
 
             // Rebuild facilitator (hot-reloadable)
             let facilitator = match super::builder::build_facilitator(&new_config.facilitator) {
@@ -122,6 +162,25 @@ pub fn start_watcher(
                     tracing::error!(
                         "Failed to build payment config from reloaded file: {e}. Keeping current configuration."
                     );
+                }
+            }
+
+            // Rebuild dashboard state (hot-reloadable). Only apply the swap
+            // if the dashboard section was already present at startup; a
+            // mid-run add/remove was warned about above and is ignored here.
+            if original_dashboard_present {
+                match super::builder::build_dashboard_state_from_config(&new_config) {
+                    Ok(new_state) => {
+                        let arc_state = new_state.map(Arc::new);
+                        let mut guard = dashboard_state.write().await;
+                        *guard = arc_state;
+                        tracing::info!("Dashboard charts reloaded");
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to rebuild dashboard state from reloaded config: {e}. Keeping current dashboard state."
+                        );
+                    }
                 }
             }
         }
