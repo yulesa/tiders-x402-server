@@ -20,6 +20,7 @@
 
 #[cfg(feature = "cli")]
 pub mod cli;
+pub mod dashboard;
 pub mod database;
 #[cfg(feature = "clickhouse")]
 pub mod database_clickhouse;

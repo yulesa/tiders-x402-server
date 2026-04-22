@@ -38,7 +38,8 @@ pub fn load_config(path: &Path) -> Result<Config> {
     })?;
 
     // Validate
-    let errors = validate_config(&config);
+    let config_dir = path.parent();
+    let errors = validate_config(&config, config_dir);
     if !errors.is_empty() {
         let messages = errors
             .iter()

@@ -4,7 +4,9 @@
 //! can enforce: exactly one database backend, valid token identifiers, valid
 //! URLs, etc.
 
-use super::config::{Config, PriceTagConfig};
+use std::path::{Path, PathBuf};
+
+use super::config::{ChartConfig, Config, DashboardConfig, PriceTagConfig};
 
 /// A validation error with an optional hint for the user.
 #[derive(Debug)]
@@ -34,13 +36,18 @@ const KNOWN_TOKENS: &[&str] = &[
 ];
 
 /// Validates the config and returns all errors found (not just the first).
-pub fn validate_config(config: &Config) -> Vec<ValidationError> {
+///
+/// `config_dir` is the directory containing the config file, used to resolve
+/// relative `module_file` paths when `dashboard.charts_dir` is unset. Pass
+/// `None` when validating a config that was not loaded from disk.
+pub fn validate_config(config: &Config, config_dir: Option<&Path>) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     validate_server(config, &mut errors);
     validate_facilitator(config, &mut errors);
     validate_database(config, &mut errors);
     validate_tables(config, &mut errors);
+    validate_dashboard(config, config_dir, &mut errors);
 
     errors
 }
@@ -242,4 +249,204 @@ fn validate_price_tag(
             hint: Some(format!("Available tokens: {available}")),
         });
     }
+}
+
+/// Returns the effective `charts_dir` for a dashboard config, creating it on
+/// disk if it does not already exist. When `charts_dir` is unset, defaults to
+/// `./charts` under the current working directory.
+pub fn resolve_charts_dir(dashboard: &DashboardConfig) -> std::io::Result<PathBuf> {
+    let dir = dashboard
+        .charts_dir
+        .as_deref()
+        .map_or_else(|| PathBuf::from("./charts"), PathBuf::from);
+
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir)?;
+        tracing::info!(
+            "Created dashboard charts directory at \"{}\".",
+            dir.display()
+        );
+    }
+    Ok(dir)
+}
+
+fn validate_dashboard(
+    config: &Config,
+    config_dir: Option<&Path>,
+    errors: &mut Vec<ValidationError>,
+) {
+    let Some(dashboard) = &config.dashboard else {
+        return;
+    };
+
+    if dashboard.title.is_empty() {
+        errors.push(ValidationError {
+            message: "dashboard.title is empty.".into(),
+            hint: Some("Provide a human-readable dashboard title.".into()),
+        });
+    }
+
+    if dashboard.default_cache_ttl_minutes == 0 {
+        errors.push(ValidationError {
+            message: "dashboard.default_cache_ttl_minutes must be > 0.".into(),
+            hint: Some("Use a positive number of minutes, e.g. 60.".into()),
+        });
+    }
+
+    if let Some(0) = dashboard.query_timeout_seconds {
+        errors.push(ValidationError {
+            message: "dashboard.query_timeout_seconds must be > 0.".into(),
+            hint: Some("Omit the field to use the default (60s), or use a positive value.".into()),
+        });
+    }
+
+    // Resolve (and create) charts_dir so downstream existence checks work.
+    let charts_dir = match resolve_charts_dir(dashboard) {
+        Ok(dir) => Some(dir),
+        Err(e) => {
+            errors.push(ValidationError {
+                message: format!(
+                    "dashboard.charts_dir: failed to create directory \"{}\": {e}",
+                    dashboard.charts_dir.as_deref().unwrap_or("./charts")
+                ),
+                hint: Some("Check filesystem permissions or set `charts_dir` to a writable path.".into()),
+            });
+            None
+        }
+    };
+
+    let id_re = regex::Regex::new(r"^[a-z0-9][a-z0-9_-]*$").expect("static regex");
+    let mut seen_ids = std::collections::HashSet::new();
+
+    for (i, chart) in dashboard.charts.iter().enumerate() {
+        validate_chart(
+            i,
+            chart,
+            &id_re,
+            &mut seen_ids,
+            charts_dir.as_deref(),
+            config_dir,
+            errors,
+        );
+    }
+}
+
+fn validate_chart(
+    idx: usize,
+    chart: &ChartConfig,
+    id_re: &regex::Regex,
+    seen_ids: &mut std::collections::HashSet<String>,
+    charts_dir: Option<&Path>,
+    config_dir: Option<&Path>,
+    errors: &mut Vec<ValidationError>,
+) {
+    let prefix = format!("dashboard.charts[{idx}]");
+
+    if chart.id.is_empty() {
+        errors.push(ValidationError {
+            message: format!("{prefix}.id is empty."),
+            hint: Some("Use a short lowercase slug like \"daily_volume\".".into()),
+        });
+    } else if !id_re.is_match(&chart.id) {
+        errors.push(ValidationError {
+            message: format!(
+                "{prefix}.id: \"{}\" must match ^[a-z0-9][a-z0-9_-]*$.",
+                chart.id
+            ),
+            hint: Some("Use lowercase letters, digits, underscores, and hyphens; start with a letter or digit.".into()),
+        });
+    } else if !seen_ids.insert(chart.id.clone()) {
+        errors.push(ValidationError {
+            message: format!("{prefix}.id: duplicate chart id \"{}\".", chart.id),
+            hint: Some("Every chart id must be unique within the catalog.".into()),
+        });
+    }
+
+    if chart.title.is_empty() {
+        errors.push(ValidationError {
+            message: format!("{prefix}.title is empty."),
+            hint: Some("Provide a human-readable chart title.".into()),
+        });
+    }
+
+    if chart.sql.trim().is_empty() {
+        errors.push(ValidationError {
+            message: format!("{prefix}.sql is empty."),
+            hint: Some("Provide a SQL query that produces the chart data.".into()),
+        });
+    }
+
+    if let Some(0) = chart.cache_ttl_minutes {
+        errors.push(ValidationError {
+            message: format!("{prefix}.cache_ttl_minutes must be > 0."),
+            hint: Some("Omit to inherit default_cache_ttl_minutes, or use a positive value.".into()),
+        });
+    }
+
+    if chart.module_file.is_empty() {
+        errors.push(ValidationError {
+            message: format!("{prefix}.module_file is empty."),
+            hint: Some("Provide a path to a .js or .mjs ECharts build module.".into()),
+        });
+        return;
+    }
+
+    let module_path = resolve_module_path(&chart.module_file, charts_dir, config_dir);
+
+    let ext_ok = module_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e == "js" || e == "mjs");
+    if !ext_ok {
+        errors.push(ValidationError {
+            message: format!(
+                "{prefix}.module_file: \"{}\" must have extension .js or .mjs.",
+                chart.module_file
+            ),
+            hint: None,
+        });
+    }
+
+    if !module_path.exists() {
+        errors.push(ValidationError {
+            message: format!(
+                "{prefix}.module_file: resolved path \"{}\" does not exist.",
+                module_path.display()
+            ),
+            hint: Some(
+                "Create the module file, or fix the path. Relative paths resolve against `charts_dir` (or the config file's directory if `charts_dir` is unset)."
+                    .into(),
+            ),
+        });
+    } else if !module_path.is_file() {
+        errors.push(ValidationError {
+            message: format!(
+                "{prefix}.module_file: resolved path \"{}\" is not a regular file.",
+                module_path.display()
+            ),
+            hint: None,
+        });
+    }
+}
+
+/// Resolves a `module_file` entry to an absolute/relative path on disk.
+/// - Absolute paths are returned unchanged.
+/// - Relative paths join with `charts_dir` if provided, else with `config_dir`
+///   (the directory containing the config file), else left relative to CWD.
+pub fn resolve_module_path(
+    module_file: &str,
+    charts_dir: Option<&Path>,
+    config_dir: Option<&Path>,
+) -> PathBuf {
+    let p = Path::new(module_file);
+    if p.is_absolute() {
+        return p.to_path_buf();
+    }
+    if let Some(base) = charts_dir {
+        return base.join(p);
+    }
+    if let Some(base) = config_dir {
+        return base.join(p);
+    }
+    p.to_path_buf()
 }

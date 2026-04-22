@@ -22,6 +22,9 @@ pub struct Config {
     /// Table definitions with pricing.
     #[serde(default)]
     pub tables: Vec<TableConfig>,
+    /// Dashboard configuration (optional). Omit to disable the dashboard subsystem.
+    #[serde(default)]
+    pub dashboard: Option<DashboardConfig>,
 }
 
 /// Server network configuration.
@@ -100,6 +103,46 @@ pub struct PaymentConfig {
     pub max_timeout_seconds: Option<u64>,
     /// Fallback description for tables without their own.
     pub default_description: Option<String>,
+}
+
+/// Dashboard subsystem configuration.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DashboardConfig {
+    /// Whether the dashboard is enabled.
+    #[allow(dead_code)] // read when the router is mounted in the next commit
+    pub enabled: bool,
+    /// Human-readable dashboard title.
+    pub title: String,
+    /// Base directory for resolving bare `module_file` paths. If omitted,
+    /// defaults to `./charts` relative to the current working directory;
+    /// the directory is created if it does not exist.
+    pub charts_dir: Option<String>,
+    /// Default cache TTL in minutes for chart query results.
+    pub default_cache_ttl_minutes: u64,
+    /// Timeout in seconds for chart SQL queries (default: 60).
+    pub query_timeout_seconds: Option<u64>,
+    /// Chart catalog.
+    #[serde(default)]
+    pub charts: Vec<ChartConfig>,
+}
+
+/// A single chart in the dashboard catalog.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChartConfig {
+    /// Chart identifier (must match `^[a-z0-9][a-z0-9_-]*$`, unique within the catalog).
+    pub id: String,
+    /// Human-readable chart title.
+    pub title: String,
+    /// SQL query producing the chart data.
+    pub sql: String,
+    /// Path to the ECharts build module (`.js` or `.mjs`). Resolved against
+    /// `charts_dir` when relative, or against the config file's parent
+    /// directory when `charts_dir` is unset.
+    pub module_file: String,
+    /// Per-chart cache TTL override in minutes.
+    pub cache_ttl_minutes: Option<u64>,
 }
 
 /// A table exposed by the server.

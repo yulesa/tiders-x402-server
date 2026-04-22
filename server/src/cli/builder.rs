@@ -4,6 +4,7 @@
 //! programmatic API. It constructs database connections, payment configs,
 //! facilitator clients, and fetches table schemas.
 
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -14,12 +15,14 @@ use x402_chain_eip155::KnownNetworkEip155;
 use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use x402_types::networks::USDC;
 
+use crate::dashboard::DashboardChart;
 use crate::facilitator_client::FacilitatorClient;
 use crate::payment_config::GlobalPaymentConfig;
 use crate::price::{PriceTag, PricingModel, TablePaymentOffers, TokenAmount};
 use crate::{AppState, Database};
 
-use super::config::{Config, PriceTagConfig};
+use super::config::{ChartConfig, Config, DashboardConfig, PriceTagConfig};
+use super::validate::{resolve_charts_dir, resolve_module_path};
 
 /// Builds an [`AppState`] from a validated config.
 ///
@@ -322,6 +325,45 @@ fn build_price_tag(tag_cfg: &PriceTagConfig) -> Result<PriceTag> {
             })
         }
     }
+}
+
+/// Converts a YAML [`ChartConfig`] into its runtime [`DashboardChart`] shape.
+/// Pure: path + default resolution only, no filesystem or network I/O.
+#[allow(dead_code)] // consumed by the dashboard state builder in the next commit
+pub fn resolve_chart(
+    chart: &ChartConfig,
+    dashboard: &DashboardConfig,
+    charts_dir: Option<&Path>,
+    config_dir: Option<&Path>,
+) -> DashboardChart {
+    let ttl_minutes = chart
+        .cache_ttl_minutes
+        .unwrap_or(dashboard.default_cache_ttl_minutes);
+
+    DashboardChart {
+        id: chart.id.clone(),
+        title: chart.title.clone(),
+        sql: chart.sql.clone(),
+        module_path: resolve_module_path(&chart.module_file, charts_dir, config_dir),
+        cache_ttl: Duration::from_secs(ttl_minutes.saturating_mul(60)),
+    }
+}
+
+/// Resolves every chart in a [`DashboardConfig`], creating `charts_dir` if it
+/// does not exist. Intended for use by the (future) dashboard state builder.
+#[allow(dead_code)] // consumed by the dashboard state builder in the next commit
+pub fn resolve_dashboard_charts(
+    dashboard: &DashboardConfig,
+    config_dir: Option<&Path>,
+) -> Result<Vec<DashboardChart>> {
+    let charts_dir = resolve_charts_dir(dashboard)
+        .map_err(|e| anyhow!("Failed to resolve dashboard.charts_dir: {e}"))?;
+
+    Ok(dashboard
+        .charts
+        .iter()
+        .map(|c| resolve_chart(c, dashboard, Some(&charts_dir), config_dir))
+        .collect())
 }
 
 /// Resolves a token identifier like "usdc/base_sepolia" to a token deployment.
