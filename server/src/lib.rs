@@ -170,6 +170,7 @@ pub async fn start_server(state: AppState) {
         // Register `GET /` → handled by `root_handler`.
         .route("/", axum::routing::get(root_handler))
         .route("/table/{name}", axum::routing::get(table_detail_handler))
+        .nest("/dashboard", crate::dashboard::handler_dashboard::router())
         // Attach shared state so handlers can access it via Axum's `State` extractor.
         // Axum "extractors" are typed parameters on handler functions that Axum
         // automatically populates from the incoming request (e.g., State, Json, Path).

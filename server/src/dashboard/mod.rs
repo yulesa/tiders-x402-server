@@ -5,6 +5,7 @@
 //! will eventually consume.
 
 pub mod cache;
+pub mod handler_dashboard;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -38,18 +39,16 @@ pub struct DashboardChart {
 /// swapped atomically on hot reload without disturbing in-flight requests.
 #[derive(Debug)]
 pub struct DashboardState {
-    /// Dashboard display title (surfaced by the API descriptor in commit 3).
-    #[allow(dead_code)] // consumed by the catalog/SPA handlers in commit 3/4
+    /// Dashboard display title. Consumed by the catalog/SPA handlers
+    /// (commit 4 for the SPA; catalog JSON in commit 3 lists per-chart titles).
+    #[allow(dead_code)]
     pub title: String,
     /// Timeout applied to each chart SQL query.
-    #[allow(dead_code)] // consumed by the data handler in commit 3
     pub query_timeout: Duration,
     /// Chart catalog keyed by chart id.
-    #[allow(dead_code)] // consumed by the data/module handlers in commit 3
     pub charts: HashMap<String, DashboardChart>,
     /// Chart-id → cached Arrow IPC response. Populated on first request per
     /// chart; refreshed when the entry is older than the chart's TTL.
-    #[allow(dead_code)] // consumed by the data handler in commit 3
     pub cache: RwLock<HashMap<String, CachedArrow>>,
 }
 
