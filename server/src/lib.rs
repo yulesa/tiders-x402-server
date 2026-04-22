@@ -57,6 +57,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use url::Url;
 
+use crate::dashboard::{DashboardState, SharedDashboardState};
 use crate::query_handler::query_handler;
 use crate::root_handler::root_handler;
 use crate::table_detail_handler::table_detail_handler;
@@ -83,24 +84,25 @@ pub struct AppState {
     pub server_base_url: Url,
     /// The address and port the server binds to (e.g. "0.0.0.0:4021").
     pub server_bind_address: String,
+    /// Optional dashboard subsystem state. `None` when the user configures the server without a dashboard.
+    pub dashboard: SharedDashboardState,
 }
 
 impl AppState {
     /// Creates a new `AppState`.
-    ///
-    /// Accepts either a concrete `impl Database` or a pre-wrapped
-    /// `Arc<dyn Database>` — all other wrapping is handled internally.
     pub fn new(
         db: impl Into<Arc<dyn Database>>,
         payment_config: GlobalPaymentConfig,
         server_base_url: Url,
         server_bind_address: String,
+        dashboard: Option<DashboardState>,
     ) -> Self {
         Self {
             db: db.into(),
             payment_config: Arc::new(tokio::sync::RwLock::new(Arc::new(payment_config))),
             server_base_url,
             server_bind_address,
+            dashboard: Arc::new(tokio::sync::RwLock::new(dashboard.map(Arc::new))),
         }
     }
 }

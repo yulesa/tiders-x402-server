@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::config::{ChartConfig, Config, DashboardConfig, PriceTagConfig};
+use super::config::{ChartConfig, Config, PriceTagConfig};
 
 /// A validation error with an optional hint for the user.
 #[derive(Debug)]
@@ -36,18 +36,14 @@ const KNOWN_TOKENS: &[&str] = &[
 ];
 
 /// Validates the config and returns all errors found (not just the first).
-///
-/// `config_dir` is the directory containing the config file, used to resolve
-/// relative `module_file` paths when `dashboard.charts_dir` is unset. Pass
-/// `None` when validating a config that was not loaded from disk.
-pub fn validate_config(config: &Config, config_dir: Option<&Path>) -> Vec<ValidationError> {
+pub fn validate_config(config: &Config) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     validate_server(config, &mut errors);
     validate_facilitator(config, &mut errors);
     validate_database(config, &mut errors);
     validate_tables(config, &mut errors);
-    validate_dashboard(config, config_dir, &mut errors);
+    validate_dashboard(config, &mut errors);
 
     errors
 }
@@ -251,30 +247,35 @@ fn validate_price_tag(
     }
 }
 
-/// Returns the effective `charts_dir` for a dashboard config, creating it on
-/// disk if it does not already exist. When `charts_dir` is unset, defaults to
-/// `./charts` under the current working directory.
-pub fn resolve_charts_dir(dashboard: &DashboardConfig) -> std::io::Result<PathBuf> {
-    let dir = dashboard
-        .charts_dir
-        .as_deref()
-        .map_or_else(|| PathBuf::from("./charts"), PathBuf::from);
+/// Returns the dashboard charts directory derived from the config file path
+/// (`<config_parent>/charts`). Errors if it does not exist or is not a
+/// directory.
+pub fn resolve_charts_dir(config: &Config) -> std::io::Result<PathBuf> {
+    let dir = config
+        .config_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("charts");
 
     if !dir.exists() {
-        std::fs::create_dir_all(&dir)?;
-        tracing::info!(
-            "Created dashboard charts directory at \"{}\".",
-            dir.display()
-        );
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!(
+                "charts directory \"{}\" does not exist — create it next to the config file",
+                dir.display()
+            ),
+        ));
+    }
+    if !dir.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotADirectory,
+            format!("\"{}\" exists but is not a directory", dir.display()),
+        ));
     }
     Ok(dir)
 }
 
-fn validate_dashboard(
-    config: &Config,
-    config_dir: Option<&Path>,
-    errors: &mut Vec<ValidationError>,
-) {
+fn validate_dashboard(config: &Config, errors: &mut Vec<ValidationError>) {
     let Some(dashboard) = &config.dashboard else {
         return;
     };
@@ -300,16 +301,15 @@ fn validate_dashboard(
         });
     }
 
-    // Resolve (and create) charts_dir so downstream existence checks work.
-    let charts_dir = match resolve_charts_dir(dashboard) {
+    // Resolve the charts directory so downstream existence checks work.
+    let charts_dir = match resolve_charts_dir(config) {
         Ok(dir) => Some(dir),
         Err(e) => {
             errors.push(ValidationError {
-                message: format!(
-                    "dashboard.charts_dir: failed to create directory \"{}\": {e}",
-                    dashboard.charts_dir.as_deref().unwrap_or("./charts")
+                message: format!("dashboard charts directory: {e}"),
+                hint: Some(
+                    "Create a `charts/` directory next to the config file.".into(),
                 ),
-                hint: Some("Check filesystem permissions or set `charts_dir` to a writable path.".into()),
             });
             None
         }
@@ -325,7 +325,6 @@ fn validate_dashboard(
             &id_re,
             &mut seen_ids,
             charts_dir.as_deref(),
-            config_dir,
             errors,
         );
     }
@@ -337,7 +336,6 @@ fn validate_chart(
     id_re: &regex::Regex,
     seen_ids: &mut std::collections::HashSet<String>,
     charts_dir: Option<&Path>,
-    config_dir: Option<&Path>,
     errors: &mut Vec<ValidationError>,
 ) {
     let prefix = format!("dashboard.charts[{idx}]");
@@ -391,7 +389,11 @@ fn validate_chart(
         return;
     }
 
-    let module_path = resolve_module_path(&chart.module_file, charts_dir, config_dir);
+    // If charts_dir couldn't be resolved earlier, skip path-dependent checks.
+    let Some(charts_dir) = charts_dir else {
+        return;
+    };
+    let module_path = resolve_module_path(&chart.module_file, charts_dir);
 
     let ext_ok = module_path
         .extension()
@@ -414,7 +416,7 @@ fn validate_chart(
                 module_path.display()
             ),
             hint: Some(
-                "Create the module file, or fix the path. Relative paths resolve against `charts_dir` (or the config file's directory if `charts_dir` is unset)."
+                "Create the module file, or set `dashboard.charts_dir` to the directory that contains it."
                     .into(),
             ),
         });
@@ -429,24 +431,13 @@ fn validate_chart(
     }
 }
 
-/// Resolves a `module_file` entry to an absolute/relative path on disk.
-/// - Absolute paths are returned unchanged.
-/// - Relative paths join with `charts_dir` if provided, else with `config_dir`
-///   (the directory containing the config file), else left relative to CWD.
-pub fn resolve_module_path(
-    module_file: &str,
-    charts_dir: Option<&Path>,
-    config_dir: Option<&Path>,
-) -> PathBuf {
+/// Resolves a `module_file` entry to an on-disk path. Absolute paths are
+/// returned unchanged; relative paths join with `charts_dir`.
+pub fn resolve_module_path(module_file: &str, charts_dir: &Path) -> PathBuf {
     let p = Path::new(module_file);
     if p.is_absolute() {
-        return p.to_path_buf();
+        p.to_path_buf()
+    } else {
+        charts_dir.join(p)
     }
-    if let Some(base) = charts_dir {
-        return base.join(p);
-    }
-    if let Some(base) = config_dir {
-        return base.join(p);
-    }
-    p.to_path_buf()
 }

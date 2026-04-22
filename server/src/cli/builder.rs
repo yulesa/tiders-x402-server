@@ -15,7 +15,7 @@ use x402_chain_eip155::KnownNetworkEip155;
 use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use x402_types::networks::USDC;
 
-use crate::dashboard::DashboardChart;
+use crate::dashboard::{DashboardChart, DashboardState};
 use crate::facilitator_client::FacilitatorClient;
 use crate::payment_config::GlobalPaymentConfig;
 use crate::price::{PriceTag, PricingModel, TablePaymentOffers, TokenAmount};
@@ -66,11 +66,14 @@ pub async fn build_app_state(config: &Config) -> Result<AppState> {
     let server_base_url =
         Url::parse(&config.server.base_url).map_err(|e| anyhow!("Invalid server.base_url: {e}"))?;
 
+    let dashboard = build_dashboard_state_from_config(config)?;
+
     Ok(AppState::new(
         db,
         payment_config,
         server_base_url,
         config.server.bind_address.clone(),
+        dashboard,
     ))
 }
 
@@ -329,12 +332,10 @@ fn build_price_tag(tag_cfg: &PriceTagConfig) -> Result<PriceTag> {
 
 /// Converts a YAML [`ChartConfig`] into its runtime [`DashboardChart`] shape.
 /// Pure: path + default resolution only, no filesystem or network I/O.
-#[allow(dead_code)] // consumed by the dashboard state builder in the next commit
 pub fn resolve_chart(
     chart: &ChartConfig,
     dashboard: &DashboardConfig,
-    charts_dir: Option<&Path>,
-    config_dir: Option<&Path>,
+    charts_dir: &Path,
 ) -> DashboardChart {
     let ttl_minutes = chart
         .cache_ttl_minutes
@@ -344,26 +345,45 @@ pub fn resolve_chart(
         id: chart.id.clone(),
         title: chart.title.clone(),
         sql: chart.sql.clone(),
-        module_path: resolve_module_path(&chart.module_file, charts_dir, config_dir),
+        module_path: resolve_module_path(&chart.module_file, charts_dir),
         cache_ttl: Duration::from_secs(ttl_minutes.saturating_mul(60)),
     }
 }
 
-/// Resolves every chart in a [`DashboardConfig`], creating `charts_dir` if it
-/// does not exist. Intended for use by the (future) dashboard state builder.
-#[allow(dead_code)] // consumed by the dashboard state builder in the next commit
-pub fn resolve_dashboard_charts(
-    dashboard: &DashboardConfig,
-    config_dir: Option<&Path>,
-) -> Result<Vec<DashboardChart>> {
-    let charts_dir = resolve_charts_dir(dashboard)
-        .map_err(|e| anyhow!("Failed to resolve dashboard.charts_dir: {e}"))?;
+/// Builds a [`DashboardState`] from a validated [`Config`], or `None` when the
+/// config has no `dashboard:` section or the dashboard is disabled. Also
+/// ensures `charts_dir` exists on disk.
+///
+/// Symmetric to [`build_payment_config_from_tables`], usable both during
+/// initial startup and by the hot-reload path (commit 5).
+pub fn build_dashboard_state_from_config(config: &Config) -> Result<Option<DashboardState>> {
+    let Some(dashboard) = &config.dashboard else {
+        return Ok(None);
+    };
+    if !dashboard.enabled {
+        tracing::info!("Dashboard present in config but disabled; not mounting.");
+        return Ok(None);
+    }
 
-    Ok(dashboard
+    let charts_dir = resolve_charts_dir(config)
+        .map_err(|e| anyhow!("Failed to resolve dashboard charts directory: {e}"))?;
+
+    let charts: Vec<DashboardChart> = dashboard
         .charts
         .iter()
-        .map(|c| resolve_chart(c, dashboard, Some(&charts_dir), config_dir))
-        .collect())
+        .map(|c| resolve_chart(c, dashboard, &charts_dir))
+        .collect();
+
+    let query_timeout = dashboard.query_timeout_seconds.map(Duration::from_secs);
+    let state = DashboardState::new(dashboard.title.clone(), query_timeout, charts);
+
+    tracing::info!(
+        "Dashboard enabled with {} chart(s); query timeout {}s.",
+        state.charts.len(),
+        state.query_timeout.as_secs()
+    );
+
+    Ok(Some(state))
 }
 
 /// Resolves a token identifier like "usdc/base_sepolia" to a token deployment.

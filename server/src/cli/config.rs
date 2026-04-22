@@ -4,6 +4,8 @@
 //! converted into the runtime types (`AppState`, `GlobalPaymentConfig`, etc.)
 //! by the [`super::builder`] module.
 
+use std::path::PathBuf;
+
 use serde::Deserialize;
 
 /// Top-level configuration.
@@ -25,6 +27,11 @@ pub struct Config {
     /// Dashboard configuration (optional). Omit to disable the dashboard subsystem.
     #[serde(default)]
     pub dashboard: Option<DashboardConfig>,
+    /// Absolute path to the YAML config file. Populated by the loader, not
+    /// parsed from YAML. Used to resolve paths relative to the config file
+    /// (e.g., the dashboard charts directory).
+    #[serde(skip, default)]
+    pub config_path: PathBuf,
 }
 
 /// Server network configuration.
@@ -110,14 +117,9 @@ pub struct PaymentConfig {
 #[serde(deny_unknown_fields)]
 pub struct DashboardConfig {
     /// Whether the dashboard is enabled.
-    #[allow(dead_code)] // read when the router is mounted in the next commit
     pub enabled: bool,
     /// Human-readable dashboard title.
     pub title: String,
-    /// Base directory for resolving bare `module_file` paths. If omitted,
-    /// defaults to `./charts` relative to the current working directory;
-    /// the directory is created if it does not exist.
-    pub charts_dir: Option<String>,
     /// Default cache TTL in minutes for chart query results.
     pub default_cache_ttl_minutes: u64,
     /// Timeout in seconds for chart SQL queries (default: 60).
@@ -137,9 +139,8 @@ pub struct ChartConfig {
     pub title: String,
     /// SQL query producing the chart data.
     pub sql: String,
-    /// Path to the ECharts build module (`.js` or `.mjs`). Resolved against
-    /// `charts_dir` when relative, or against the config file's parent
-    /// directory when `charts_dir` is unset.
+    /// Path to the ECharts build module (`.js` or `.mjs`). Relative paths are
+    /// resolved against the `charts/` directory next to the config file.
     pub module_file: String,
     /// Per-chart cache TTL override in minutes.
     pub cache_ttl_minutes: Option<u64>,
