@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tiders dashboard — coming soon</title>
+    <link rel="stylesheet" href="/dashboard/assets/app.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Tiders dashboard</h1>
+      <p class="tag">Coming soon.</p>
+      <h2>Configured charts</h2>
+      <ul id="charts"><li class="empty">Loading…</li></ul>
+    </main>
+    <script>
+      (async () => {
+        const list = document.getElementById("charts");
+        try {
+          const res = await fetch("/dashboard/api/charts");
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const charts = await res.json();
+          list.innerHTML = "";
+          if (!charts.length) {
+            const li = document.createElement("li");
+            li.className = "empty";
+            li.textContent = "No charts configured.";
+            list.appendChild(li);
+            return;
+          }
+          for (const c of charts) {
+            const li = document.createElement("li");
+            li.textContent = c.id + " — " + c.title;
+            list.appendChild(li);
+          }
+        } catch (err) {
+          list.innerHTML = "";
+          const li = document.createElement("li");
+          li.className = "error";
+          li.textContent = "Failed to load charts: " + err.message;
+          list.appendChild(li);
+        }
+      })();
+    </script>
+  </body>
+</html>

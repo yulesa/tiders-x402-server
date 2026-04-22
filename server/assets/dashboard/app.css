@@ -1,0 +1,58 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  background: canvas;
+  color: canvastext;
+}
+
+main {
+  max-width: 40rem;
+  width: 100%;
+}
+
+h1 {
+  margin-bottom: 0.25rem;
+}
+
+.tag {
+  color: gray;
+  margin-top: 0;
+}
+
+h2 {
+  margin-top: 2rem;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: gray;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0 0;
+}
+
+li {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgb(from canvastext r g b / 0.1);
+  font-variant-numeric: tabular-nums;
+}
+
+li.empty {
+  color: gray;
+  font-style: italic;
+}
+
+li.error {
+  color: #b00020;
+}

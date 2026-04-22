@@ -38,6 +38,7 @@ deadpool-postgres = "0.14"
 clickhouse = "0.13"
 postgres-types = { version = "0.2", features = ["with-serde_json-1"] }
 bytes = "1"
+rust-embed = "8"
 
 # ============================================
 # Using rust-magic-linter STANDARD PRESET so agents follows rust best practices
