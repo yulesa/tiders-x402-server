@@ -86,6 +86,50 @@ Response formats:
 - `402 Payment Required` — JSON payment options; resend with `X-Payment` header
 - `400 Bad Request` / `500 Internal Server Error` — plain text error
 
+## Dashboard (optional)
+
+Alongside the paid API, the server can expose a free, read-only dashboard at `/dashboard/`. It is useful as a storefront: visitors see what data the server offers before deciding to pay.
+
+Enable it by adding a `dashboard:` section to your YAML config.
+
+```yaml
+dashboard:
+  enabled: true
+  title: "My tiders dashboard"
+  default_cache_ttl_minutes: 5     # per-chart TTL; charts may override
+  # query_timeout_seconds: 60      # optional, defaults to 60
+
+  charts:
+    - id: daily_volume             # ^[a-z0-9][a-z0-9_-]*$, unique
+      title: "Daily swap volume"
+      sql: |
+        SELECT date_trunc('day', to_timestamp(CAST(timestamp AS BIGINT))) AS day,
+               COUNT(*) AS swap_count
+        FROM uniswap_v3_pool_swap
+        GROUP BY day
+        ORDER BY day
+      module_file: "daily_volume.js"  # resolved against <tiders-server_yaml_dir>/charts/
+      # cache_ttl_minutes: 10         # optional per-chart override
+```
+
+Each chart's `module_file` points to a JavaScript module under a `charts/` directory next to the config file. The module exports a default function `build(rows, meta) -> EChartsOption` — see [examples/cli/charts/daily_volume.js](../examples/cli/charts/daily_volume.js).
+
+### Dashboard endpoints (all free, no x402)
+
+| Endpoint | Description |
+|---|---|
+| `GET /dashboard/` | Embedded SPA (placeholder for now) |
+| `GET /dashboard/assets/{path}` | Static SPA assets embedded in the binary |
+| `GET /dashboard/api/charts` | Chart catalog as JSON: `[{ id, title, moduleUrl, dataUrl }, …]` |
+| `GET /dashboard/api/charts/{id}/data` | Arrow IPC stream of the chart's query result. `X-Tiders-Generated-At` header gives the Unix epoch seconds of the cached entry. |
+| `GET /dashboard/api/charts/{id}/module` | The chart's JS build module, with `ETag` / `If-None-Match` support |
+
+Chart SQL results are cached in memory per chart with the configured TTL. The dashboard SQL bypasses the restricted parser used by `/query`, so `GROUP BY`, aggregates, joins, and date functions are available.
+
+### Hot reload
+
+When the watcher is enabled (default), editing the `dashboard:` section in the config **or** any file under `<config_dir>/charts/` rebuilds the catalog without a restart. Adding or removing the `dashboard:` section at runtime requires a restart — you'll see a warning in the log.
+
 ## Related crates
 
 - [`tiders-x402-server`](https://pypi.org/project/tiders-x402-server/) (PyPI) — the same CLI binary packaged for `pip install`.

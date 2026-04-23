@@ -5,8 +5,7 @@
 //!
 //! **Router**
 //! - [`router`] — builds the axum sub-router nested under `/dashboard` by
-//!   [`redirect_to_index`] for the bare-`/dashboard`in the lib.rs ´start_server´ router.
-//!
+//!   `start_server` in `lib.rs`.
 //! **Static SPA (embedded via `rust-embed`)**
 //! - [`serve_index`] — `GET /dashboard/` → `index.html`.
 //! - [`serve_asset_path`] — `GET /dashboard/assets/{*path}` → any embedded file.
@@ -42,7 +41,7 @@ use axum::Router;
 use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode, header};
-use axum::response::{IntoResponse, Redirect, Response};
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use rust_embed::RustEmbed;
 use serde::Serialize;
@@ -60,10 +59,6 @@ use crate::database::serialize_batches_to_arrow_ipc;
 
 /// Builds the dashboard sub-router. Meant to be mounted under `/dashboard`
 /// via `Router::nest` so the paths here read naturally.
-///
-/// Note: the bare `GET /dashboard` redirect is registered on the top-level
-/// router in `lib.rs`. Routes defined here sit under `/dashboard/…` after
-/// `nest`, so a path of `""` would collide with the nested `/` route.
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", get(serve_index))
@@ -71,12 +66,6 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/api/charts", get(list_charts))
         .route("/api/charts/{id}/data", get(chart_data))
         .route("/api/charts/{id}/module", get(chart_module))
-}
-
-/// `GET /dashboard` (no trailing slash) → redirect so relative asset URLs
-/// in `index.html` (e.g. `/dashboard/assets/app.css`) resolve correctly.
-pub async fn redirect_to_index() -> Redirect {
-    Redirect::permanent("/dashboard/")
 }
 
 // ---------------------------------------------------------------------------
