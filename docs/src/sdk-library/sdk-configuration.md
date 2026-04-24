@@ -146,7 +146,7 @@ A single pricing tier for a table. Defines who gets paid, how much, and in which
 |---------|--------|-------------|
 | `PerRow` | `amount_per_item`, `min_items`, `max_items`, `min_total_amount` | Price scales with row count |
 | `Fixed` | `amount` | Flat fee regardless of row count |
-| `MetadataPrice` | `amount` | Flat fee for accessing table metadata via `GET /table/:name` |
+| `MetadataPrice` | `amount` | Flat fee for accessing table metadata via `GET /api/table/:name` |
 
 **Construction (Per-Row)**
 

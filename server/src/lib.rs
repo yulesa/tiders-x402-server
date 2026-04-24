@@ -3,20 +3,22 @@
 //! This module sets up and runs the HTTP server for the Tiders x402 payment-gated
 //! data service. It uses [Axum](https://docs.rs/axum).
 //!
-//! ## How Axum works (brief overview)
+//! The server has two surfaces:
 //!
-//! Axum is a routing-based web framework. You build an application by:
-//! 1. Creating a [`Router`] that maps URL paths to handler functions.
-//! 2. Attaching shared application state (via `.with_state(...)`) that handlers
-//!    can access on every request.
-//! 3. Adding middleware layers (via `.layer(...)`) that wrap every request/response
-//!    — for example, logging, authentication, or tracing.
-//! 4. Binding the router to a TCP listener and serving it with `axum::serve`.
+//! **Browser surface** — the embedded React SPA dashboard.
 //!
-//! ## What this server exposes
+//! - `GET /` — SPA `index.html`.
+//! - `GET /assets/{*path}` — SPA bundle files (hashed JS/CSS/fonts).
+//! - `GET /favicon.svg` — favicon.
 //!
-//! - `POST /query` — the main endpoint where clients submit paid data queries.
-//! - `GET /` — a root endpoint that returns server metadata and available data offers.
+//! **API surface** — all JSON or Arrow IPC. `POST /api/query` is paywalled
+//! via x402; everything else is free.
+//!
+//! - `GET /api` — server metadata + table list + SQL parser rules.
+//! - `POST /api/query` — execute a restricted SELECT; returns Arrow IPC.
+//! - `GET /api/table/{name}` — schema + pricing for one table.
+//! - `GET /api/charts`, `/api/charts/{id}/data`, `/api/charts/{id}/module`
+//!   — chart catalog, row data (Arrow IPC, TTL-cached), and JS build module.
 
 #[cfg(feature = "cli")]
 pub mod cli;
@@ -32,8 +34,8 @@ pub mod facilitator_client;
 pub mod payment_config;
 pub mod payment_processing;
 pub mod price;
+pub mod info_handler;
 pub mod query_handler;
-pub mod root_handler;
 #[cfg(feature = "clickhouse")]
 pub mod sql_clickhouse;
 #[cfg(feature = "duckdb")]
@@ -58,8 +60,8 @@ use tracing_subscriber::util::SubscriberInitExt;
 use url::Url;
 
 use crate::dashboard::{DashboardState, SharedDashboardState};
+use crate::info_handler::info_handler;
 use crate::query_handler::query_handler;
-use crate::root_handler::root_handler;
 use crate::table_detail_handler::table_detail_handler;
 pub use database::Database;
 pub use facilitator_client::FacilitatorClient;
@@ -162,15 +164,27 @@ pub async fn start_server(state: AppState) {
     let bind_addr = state.server_bind_address.clone();
 
     // Build the Axum Router.
-    // A Router maps HTTP method + path combinations to handler functions.
+    //
+    // Two surfaces live on the same host today; a reverse proxy can split
+    // them onto `example.com` (the SPA) and `api.example.com` (the `/api/*`
+    // routes with a path rewrite) later without touching this code.
+    //
+    // Browser surface:  /, /assets/{*path}, /favicon.svg  — SPA index + bundle.
+    // API surface:      /api/*                            — JSON / Arrow IPC.
     let app = Router::new()
-        // Register `POST /query` → handled by `query_handler`.
-        // `post(...)` is a shorthand that only matches POST requests on this path.
-        .route("/query", post(query_handler))
-        // Register `GET /` → handled by `root_handler`.
-        .route("/", axum::routing::get(root_handler))
-        .route("/table/{name}", axum::routing::get(table_detail_handler))
-        .nest("/dashboard", crate::dashboard::handler_dashboard::router())
+        // SPA routes: `/`, `/assets/{*path}`, `/favicon.svg`. The dashboard
+        // module owns the embedded `rust-embed` bundle so it registers the
+        // handlers; we merge them in flat here.
+        .merge(crate::dashboard::handler_dashboard::spa_router())
+        // Paid + metadata API.
+        .route("/api", axum::routing::get(info_handler))
+        .route("/api/query", post(query_handler))
+        .route(
+            "/api/table/{name}",
+            axum::routing::get(table_detail_handler),
+        )
+        // Dashboard API: chart catalog + data + module. Same `/api/*` space.
+        .merge(crate::dashboard::handler_dashboard::api_router())
         // Attach shared state so handlers can access it via Axum's `State` extractor.
         // Axum "extractors" are typed parameters on handler functions that Axum
         // automatically populates from the incoming request (e.g., State, Json, Path).
@@ -237,7 +251,7 @@ pub async fn start_server(state: AppState) {
                 bind_addr, e
             )
         });
-    tracing::info!("Listening on {}", listener.local_addr().unwrap());
+    tracing::info!("Listening on http://{}", listener.local_addr().unwrap());
 
     // `axum::serve` takes the TCP listener and the router, and starts accepting
     // connections. Each incoming connection spawns a new Tokio task.

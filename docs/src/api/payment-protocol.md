@@ -43,7 +43,7 @@ The `Payment-Signature` header contains a base64-encoded JSON `PaymentPayload` (
     }
   },
   "resource": {
-    "url": "http://localhost:4021/query",
+    "url": "http://localhost:4021/api/query",
     "description": "Uniswap v2 swaps - 2 rows",
     "mimeType": "application/vnd.apache.arrow.stream"
   }

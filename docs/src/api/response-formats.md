@@ -15,7 +15,7 @@ Arrow IPC is a binary columnar format that is significantly more efficient than 
 ```typescript
 import * as arrow from 'apache-arrow';
 
-const response = await fetch("http://localhost:4021/query", { ... });
+const response = await fetch("http://localhost:4021/api/query", { ... });
 const arrayBuffer = await response.arrayBuffer();
 const table = arrow.tableFromIPC(arrayBuffer);
 
@@ -58,7 +58,7 @@ When payment is needed, the response is JSON following the x402 specification:
       "scheme": "exact",
       "network": "base-sepolia",
       "max_amount_required": "4000",
-      "resource": "http://localhost:4021/query",
+      "resource": "http://localhost:4021/api/query",
       "description": "Uniswap v2 swaps - 2 rows",
       "mime_type": "application/vnd.apache.arrow.stream",
       "pay_to": "0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7",

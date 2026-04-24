@@ -152,7 +152,7 @@ fixed_tag = tiders_x402_server.PriceTag.fixed(
 
 **Metadata Price**
 
-A flat fee for accessing table metadata (schema and payment offers) via the `GET /table/:name` endpoint. Without this tag, metadata is returned freely. Charging for metadata API calls can be used to prevent API abuse.
+A flat fee for accessing table metadata (schema and payment offers) via the `GET /api/table/:name` endpoint. Without this tag, metadata is returned freely. Charging for metadata API calls can be used to prevent API abuse.
 
 **Rust:**
 ```rust

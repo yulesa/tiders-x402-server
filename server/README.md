@@ -74,21 +74,36 @@ async fn main() -> anyhow::Result<()> {
 
 ## HTTP API
 
+The server exposes two surfaces on the same host. Split them later with a reverse proxy: route `/api/*` to `api.example.com` and everything else to `example.com`.
+
+**Browser surface** (the embedded SPA dashboard):
+
 | Endpoint | Description |
 |---|---|
-| `GET /` | Server metadata: tables, schemas, payment requirements, SQL parser rules. |
-| `GET /table/:name` | Full schema and payment offers for a table. Requires payment if the table has a `MetadataPrice` tag. |
-| `POST /query` | Execute a SQL query. Returns 402 with payment options, or 200 with an Arrow IPC stream. |
+| `GET /` | Dashboard SPA `index.html` |
+| `GET /assets/{path}` | SPA bundle files (hashed JS/CSS) |
+| `GET /favicon.svg` | Favicon |
+
+**API surface** (all free except `POST /api/query`):
+
+| Endpoint | Description |
+|---|---|
+| `GET /api` | Server metadata as JSON: name, version, tables, SQL parser rules. |
+| `GET /api/table/:name` | Full schema and payment offers for a table. Requires payment if the table has a `MetadataPrice` tag. |
+| `POST /api/query` | Execute a SQL query. Returns 402 with payment options, or 200 with an Arrow IPC stream. |
+| `GET /api/charts` | Dashboard chart catalog (see "Dashboard" section below). |
+| `GET /api/charts/{id}/data` | TTL-cached Arrow IPC for one chart. |
+| `GET /api/charts/{id}/module` | The chart's JS build module from disk. |
 
 Response formats:
 
-- `200 OK` — `application/vnd.apache.arrow.stream`
-- `402 Payment Required` — JSON payment options; resend with `X-Payment` header
-- `400 Bad Request` / `500 Internal Server Error` — plain text error
+- `200 OK` — `application/vnd.apache.arrow.stream` on `POST /api/query` and `GET /api/charts/{id}/data`; JSON elsewhere.
+- `402 Payment Required` — JSON payment options; resend with `X-Payment` header.
+- `400 Bad Request` / `500 Internal Server Error` — plain text error.
 
 ## Dashboard (optional)
 
-Alongside the paid API, the server can expose a free, read-only dashboard at `/dashboard/`. It is useful as a storefront: visitors see what data the server offers before deciding to pay.
+Alongside the paid API, the server can expose a free, read-only dashboard at `/`. It is useful as a storefront: visitors see what data the server offers before deciding to pay.
 
 Enable it by adding a `dashboard:` section to your YAML config.
 
@@ -114,17 +129,15 @@ dashboard:
 
 Each chart's `module_file` points to a JavaScript module under a `charts/` directory next to the config file. The module exports a default function `build(rows, meta) -> EChartsOption` — see [examples/cli/charts/daily_volume.js](../examples/cli/charts/daily_volume.js).
 
-### Dashboard endpoints (all free, no x402)
+### Chart endpoints (all free, no x402)
 
-| Endpoint | Description |
-|---|---|
-| `GET /dashboard/` | Embedded SPA (placeholder for now) |
-| `GET /dashboard/assets/{path}` | Static SPA assets embedded in the binary |
-| `GET /dashboard/api/charts` | Chart catalog as JSON: `[{ id, title, moduleUrl, dataUrl }, …]` |
-| `GET /dashboard/api/charts/{id}/data` | Arrow IPC stream of the chart's query result. `X-Tiders-Generated-At` header gives the Unix epoch seconds of the cached entry. |
-| `GET /dashboard/api/charts/{id}/module` | The chart's JS build module, with `ETag` / `If-None-Match` support |
+The chart endpoints live under the same `/api/*` namespace as the paid API, listed in the HTTP API table above. Concretely:
 
-Chart SQL results are cached in memory per chart with the configured TTL. The dashboard SQL bypasses the restricted parser used by `/query`, so `GROUP BY`, aggregates, joins, and date functions are available.
+- `GET /api/charts` — catalog as JSON: `{ title, charts: [{ id, title, sql, moduleUrl, dataUrl }, …] }`.
+- `GET /api/charts/{id}/data` — Arrow IPC stream of the chart's query result. `X-Tiders-Generated-At` header gives the Unix epoch seconds of the cached entry.
+- `GET /api/charts/{id}/module` — the chart's JS build module, with `ETag` / `If-None-Match` support.
+
+Chart SQL results are cached in memory per chart with the configured TTL. The dashboard SQL bypasses the restricted parser used by `/api/query`, so `GROUP BY`, aggregates, joins, and date functions are available.
 
 ### Hot reload
 

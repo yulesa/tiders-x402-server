@@ -1,4 +1,4 @@
-//! Axum handler for the `GET /table/:name` endpoint.
+//! Axum handler for the `GET /api/table/:name` endpoint.
 //!
 //! Returns full schema and payment offer details for a specific table as JSON.
 //! If the table has a `MetadataPrice` price tag, the endpoint requires x402
@@ -17,7 +17,7 @@ use tracing::instrument;
 use x402_types::proto::v2::{PaymentPayload, PaymentRequirements, VerifyResponse};
 use x402_types::util::Base64Bytes;
 
-/// Handles `GET /table/:name` — returns full schema and payment offers as JSON.
+/// Handles `GET /api/table/:name` — returns full schema and payment offers as JSON.
 ///
 /// If the table has a `MetadataPrice` tag, the caller must provide a valid
 /// `Payment-Signature` header following the x402 protocol. Otherwise the
@@ -31,7 +31,7 @@ pub async fn table_detail_handler(
     headers: HeaderMap,
 ) -> Result<axum::response::Response, TableDetailError> {
     let payment_config = state.payment_config.read().await.clone();
-    let path = format!("/table/{name}");
+    let path = format!("/api/table/{name}");
 
     let offer = payment_config
         .offers_tables

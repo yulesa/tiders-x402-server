@@ -8,7 +8,7 @@ A `PricingModel` determines how the total price for a query is calculated. There
 
 - **`PerRow`** — price scales linearly with the number of rows returned.
 - **`Fixed`** — a flat fee regardless of how many rows are returned.
-- **`MetadataPrice`** — a flat fee for accessing table metadata via `GET /table/:name`.
+- **`MetadataPrice`** — a flat fee for accessing table metadata via `GET /api/table/:name`.
 
 ```rust
 pub enum PricingModel {
@@ -39,7 +39,7 @@ pub enum PricingModel {
 
 ### MetadataPrice Fields
 
-- **`amount`** — the flat fee charged for accessing table metadata (schema and payment offers) via the `GET /table/:name` endpoint. Without a `MetadataPrice` tag, metadata is returned freely.
+- **`amount`** — the flat fee charged for accessing table metadata (schema and payment offers) via the `GET /api/table/:name` endpoint. Without a `MetadataPrice` tag, metadata is returned freely.
 
 ## PriceTag
 
@@ -197,7 +197,7 @@ Tables are created with constructors and modified with builder/mutator methods.
 **Helpers**
 
 - **`is_all_fixed_price()`** — returns `true` if all price tags use `PricingModel::Fixed`. Used by the query handler to skip the `COUNT(*)` estimation query.
-- **`has_metadata_price()`** — returns `true` if any price tag uses `PricingModel::MetadataPrice`. Used by the `GET /table/:name` handler to decide whether to require payment.
+- **`has_metadata_price()`** — returns `true` if any price tag uses `PricingModel::MetadataPrice`. Used by the `GET /api/table/:name` handler to decide whether to require payment.
 - **`metadata_price_tags()`** — returns only the metadata price tags. Used to generate payment requirements for the metadata endpoint.
 
 **Getters**

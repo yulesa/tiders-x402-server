@@ -1,33 +1,28 @@
-//! HTTP handlers + router for the dashboard subsystem.
+//! HTTP handlers + routers for the dashboard subsystem.
 //!
-//! Routes are grouped below by the endpoint they serve; each section holds
-//! the public handler first, then the helpers used by that handler alone.
+//! The SPA and the dashboard API share the same host as the paid API. The
+//! router below exposes them as two disjoint pieces so `lib.rs` can merge
+//! each into the top-level axum `Router`:
 //!
-//! **Router**
-//! - [`router`] — builds the axum sub-router nested under `/dashboard` by
-//!   `start_server` in `lib.rs`.
-//! **Static SPA (embedded via `rust-embed`)**
-//! - [`serve_index`] — `GET /dashboard/` → `index.html`.
-//! - [`serve_asset_path`] — `GET /dashboard/assets/{*path}` → any embedded file.
+//! **SPA router** — [`spa_router`]:
+//! - [`serve_index`] — `GET /` → `index.html`.
+//! - [`serve_asset_in_assets`] — `GET /assets/{*path}` → the matching file
+//!   under the embedded `assets/` directory.
+//! - [`serve_favicon`] — `GET /favicon.svg` → the embedded favicon.
 //! - Helpers: [`serve_asset`] (shared 200/304 path), [`is_html`],
 //!   [`content_type_for`], [`hex_sha256`].
 //!
-//! **Chart catalog**
-//! - [`list_charts`] — `GET /dashboard/api/charts` → sorted
-//!   [`ChartDescriptor`] list.
-//!
-//! **Chart data**
-//! - [`chart_data`] — `GET /dashboard/api/charts/{id}/data` → TTL-cached
-//!   Arrow IPC bytes with an `X-Tiders-Generated-At` header (Unix epoch secs).
+//! **API router** — [`api_router`]:
+//! - [`list_charts`] — `GET /api/charts` → `{ title, charts: [...] }`.
+//! - [`chart_data`] — `GET /api/charts/{id}/data` → TTL-cached Arrow IPC
+//!   bytes with an `X-Tiders-Generated-At` header (Unix epoch secs).
+//! - [`chart_module`] — `GET /api/charts/{id}/module` → the on-disk
+//!   `.js` / `.mjs` module, with 304 short-circuit via `If-None-Match` /
+//!   `ETag`.
 //! - Helpers: [`load_dashboard`] (reads the shared state or returns 503),
 //!   [`run_chart_query`] (SQL + timeout + Arrow IPC serialization),
-//!   [`ChartQueryError`] (sentinel so timeouts become 504).
-//!
-//! **Chart module**
-//! - [`chart_module`] — `GET /dashboard/api/charts/{id}/module` → serves the
-//!   on-disk `.js` / `.mjs` module, with 304 short-circuit via
-//!   `If-None-Match` / `ETag`.
-//! - Helper: [`module_etag`] (mtime-derived quoted ETag).
+//!   [`ChartQueryError`] (sentinel so timeouts become 504),
+//!   [`module_etag`] (mtime-derived quoted ETag).
 //!
 //! **Errors**
 //! - [`DashboardError`] — all handler failures, each mapping to a specific
@@ -54,18 +49,45 @@ use crate::dashboard::cache::get_or_fetch;
 use crate::database::serialize_batches_to_arrow_ipc;
 
 // ---------------------------------------------------------------------------
-// Router
+// Routers
 // ---------------------------------------------------------------------------
 
-/// Builds the dashboard sub-router. Meant to be mounted under `/dashboard`
-/// via `Router::nest` so the paths here read naturally.
-pub fn router() -> Router<Arc<AppState>> {
+/// Routes for the embedded SPA bundle: `GET /`, `GET /assets/{*path}`,
+/// `GET /favicon.svg`. Merged into the top-level router by `lib.rs`.
+pub fn spa_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", get(serve_index))
-        .route("/assets/{*path}", get(serve_asset_path))
+        .route("/assets/{*path}", get(serve_asset_in_assets))
+        .route("/favicon.svg", get(serve_favicon))
+}
+
+/// Routes for the dashboard's free API: chart catalog, TTL-cached Arrow IPC
+/// data, and the chart's JS build module. Merged into the top-level router
+/// by `lib.rs` alongside the paid `/api/query` + `GET /api` routes.
+pub fn api_router() -> Router<Arc<AppState>> {
+    Router::new()
         .route("/api/charts", get(list_charts))
         .route("/api/charts/{id}/data", get(chart_data))
         .route("/api/charts/{id}/module", get(chart_module))
+}
+
+/// `GET /` — serves the SPA entry point (the embedded `index.html`).
+async fn serve_index(headers: HeaderMap) -> Response {
+    serve_asset("index.html", &headers)
+}
+
+/// `GET /assets/{*path}` — serves hashed SPA bundle files. The `assets/`
+/// prefix is preserved so the lookup matches the embedded directory layout
+/// (`server/assets/dashboard/assets/...`).
+async fn serve_asset_in_assets(Path(path): Path<String>, headers: HeaderMap) -> Response {
+    serve_asset(&format!("assets/{path}"), &headers)
+}
+
+/// `GET /favicon.svg` — the only top-level embedded file the SPA links to
+/// directly. Explicit route rather than a catch-all to avoid shadowing
+/// future root-level paths.
+async fn serve_favicon(headers: HeaderMap) -> Response {
+    serve_asset("favicon.svg", &headers)
 }
 
 // ---------------------------------------------------------------------------
@@ -77,17 +99,6 @@ pub fn router() -> Router<Arc<AppState>> {
 #[derive(RustEmbed)]
 #[folder = "assets/dashboard/"]
 struct DashboardAssets;
-
-/// `GET /dashboard/` — serves the SPA entry point.
-pub async fn serve_index(headers: HeaderMap) -> Response {
-    serve_asset("index.html", &headers)
-}
-
-/// `GET /dashboard/assets/{*path}` — serves any embedded asset under
-/// `server/assets/dashboard/`.
-pub async fn serve_asset_path(Path(path): Path<String>, headers: HeaderMap) -> Response {
-    serve_asset(&path, &headers)
-}
 
 /// Shared 200 / 304 path for embedded-asset serving.
 fn serve_asset(path: &str, req_headers: &HeaderMap) -> Response {
@@ -166,47 +177,64 @@ fn hex_sha256(bytes: &[u8; 32]) -> String {
 // Chart catalog
 // ---------------------------------------------------------------------------
 
-/// One entry in the dashboard catalog response.
+/// Top-level `/api/charts` response body.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogResponse {
+    /// Provider-configured dashboard title, shown in the SPA header.
+    title: String,
+    /// Chart entries, sorted by id for stable output.
+    charts: Vec<ChartDescriptor>,
+}
+
+/// One entry in the `/api/charts` catalog response. `sql` is surfaced so
+/// the SPA's download modal can pre-fill the chart's query without a
+/// second round-trip.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChartDescriptor {
     id: String,
     title: String,
+    sql: String,
     module_url: String,
     data_url: String,
 }
 
-/// `GET /dashboard/api/charts` — catalog listing.
+/// `GET /api/charts` — catalog listing.
 #[axum::debug_handler]
 #[instrument(skip_all)]
 pub async fn list_charts(
     State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<ChartDescriptor>>, DashboardError> {
+) -> Result<Json<CatalogResponse>, DashboardError> {
     let dashboard = load_dashboard(&state).await?;
 
-    let mut descriptors: Vec<ChartDescriptor> = dashboard
+    let mut charts: Vec<ChartDescriptor> = dashboard
         .charts
         .values()
         .map(|c| ChartDescriptor {
             id: c.id.clone(),
             title: c.title.clone(),
-            module_url: format!("/dashboard/api/charts/{}/module", c.id),
-            data_url: format!("/dashboard/api/charts/{}/data", c.id),
+            sql: c.sql.clone(),
+            module_url: format!("/api/charts/{}/module", c.id),
+            data_url: format!("/api/charts/{}/data", c.id),
         })
         .collect();
 
     // HashMap iteration order is non-deterministic; sort so catalog output is
     // stable across requests and process restarts.
-    descriptors.sort_by(|a, b| a.id.cmp(&b.id));
+    charts.sort_by(|a, b| a.id.cmp(&b.id));
 
-    Ok(Json(descriptors))
+    Ok(Json(CatalogResponse {
+        title: dashboard.title.clone(),
+        charts,
+    }))
 }
 
 // ---------------------------------------------------------------------------
 // Chart data
 // ---------------------------------------------------------------------------
 
-/// `GET /dashboard/api/charts/{id}/data` — Arrow IPC bytes, TTL-cached.
+/// `GET /api/charts/{id}/data` — Arrow IPC bytes, TTL-cached.
 #[axum::debug_handler]
 #[instrument(skip_all, fields(chart_id = %id))]
 pub async fn chart_data(
@@ -310,7 +338,7 @@ enum ChartQueryError {
 // Chart module
 // ---------------------------------------------------------------------------
 
-/// `GET /dashboard/api/charts/{id}/module` — serves the chart's JS build
+/// `GET /api/charts/{id}/module` — serves the chart's JS build
 /// module from disk. ETag is derived from mtime so browsers can revalidate
 /// cheaply; `Cache-Control: no-cache` forces revalidation on every request
 /// but allows 304 short-circuits.

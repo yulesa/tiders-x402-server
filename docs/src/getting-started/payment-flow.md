@@ -22,7 +22,7 @@ When a client sends a query without a `Payment-Signature` header:
   "x402Version": 2,
   "error": "No crypto payment found. Implement x402 protocol...",
   "resource": {
-    "url": "http://server:4021/query",
+    "url": "http://server:4021/api/query",
     "description": "Uniswap v2 swaps - 2 rows",
     "mime_type": "application/vnd.apache.arrow.stream"
   },

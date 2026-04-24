@@ -1,11 +1,11 @@
 # Table Detail Handler
 
-The table detail handler (`server/src/table_detail_handler.rs`) serves the `GET /table/:name` endpoint. It returns full schema and payment offer details for a specific table as JSON.
+The table detail handler (`server/src/table_detail_handler.rs`) serves the `GET /api/table/:name` endpoint. It returns full schema and payment offer details for a specific table as JSON.
 
 ## Endpoint
 
 ```
-GET /table/:name
+GET /api/table/:name
 ```
 
 Returns the `TablePaymentOffers` for the requested table, including its schema, pricing tiers, and payment requirements.
@@ -56,7 +56,7 @@ Returned when the table has a `MetadataPrice` tag and no valid payment is provid
   "x402Version": 2,
   "error": "No crypto payment found. Implement x402 protocol...",
   "resource": {
-    "url": "http://localhost:4021/table/uniswap_v3_pool_swap",
+    "url": "http://localhost:4021/api/table/uniswap_v3_pool_swap",
     "description": "Uniswap V3 pool swaps - metadata access",
     "mime_type": "application/json"
   },

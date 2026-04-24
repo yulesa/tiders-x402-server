@@ -26,7 +26,7 @@ Supported tables:
 - Table: swaps_df
   Description: Uniswap v2 swaps
   Payment required: true
-  Details: GET /table/uniswap_v3_pool_swap
+  Details: GET /api/table/uniswap_v3_pool_swap
 
 SQL parser rules:
 - Only SELECT statements are supported.
@@ -37,7 +37,7 @@ SQL parser rules:
 - WHERE, ORDER BY, and LIMIT are supported with restrictions.
 ```
 
-## `POST /query`
+## `POST /api/query`
 
 Executes a SQL query against the database.
 
@@ -46,7 +46,7 @@ Queries must conform to a restricted SQL dialect ("Simplified SQL") whose AST pe
 **Request**
 
 ```bash
-curl -X POST http://[Server_URL]/query \
+curl -X POST http://[Server_URL]/api/query \
   -H "Content-Type: application/json" \
   -d '{"query": "SELECT * FROM my_table LIMIT 10"}'
 ```
@@ -81,7 +81,7 @@ Returned when the table requires payment and no valid `X-Payment` header is pres
       "scheme": "exact",
       "network": "base-sepolia",
       "max_amount_required": "4000",
-      "resource": "http://[Server_URL]/query",
+      "resource": "http://[Server_URL]/api/query",
       "description": "Uniswap v2 swaps - 2 rows",
       "mime_type": "application/vnd.apache.arrow.stream",
       "pay_to": "0xE7a820f9E05e4a456A7567B79e433cc64A058Ae7",
@@ -123,7 +123,7 @@ Failed to execute query: ...
 
 ---
 
-## `GET /table/:name`
+## `GET /api/table/:name`
 
 Returns full schema and payment offer details for a specific table as JSON.
 
@@ -132,7 +132,7 @@ If the table has a [`MetadataPrice`](../server/price.md#metadataprice) price tag
 **Request**
 
 ```bash
-curl http://[Server_URL]/table/my_table
+curl http://[Server_URL]/api/table/my_table
 ```
 
 **Response: 200 OK (Success)**
@@ -165,7 +165,7 @@ Returned when the table has a `MetadataPrice` tag and no valid `Payment-Signatur
   "x402Version": 2,
   "error": "No crypto payment found. Implement x402 protocol...",
   "resource": {
-    "url": "http://[Server_URL]/table/my_table",
+    "url": "http://[Server_URL]/api/table/my_table",
     "description": "My dataset - metadata access",
     "mime_type": "application/json"
   },

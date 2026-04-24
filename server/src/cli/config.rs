@@ -199,7 +199,7 @@ pub enum PriceTagConfig {
         #[serde(default)]
         is_default: bool,
     },
-    /// A flat fee for accessing table metadata (schema + payment offers) via GET /table/:name.
+    /// A flat fee for accessing table metadata (schema + payment offers) via GET /api/table/:name.
     #[serde(rename = "metadata_price")]
     MetadataPrice {
         /// Recipient wallet address.

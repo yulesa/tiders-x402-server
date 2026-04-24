@@ -39,9 +39,8 @@ pub struct DashboardChart {
 /// swapped atomically on hot reload without disturbing in-flight requests.
 #[derive(Debug)]
 pub struct DashboardState {
-    /// Dashboard display title. Consumed by the catalog/SPA handlers
-    /// (commit 4 for the SPA; catalog JSON in commit 3 lists per-chart titles).
-    #[allow(dead_code)]
+    /// Dashboard display title, shown in the SPA header and included in
+    /// the `/api/charts` catalog response.
     pub title: String,
     /// Timeout applied to each chart SQL query.
     pub query_timeout: Duration,
