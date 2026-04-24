@@ -180,17 +180,23 @@ curl http://localhost:4021/
 
 ## API
 
-### `GET /`
+The server has two surfaces on the same host. All machine-readable endpoints live under `/api/*`; the browser-facing dashboard SPA lives at `/`.
 
-Returns server metadata: available tables, schemas, payment requirements, and SQL parser rules.
+### `GET /` — Dashboard SPA
 
-### `GET /table/:name`
+The embedded React single-page dashboard.
 
-Returns full schema and payment offers for a specific table as JSON. If the table has a `MetadataPrice` tag, requires payment via the x402 protocol.
+### `GET /api`
 
-### `POST /query`
+Returns server metadata as JSON: name, version, table list, and SQL parser rules.
 
-Execute a SQL query. 
+### `GET /api/table/:name`
+
+Returns full schema and payment offers for a specific table as JSON. If the table has a `MetadataPrice` tag, it requires payment via the x402 protocol.
+
+### `POST /api/query`
+
+Execute a SQL query.
 
 Queries must conform to a restricted SQL dialect ("Simplified SQL") whose AST permits only `SELECT` statements against a single table, with a limited set of `WHERE`, `ORDER BY`, and `LIMIT` expressions. JOINs, subqueries, GROUP BY, CTEs, window functions, and aggregates are rejected. See the [SQL Parser](../server/sql-parser.md) page for the full grammar and list of supported features.
 
@@ -198,13 +204,13 @@ When a payment is necessary, the server returns 402 with payment options. A clie
 
 ```bash
 # Step 1: Get pricing
-curl -X POST http://localhost:4021/query \
+curl -X POST http://localhost:4021/api/query \
   -H "Content-Type: application/json" \
   -d '{"query": "SELECT * FROM my_table LIMIT 10"}'
 # Returns 402 with payment options
 
 # Step 2: Send with payment (typically handled by client library)
-curl -X POST http://localhost:4021/query \
+curl -X POST http://localhost:4021/api/query \
   -H "Content-Type: application/json" \
   -H "X-Payment: <base64-encoded-signed-payment>" \
   -d '{"query": "SELECT * FROM my_table LIMIT 10"}'
@@ -275,7 +281,7 @@ bulk_tag = PriceTag(pay_to, PricingModel.per_row("1000000000000000", min_items=1
 fixed_tag = PriceTag(pay_to, PricingModel.fixed("5000000000000000"), token)
 ```
 
-**Metadata pricing** charges a flat fee for accessing table metadata (schema and payment offers) via `GET /table/:name`:
+**Metadata pricing** charges a flat fee for accessing table metadata (schema and payment offers) via `GET /api/table/:name`:
 
 ```python
 metadata_tag = PriceTag.metadata_price(pay_to, "1.00", token)

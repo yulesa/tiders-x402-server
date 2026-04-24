@@ -11,7 +11,7 @@ x402-types = { version = "1.4.4", features = ["telemetry"] }
 x402-chain-eip155 = { version = "1.4.4", features = ["server"] }
 axum = { version = "0.8.8", features = ["macros"] }
 serde_json = { version = "1.0.149" }
-tokio = { version = "1.50.0", features = ["signal", "rt-multi-thread", "macros"] }
+tokio = { version = "1.50.0", features = ["signal", "rt-multi-thread", "macros", "fs"] }
 dotenvy = { version = "0.15.7" }
 tracing = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
@@ -38,6 +38,7 @@ deadpool-postgres = "0.14"
 clickhouse = "0.13"
 postgres-types = { version = "0.2", features = ["with-serde_json-1"] }
 bytes = "1"
+rust-embed = "8"
 
 # ============================================
 # Using rust-magic-linter STANDARD PRESET so agents follows rust best practices

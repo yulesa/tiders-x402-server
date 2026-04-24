@@ -15,8 +15,8 @@ The server is organized into the following modules:
 | Module | Purpose |
 |--------|---------|
 | `root_handler` | `GET /` — returns server metadata and available tables |
-| `query_handler` | `POST /query` — main handler for query execution and payment flow |
-| `table_detail_handler` | `GET /table/:name` — returns table schema and payment offers, optionally paywalled |
+| `query_handler` | `POST /api/query` — main handler for query execution and payment flow |
+| `table_detail_handler` | `GET /api/table/:name` — returns table schema and payment offers, optionally paywalled |
 | `sqp_parser` | Parses and validates SQL, rejecting unsafe operations |
 | `sql_[database]` | Converts analyzed queries to Database-compatible SQL |
 | `database` | Implement the database trait to execute queries, get schemas and serializes results to Arrow IPC |

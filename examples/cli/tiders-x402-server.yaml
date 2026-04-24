@@ -20,7 +20,7 @@ database:
   # Exactly one database backend must be specified.
 
   duckdb:
-    path: "./data/duckdb.db"
+    path: "../data/duckdb.db"
 
   # postgresql:
   #   connection_string: "host=${PG_HOST} port=${PG_PORT} user=${PG_USER} password=${PG_PASSWORD} dbname={PG_DB}"
@@ -72,3 +72,29 @@ tables:
   # Example: a free table (no price_tags = no payment required)
   # - name: blocks
   #   description: "blocks, no payment required"
+
+# Dashboard (optional).
+#
+# When present, the server exposes a free, read-only dashboard at
+# /dashboard/. Module files are resolved against a `charts/` directory
+# next to this config file (here: examples/cli/charts/).
+#
+# Omit this entire section to disable the dashboard — nothing mounts.
+dashboard:
+  enabled: true
+  title: "Tiders demo dashboard"
+  default_cache_ttl_minutes: 5
+  # query_timeout_seconds: 60   # optional, defaults to 60
+
+  charts:
+    - id: daily_volume
+      title: "Daily swap volume"
+      sql: |
+        SELECT
+          date_trunc('hour', to_timestamp(CAST(timestamp AS BIGINT))) AS day,
+          COUNT(*)                                                  AS swap_count
+        FROM uniswap_v3_pool_swap
+        GROUP BY day
+        ORDER BY day
+      module_file: "daily_volume.js"
+      # cache_ttl_minutes: 10     # optional per-chart override

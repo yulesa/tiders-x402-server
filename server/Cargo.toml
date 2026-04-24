@@ -49,6 +49,7 @@ clap = { version = "4", features = ["derive"], optional = true }
 serde_yaml = { version = "0.9", optional = true }
 notify = { version = "7", features = ["macos_kqueue"], optional = true }
 regex = { version = "1", optional = true }
+rust-embed = { workspace = true }
 
 [[bin]]
 name = "tiders-x402-server"

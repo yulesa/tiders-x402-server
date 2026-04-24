@@ -190,7 +190,7 @@ A flat fee regardless of how many rows are returned.
 
 **Metadata Price**
 
-A flat fee for accessing table metadata (schema and payment offers) via the `GET /table/:name` endpoint. Without this tag, metadata is returned freely. Charging for the metadata API calls can be used to prevent API abuse.
+A flat fee for accessing table metadata (schema and payment offers) via the `GET /api/table/:name` endpoint. Without this tag, metadata is returned freely. Charging for the metadata API calls can be used to prevent API abuse.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|

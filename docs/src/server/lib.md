@@ -39,8 +39,12 @@ The server exposes two routes (API entry points):
 
 | Method | Path     | Handler          | Description |
 |--------|----------|------------------|-------------|
-| `GET`  | `/`      | `root_handler`   | Returns server metadata and available data offers |
-| `POST` | `/query` | `query_handler`  | Accepts SQL queries with x402 payment support |
+| `GET`  | `/`          | `spa_router`         | Serves the embedded dashboard SPA (free). |
+| `GET`  | `/assets/*`  | `spa_router`         | SPA bundle files. |
+| `GET`  | `/api`       | `info_handler`       | Server metadata + SQL rules (JSON). |
+| `POST` | `/api/query` | `query_handler`      | Accepts SQL queries with x402 payment support. |
+| `GET`  | `/api/table/:name` | `table_detail_handler` | Table schema and payment offers. |
+| `GET`  | `/api/charts*` | `dashboard::handler_dashboard::api_router` | Chart catalog + data + module. |
 
 ## Telemetry
 
@@ -61,8 +65,10 @@ When the server receives a stop signal (Ctrl+C or a container orchestrator's ter
 
 | Module | Purpose |
 |--------|---------|
-| `root_handler` | `GET /` handler |
-| `query_handler` | `POST /query` handler |
+| `info_handler` | `GET /api` handler |
+| `query_handler` | `POST /api/query` handler |
+| `table_detail_handler` | `GET /api/table/:name` handler |
+| `dashboard` | Dashboard subsystem: SPA routes (`/`, `/assets/*`) + chart API routes (`/api/charts*`) |
 | `price` | Per-row pricing logic |
 | `payment_config` | Global payment configuration |
 | `payment_processing` | Payment verify/settle orchestration |

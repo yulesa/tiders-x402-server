@@ -32,10 +32,14 @@ pub fn load_config(path: &Path) -> Result<Config> {
     };
 
     // Parse YAML
-    let config: Config = serde_yaml::from_str(&expanded).map_err(|e| {
+    let mut config: Config = serde_yaml::from_str(&expanded).map_err(|e| {
         // serde_yaml errors include line/column info which is helpful
         anyhow::anyhow!("Failed to parse config file \"{}\": {e}", path.display())
     })?;
+
+    // Stamp the config path so downstream code can resolve paths relative to
+    // the config file (e.g., the dashboard charts directory).
+    config.config_path = path.to_path_buf();
 
     // Validate
     let errors = validate_config(&config);

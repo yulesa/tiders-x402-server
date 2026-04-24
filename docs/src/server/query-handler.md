@@ -1,6 +1,6 @@
 # Query Handler
 
-The query handler (`server/src/query_handler.rs`) is the Axum handler for the `POST /query` API endpoint. It is the core of the server logic: it receives SQL queries from clients, validates them, checks whether payment is required, and orchestrates the x402 V2 payment flow when needed.
+The query handler (`server/src/query_handler.rs`) is the Axum handler for the `POST /api/query` API endpoint. It is the core of the server logic: it receives SQL queries from clients, validates them, checks whether payment is required, and orchestrates the x402 V2 payment flow when needed.
 
 The handler accepts a JSON body:
 
