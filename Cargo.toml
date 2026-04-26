@@ -18,7 +18,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 opentelemetry = { version = "0.31.0" }
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
 opentelemetry-otlp = { version = "0.31.1", features = ["grpc-tonic"] }
-tower-http = { version = "0.6.8", features = ["trace"] }
+tower-http = { version = "0.6.8", features = ["trace", "fs"] }
 tracing-opentelemetry = "0.32.1"
 url = "2.5.8"
 duckdb = { version = "1.10501.0", features = ["bundled"] }

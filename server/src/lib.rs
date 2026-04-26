@@ -50,6 +50,7 @@ use axum::routing::post;
 use dotenvy::dotenv;
 use opentelemetry::trace::{Status, TracerProvider};
 use tokio::signal;
+use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::layer::SubscriberExt;
@@ -167,6 +168,9 @@ pub async fn start_server(state: AppState) {
         // Register `GET /` → handled by `root_handler`.
         .route("/", axum::routing::get(root_handler))
         .route("/table/{name}", axum::routing::get(table_detail_handler))
+        // Serve the Evidence dashboard static build under `/dashboard/*`.
+        // Path is relative to the server's working directory.
+        .nest_service("/dashboard", ServeDir::new("dashboard/build"))
         // Attach shared state so handlers can access it via Axum's `State` extractor.
         // Axum "extractors" are typed parameters on handler functions that Axum
         // automatically populates from the incoming request (e.g., State, Json, Path).

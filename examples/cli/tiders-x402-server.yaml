@@ -20,7 +20,7 @@ database:
   # Exactly one database backend must be specified.
 
   duckdb:
-    path: "./data/duckdb.db"
+    path: "./examples/data/duckdb.db"
 
   # postgresql:
   #   connection_string: "host=${PG_HOST} port=${PG_PORT} user=${PG_USER} password=${PG_PASSWORD} dbname={PG_DB}"

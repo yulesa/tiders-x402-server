@@ -1,0 +1,5 @@
+name: local_duckdb
+type: duckdb
+options:
+  filename: ../../../examples/data/duckdb.db
+  access_mode: READ_ONLY
