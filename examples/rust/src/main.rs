@@ -187,6 +187,7 @@ async fn main() {
         global_payment_config,
         server_base_url,
         server_bind_address,
+        Vec::new(),
     );
 
     start_server(state).await;

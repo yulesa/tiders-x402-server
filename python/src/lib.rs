@@ -918,6 +918,7 @@ impl PyAppState {
                     payment_config.inner.clone(),
                     server_base_url.clone(),
                     server_bind_address.clone(),
+                    Vec::new(),
                 ),
             });
         }
@@ -929,6 +930,7 @@ impl PyAppState {
                     payment_config.inner.clone(),
                     server_base_url.clone(),
                     server_bind_address.clone(),
+                    Vec::new(),
                 ),
             });
         }
@@ -940,6 +942,7 @@ impl PyAppState {
                     payment_config.inner.clone(),
                     server_base_url,
                     server_bind_address,
+                    Vec::new(),
                 ),
             });
         }

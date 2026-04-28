@@ -15,11 +15,16 @@
 //!
 //! ## What this server exposes
 //!
-//! - `POST /query` — the main endpoint where clients submit paid data queries.
-//! - `GET /` — a root endpoint that returns server metadata and available data offers.
+//! - `GET /` — landing page listing enabled dashboards.
+//! - `GET /api/` — server metadata and available data offers.
+//! - `POST /api/query` — the main endpoint where clients submit paid data queries.
+//! - `GET /api/table/{name}` — schema and pricing for a single table.
+//! - `GET /<dashboard>/` — static Evidence dashboard, one per `dashboards:` entry.
 
+pub mod api_root_handler;
 #[cfg(feature = "cli")]
 pub mod cli;
+pub mod dashboard;
 pub mod database;
 #[cfg(feature = "clickhouse")]
 pub mod database_clickhouse;
@@ -28,11 +33,11 @@ pub mod database_duckdb;
 #[cfg(feature = "postgresql")]
 pub mod database_postgresql;
 pub mod facilitator_client;
+pub mod landing_handler;
 pub mod payment_config;
 pub mod payment_processing;
 pub mod price;
 pub mod query_handler;
-pub mod root_handler;
 #[cfg(feature = "clickhouse")]
 pub mod sql_clickhouse;
 #[cfg(feature = "duckdb")]
@@ -45,8 +50,9 @@ pub mod table_detail_handler;
 
 use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use axum::Router;
-use axum::routing::post;
+use axum::routing::{get, post};
 use dotenvy::dotenv;
 use opentelemetry::trace::{Status, TracerProvider};
 use tokio::signal;
@@ -56,8 +62,10 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use url::Url;
 
+use crate::api_root_handler::api_root_handler;
+use crate::dashboard::{Dashboard, DashboardSwap, build_router as build_dashboard_router};
+use crate::landing_handler::landing_handler;
 use crate::query_handler::query_handler;
-use crate::root_handler::root_handler;
 use crate::table_detail_handler::table_detail_handler;
 pub use database::Database;
 pub use facilitator_client::FacilitatorClient;
@@ -82,6 +90,12 @@ pub struct AppState {
     pub server_base_url: Url,
     /// The address and port the server binds to (e.g. "0.0.0.0:4021").
     pub server_bind_address: String,
+    /// Dashboards configured in YAML, swappable at runtime so the file
+    /// watcher can rebuild the list without a restart.
+    pub dashboards: Arc<ArcSwap<Vec<Dashboard>>>,
+    /// Currently mounted dashboard sub-router. Replaced atomically when the
+    /// config watcher reloads the `dashboards:` block.
+    pub dashboard_router: Arc<ArcSwap<Router>>,
 }
 
 impl AppState {
@@ -94,12 +108,16 @@ impl AppState {
         payment_config: GlobalPaymentConfig,
         server_base_url: Url,
         server_bind_address: String,
+        dashboards: Vec<Dashboard>,
     ) -> Self {
+        let dashboard_router = build_dashboard_router(&dashboards);
         Self {
             db: db.into(),
             payment_config: Arc::new(tokio::sync::RwLock::new(Arc::new(payment_config))),
             server_base_url,
             server_bind_address,
+            dashboards: Arc::new(ArcSwap::from_pointee(dashboards)),
+            dashboard_router: Arc::new(ArcSwap::from_pointee(dashboard_router)),
         }
     }
 }
@@ -159,14 +177,27 @@ pub async fn start_server(state: AppState) {
     let bind_addr = state.server_bind_address.clone();
 
     // Build the Axum Router.
-    // A Router maps HTTP method + path combinations to handler functions.
-    let app = Router::new()
-        // Register `POST /query` → handled by `query_handler`.
-        // `post(...)` is a shorthand that only matches POST requests on this path.
+    //
+    // Layout:
+    //   /                       → landing page (lists dashboards)
+    //   /api/                   → API description (was `/`)
+    //   /api/query              → POST query endpoint (was `/query`)
+    //   /api/table/{name}       → table metadata (was `/table/{name}`)
+    //
+    // Dashboard routes (`/<name>/*`) are registered in tier 2.
+    let api_router = Router::new()
+        .route("/", get(api_root_handler))
         .route("/query", post(query_handler))
-        // Register `GET /` → handled by `root_handler`.
-        .route("/", axum::routing::get(root_handler))
-        .route("/table/{name}", axum::routing::get(table_detail_handler))
+        .route("/table/{name}", get(table_detail_handler));
+
+    let dashboards_service = DashboardSwap(state.dashboard_router.clone());
+
+    let app = Router::new()
+        .route("/", get(landing_handler))
+        .nest("/api", api_router)
+        // Anything that doesn't match the static routes above falls through to
+        // the dashboard router. Lock-free swap so config reloads don't block.
+        .fallback_service(dashboards_service)
         // Attach shared state so handlers can access it via Axum's `State` extractor.
         // Axum "extractors" are typed parameters on handler functions that Axum
         // automatically populates from the incoming request (e.g., State, Json, Path).

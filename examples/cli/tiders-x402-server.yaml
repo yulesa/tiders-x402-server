@@ -20,7 +20,7 @@ database:
   # Exactly one database backend must be specified.
 
   duckdb:
-    path: "./data/duckdb.db"
+    path: "../data/duckdb.db"
 
   # postgresql:
   #   connection_string: "host=${PG_HOST} port=${PG_PORT} user=${PG_USER} password=${PG_PASSWORD} dbname={PG_DB}"
@@ -72,3 +72,22 @@ tables:
   # Example: a free table (no price_tags = no payment required)
   # - name: blocks
   #   description: "blocks, no payment required"
+
+# Optional Dashboards: 
+# Command `tiders-x402-server dashboard` scaffold and serve Evidence dashboards pages (https://docs.evidence.studio/core-concepts/markdown).
+# Evidence Dashboards are static web apps. Data is only refreshed when the dashboard page is built.
+# Is up to the user to implement a single evidence project with multiple pages (dashboards) for each data groups, or one project per dashboard. It trades build/runtime cost for isolation and flexibility.
+#
+# Each dashboard listed belows becomes a route at <base_url>/<dashboard_name>/. Scaffold a project with:
+#   tiders-x402-server dashboard <dashboard_name>
+# 
+# Per-dashboard paths are optional. If omitted:
+#   folder_path defaults to ./dashboards/<dashboard_name>
+#   build_path  defaults to <folder_path>/build
+# Both are resolved relative to this config file's directory.
+
+dashboards:
+  - name: uniswap_v3              # URL-safe slug; reserved: api, assets, static
+    # disabled: true
+    # folder_path: "./dashboards/uniswap_v3"
+    # build_path: "./dashboards/uniswap_v3/build"

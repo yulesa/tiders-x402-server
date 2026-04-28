@@ -9,7 +9,7 @@ use anyhow::{Result, anyhow};
 use arrow::datatypes::Schema;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
-use duckdb::Connection;
+use duckdb::{AccessMode, Config, Connection};
 
 use crate::database::Database;
 use crate::sql_duckdb::create_duckdb_query;
@@ -29,9 +29,14 @@ impl DuckDbDatabase {
         }
     }
 
-    /// Creates a new `DuckDbDatabase` by opening a database at the given path.
+    /// Creates a new `DuckDbDatabase` by opening the database at `path`
+    /// read-only, so another process (e.g. an ingest pipeline) can hold the
+    /// writer lock.
     pub fn from_path(path: &str) -> Result<Self> {
-        let conn = Connection::open(path)
+        let config = Config::default()
+            .access_mode(AccessMode::ReadOnly)
+            .map_err(|e| anyhow!("Failed to configure DuckDB access mode: {e}"))?;
+        let conn = Connection::open_with_flags(path, config)
             .map_err(|e| anyhow!("Failed to open DuckDB at {}: {}", path, e))?;
         Ok(Self::new(conn))
     }

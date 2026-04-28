@@ -60,3 +60,6 @@ __pycache__/
 
 # Book
 docs/book
+
+# Example dashboards
+examples/cli/dashboards/

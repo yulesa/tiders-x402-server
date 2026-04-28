@@ -182,15 +182,19 @@ curl http://localhost:4021/
 
 ### `GET /`
 
+Landing page that lists every enabled dashboard configured in `dashboards:` and links to the API.
+
+### `GET /api/`
+
 Returns server metadata: available tables, schemas, payment requirements, and SQL parser rules.
 
-### `GET /table/:name`
+### `GET /api/table/:name`
 
 Returns full schema and payment offers for a specific table as JSON. If the table has a `MetadataPrice` tag, requires payment via the x402 protocol.
 
-### `POST /query`
+### `POST /api/query`
 
-Execute a SQL query. 
+Execute a SQL query.
 
 Queries must conform to a restricted SQL dialect ("Simplified SQL") whose AST permits only `SELECT` statements against a single table, with a limited set of `WHERE`, `ORDER BY`, and `LIMIT` expressions. JOINs, subqueries, GROUP BY, CTEs, window functions, and aggregates are rejected. See the [SQL Parser](../server/sql-parser.md) page for the full grammar and list of supported features.
 
@@ -198,18 +202,28 @@ When a payment is necessary, the server returns 402 with payment options. A clie
 
 ```bash
 # Step 1: Get pricing
-curl -X POST http://localhost:4021/query \
+curl -X POST http://localhost:4021/api/query \
   -H "Content-Type: application/json" \
   -d '{"query": "SELECT * FROM my_table LIMIT 10"}'
 # Returns 402 with payment options
 
 # Step 2: Send with payment (typically handled by client library)
-curl -X POST http://localhost:4021/query \
+curl -X POST http://localhost:4021/api/query \
   -H "Content-Type: application/json" \
   -H "X-Payment: <base64-encoded-signed-payment>" \
   -d '{"query": "SELECT * FROM my_table LIMIT 10"}'
 # Returns Arrow IPC binary stream
 ```
+
+### Dashboards
+
+Each entry under `dashboards:` is served at `/<name>/`. Use `tiders-x402-server dashboard <name>` to scaffold a working Evidence project (with x402 wallet connect + paid download) under `dashboards_root` (default `./dashboards`). Pass `--force` to refresh managed files (templates, components, `connection.yaml`); user-owned files (`pages/*.md`, `sources/**/*.sql`) are preserved.
+
+## Breaking changes in 0.3.0
+
+- API moved under `/api/`. The old `/`, `/query`, `/table/:name` paths are removed; use `/api/`, `/api/query`, `/api/table/:name`.
+- DuckDB databases are always opened read-only so an ingest pipeline can write while the server reads. `:memory:` still falls back to read-write.
+- New optional `dashboards:` and `dashboards_root:` config keys, plus a new `dashboard` subcommand.
 
 **Response formats:**
 - `200 OK` — Arrow IPC binary stream (`application/vnd.apache.arrow.stream`)

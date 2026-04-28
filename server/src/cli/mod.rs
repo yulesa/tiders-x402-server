@@ -8,7 +8,7 @@
 //! [`run`] after parsing command-line arguments.
 
 mod builder;
-mod config;
+pub(crate) mod config;
 mod env;
 mod loader;
 mod validate;
@@ -31,6 +31,41 @@ pub struct Cli {
 
 #[derive(clap::Subcommand, Debug)]
 pub enum Command {
+    /// Validate the config file and test database connectivity, then exit.
+    Validate {
+        /// Path to the YAML configuration file.
+        /// If omitted, auto-discovers a single .yaml/.yml file in the current directory.
+        config: Option<PathBuf>,
+
+        /// Path to a .env file to load before reading the config.
+        /// If omitted, looks for `.env` in the current directory (and parents).
+        #[arg(long)]
+        env_file: Option<PathBuf>,
+    },
+
+    /// Scaffold a new Evidence dashboard project from the server config.
+    ///
+    /// If `<name>` matches an entry in `dashboards:`, only that dashboard is
+    /// scaffolded. Omit it to scaffold every entry. The project is written to
+    /// `{dashboards_root}/{name}/`.
+    Dashboard {
+        /// Path to the YAML configuration file.
+        /// If omitted, auto-discovers a single .yaml/.yml file in the current directory.
+        config: Option<PathBuf>,
+
+        /// Dashboard name. If omitted, scaffolds
+        /// every dashboard configured in `dashboards:`.
+        name: Option<String>,
+
+        /// Overwrite managed files in an existing dashboard directory.
+        /// User-owned files (`pages/*.md`, `sources/**/*.sql`) are preserved.
+        #[arg(long)]
+        force: bool,
+
+        /// Path to a .env file to load before reading the config.
+        #[arg(long)]
+        env_file: Option<PathBuf>,
+    },
     /// Start the server.
     Start {
         /// Path to the YAML configuration file.
@@ -40,18 +75,6 @@ pub enum Command {
         /// Disable automatic config file watching (hot reload is enabled by default).
         #[arg(long)]
         no_watch: bool,
-
-        /// Path to a .env file to load before reading the config.
-        /// If omitted, looks for `.env` in the current directory (and parents).
-        #[arg(long)]
-        env_file: Option<PathBuf>,
-    },
-
-    /// Validate the config file and test database connectivity, then exit.
-    Validate {
-        /// Path to the YAML configuration file.
-        /// If omitted, auto-discovers a single .yaml/.yml file in the current directory.
-        config: Option<PathBuf>,
 
         /// Path to a .env file to load before reading the config.
         /// If omitted, looks for `.env` in the current directory (and parents).
@@ -72,14 +95,43 @@ pub fn run() -> ExitCode {
 
     let cli = Cli::parse();
 
-    let (explicit_path, no_watch, validate_only, env_file) = match &cli.command {
-        Command::Start {
-            config,
-            no_watch,
-            env_file,
-        } => (config, *no_watch, false, env_file),
-        Command::Validate { config, env_file } => (config, false, true, env_file),
-    };
+    enum Action<'a> {
+        Start { no_watch: bool },
+        Validate,
+        Dashboard {
+            name: Option<&'a str>,
+            force: bool,
+        },
+    }
+
+    let (explicit_path, action, env_file): (&Option<PathBuf>, Action<'_>, &Option<PathBuf>) =
+        match &cli.command {
+            Command::Validate { config, env_file } => (config, Action::Validate, env_file),
+            Command::Dashboard {
+                name,
+                config,
+                force,
+                env_file,
+            } => (
+                config,
+                Action::Dashboard {
+                    name: name.as_deref(),
+                    force: *force,
+                },
+                env_file,
+            ),
+            Command::Start {
+                config,
+                no_watch,
+                env_file,
+            } => (
+                config,
+                Action::Start {
+                    no_watch: *no_watch,
+                },
+                env_file,
+            ),
+        };
 
     // Load .env before anything else so env vars are available for config expansion
     match env_file {
@@ -114,11 +166,11 @@ pub fn run() -> ExitCode {
         }
     };
 
-    if validate_only {
-        return run_validate(&config);
+    match action {
+        Action::Validate => run_validate(&config),
+        Action::Dashboard { name, force } => run_dashboard(&config_path, &config, name, force),
+        Action::Start { no_watch } => run_server(&config_path, no_watch, &config),
     }
-
-    run_server(&config_path, no_watch, &config)
 }
 
 /// Scans the current directory for `.yaml` / `.yml` files that contain the
@@ -206,6 +258,104 @@ fn run_validate(config: &config::Config) -> ExitCode {
     })
 }
 
+fn run_dashboard(config_path: &Path, config: &config::Config, name: Option<&str>, force: bool) -> ExitCode {
+    use crate::dashboard::config::ScaffoldInput;
+    use crate::dashboard::scaffold::scaffold_dashboard_folder;
+    use crate::dashboard::templates::render_connection_files;
+
+    let resolved = builder::resolve_dashboards(config);
+
+    let targets: Vec<&crate::dashboard::Dashboard> = match name {
+        None => {
+            if resolved.is_empty() {
+                tracing::error!(
+                    "No dashboards configured. Add a `dashboards:` block to {}.",
+                    config_path.display()
+                );
+                return ExitCode::FAILURE;
+            }
+            resolved.iter().collect()
+        }
+        Some(n) => match resolved.iter().find(|d| d.name == n) {
+            Some(d) => vec![d],
+            None => {
+                let known: Vec<&str> = resolved.iter().map(|d| d.name.as_str()).collect();
+                tracing::error!(
+                    "Dashboard \"{n}\" not found in config. Known dashboards: [{}]",
+                    known.join(", ")
+                );
+                return ExitCode::FAILURE;
+            }
+        },
+    };
+
+    // Use the first table in the config yaml as the seed table for the template at `pages/index.md` so the dashboard
+    // real data on the first run instead of empty boilerplate.
+    let seed_table = config
+        .tables
+        .first()
+        .map_or("YOUR_TABLE", |t| t.name.as_str());
+
+    let server_version = env!("CARGO_PKG_VERSION");
+
+    for d in targets {
+        if let Some(parent) = d.folder_path.parent()
+            && let Err(e) = std::fs::create_dir_all(parent)
+        {
+            tracing::error!(
+                "Failed to create parent directory {}: {e}",
+                parent.display()
+            );
+            return ExitCode::FAILURE;
+        }
+
+        let (generated, source_name) =
+            render_connection_files(&config.database, &d.folder_path, seed_table);
+
+        let input = ScaffoldInput {
+            project_dir: &d.folder_path,
+            name: &d.name,
+            seed_table,
+            source_name: &source_name,
+            force,
+            server_version,
+            generated,
+        };
+        let project_dir = match scaffold_dashboard_folder(&input) {
+            Ok(result) => {
+                let abs = result
+                    .project_dir
+                    .canonicalize()
+                    .unwrap_or_else(|_| result.project_dir.clone());
+                tracing::info!(
+                    "Scaffolded dashboard \"{}\" at {} ({} files written, {} preserved)",
+                    d.name,
+                    abs.display(),
+                    result.written.len(),
+                    result.preserved.len()
+                );
+                abs
+            }
+            Err(e) => {
+                tracing::error!("Failed to scaffold dashboard \"{}\": {e}", d.name);
+                return ExitCode::FAILURE;
+            }
+        };
+
+        tracing::info!(
+            "Install dependencies and build this dashboard page: (cd {} && npm install && npm run build)",
+            project_dir.display(),
+        );
+    }
+
+    tracing::info!(
+        "After building: tiders-x402-server start {}",
+        config_path.display(),
+        config.server.base_url.trim_end_matches('/')
+    );
+    ExitCode::SUCCESS
+}
+
 fn run_server(config_path: &Path, no_watch: bool, config: &config::Config) -> ExitCode {
     let rt = match tokio::runtime::Runtime::new() {
         Ok(rt) => rt,
@@ -241,12 +391,16 @@ fn run_server(config_path: &Path, no_watch: bool, config: &config::Config) -> Ex
 
             let payment_config_handle = state.payment_config.clone();
             let db_handle = state.db.clone();
+            let dashboards_handle = state.dashboards.clone();
+            let dashboard_router_handle = state.dashboard_router.clone();
 
             match watcher::start_watcher(
                 &config_path,
                 config,
                 payment_config_handle,
                 db_handle,
+                dashboards_handle,
+                dashboard_router_handle,
             ) {
                 Ok(w) => {
                     tracing::info!("Config file watcher started. Changes to tables, payment settings, and facilitator will be hot-reloaded.");

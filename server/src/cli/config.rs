@@ -4,6 +4,8 @@
 //! converted into the runtime types (`AppState`, `GlobalPaymentConfig`, etc.)
 //! by the [`super::builder`] module.
 
+use std::path::PathBuf;
+
 use serde::Deserialize;
 
 /// Top-level configuration.
@@ -22,6 +24,9 @@ pub struct Config {
     /// Table definitions with pricing.
     #[serde(default)]
     pub tables: Vec<TableConfig>,
+    /// Dashboards to serve at runtime. Each entry produces a route at `/<name>/`.
+    #[serde(default)]
+    pub dashboards: Vec<DashboardConfigYaml>,
 }
 
 /// Server network configuration.
@@ -63,7 +68,7 @@ pub struct DatabaseConfig {
 #[serde(deny_unknown_fields)]
 pub struct DuckDbConfig {
     /// Path to the DuckDB database file.
-    pub path: String,
+    pub path: PathBuf,
 }
 
 /// PostgreSQL-specific configuration.
@@ -170,4 +175,23 @@ pub enum PriceTagConfig {
         #[serde(default)]
         is_default: bool,
     },
+}
+
+/// YAML form of a single dashboard entry. Resolved into a runtime
+/// `dashboard::DashboardConfig` by [`super::builder`].
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DashboardConfigYaml {
+    /// URL slug (also the path prefix). Must match `^[a-z0-9][a-z0-9_-]*$`.
+    pub name: String,
+    /// Set to true to exclude this dashboard from the server. Defaults to false.
+    #[serde(default)]
+    pub disabled: bool,
+    /// Path to the dashboard's project directory (where `dashboard <name>`
+    /// writes scaffolds). Defaults to `./dashboards/<name>` relative to the
+    /// config file's directory. Resolved to absolute by the loader.
+    pub folder_path: Option<PathBuf>,
+    /// Path to the dashboard's `build/` directory served at runtime. Defaults
+    /// to `<folder_path>/build`. Resolved to absolute by the loader.
+    pub build_path: Option<PathBuf>,
 }

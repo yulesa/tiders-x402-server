@@ -25,7 +25,9 @@ tracing-subscriber = { workspace = true }
 opentelemetry = { workspace = true }
 opentelemetry_sdk = { workspace = true }
 opentelemetry-otlp = { workspace = true }
+tower = { workspace = true }
 tower-http = { workspace = true }
+arc-swap = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 url = { workspace = true }
 duckdb = { workspace = true, features = ["bundled"], optional = true }
@@ -49,6 +51,7 @@ clap = { version = "4", features = ["derive"], optional = true }
 serde_yaml = { version = "0.9", optional = true }
 notify = { version = "7", features = ["macos_kqueue"], optional = true }
 regex = { version = "1", optional = true }
+sha2 = { workspace = true, optional = true }
 
 [[bin]]
 name = "tiders-x402-server"
@@ -57,7 +60,7 @@ required-features = ["cli"]
 
 [features]
 default = ["cli", "duckdb", "postgresql", "clickhouse"]
-cli = ["dep:clap", "dep:serde_yaml", "dep:notify", "dep:regex"]
+cli = ["dep:clap", "dep:serde_yaml", "dep:notify", "dep:regex", "dep:sha2"]
 duckdb = ["dep:duckdb"]
 postgresql = ["dep:tokio-postgres", "dep:deadpool-postgres", "dep:postgres-types", "dep:bytes"]
 clickhouse = ["dep:clickhouse"]

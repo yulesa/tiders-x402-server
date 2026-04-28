@@ -7,18 +7,26 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use arc_swap::ArcSwap;
+use axum::Router;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::RwLock;
 
 use crate::Database;
+use crate::dashboard::{Dashboard, build_router as build_dashboard_router};
 use crate::payment_config::GlobalPaymentConfig;
 
+use super::builder::resolve_dashboards;
 use super::config::Config;
 use super::loader::load_config;
 
 /// Shared, swappable payment configuration used by the server.
 /// This is the same type as `AppState.payment_config`.
 pub type SharedPaymentConfig = Arc<RwLock<Arc<GlobalPaymentConfig>>>;
+
+/// Shared, swappable dashboard list and router. Mirrors fields on `AppState`.
+pub type SharedDashboards = Arc<ArcSwap<Vec<Dashboard>>>;
+pub type SharedDashboardRouter = Arc<ArcSwap<Router>>;
 
 /// Starts a file watcher on the config file. When the file changes,
 /// re-parses it and swaps the payment configuration atomically.
@@ -30,6 +38,8 @@ pub fn start_watcher(
     original_config: &Config,
     payment_config: SharedPaymentConfig,
     db: Arc<dyn Database>,
+    dashboards: SharedDashboards,
+    dashboard_router: SharedDashboardRouter,
 ) -> Result<RecommendedWatcher, notify::Error> {
     let original_bind = original_config.server.bind_address.clone();
     let original_base_url = original_config.server.base_url.clone();
@@ -94,6 +104,16 @@ pub fn start_watcher(
                 tracing::warn!("database configuration changed — restart required to take effect.");
             }
 
+            // Hot-reload dashboard routes.
+            let resolved = resolve_dashboards(&new_config);
+            let new_router = build_dashboard_router(&resolved);
+            dashboard_router.store(Arc::new(new_router));
+            dashboards.store(Arc::new(resolved.clone()));
+            tracing::info!(
+                "Dashboard routes reloaded ({} enabled).",
+                resolved.iter().filter(|d| d.enabled).count()
+            );
+
             // Rebuild facilitator (hot-reloadable)
             let facilitator = match super::builder::build_facilitator(&new_config.facilitator) {
                 Ok(f) => f,
@@ -133,7 +153,7 @@ pub fn start_watcher(
 /// A rough fingerprint of the database config for change detection.
 fn db_fingerprint(db: &super::config::DatabaseConfig) -> String {
     if let Some(d) = &db.duckdb {
-        return format!("duckdb:{}", d.path);
+        return format!("duckdb:{}", d.path.display());
     }
     if let Some(p) = &db.postgresql {
         return format!("postgresql:{}", p.connection_string);

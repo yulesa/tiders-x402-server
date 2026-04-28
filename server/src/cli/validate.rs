@@ -4,7 +4,21 @@
 //! can enforce: exactly one database backend, valid token identifiers, valid
 //! URLs, etc.
 
+use std::collections::HashSet;
+use std::sync::LazyLock;
+
+use regex::Regex;
+
 use super::config::{Config, PriceTagConfig};
+
+/// Names that conflict with reserved server route prefixes.
+const RESERVED_DASHBOARD_NAMES: &[&str] = &["api", "assets", "static"];
+
+/// Slug pattern from the plan: lowercase alphanumeric, hyphens and
+/// underscores allowed, must start with a letter or digit.
+static DASHBOARD_NAME_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[a-z0-9][a-z0-9_-]*$").unwrap_or_else(|_| unreachable!())
+});
 
 /// A validation error with an optional hint for the user.
 #[derive(Debug)]
@@ -41,6 +55,7 @@ pub fn validate_config(config: &Config) -> Vec<ValidationError> {
     validate_facilitator(config, &mut errors);
     validate_database(config, &mut errors);
     validate_tables(config, &mut errors);
+    validate_dashboards(config, &mut errors);
 
     errors
 }
@@ -76,7 +91,10 @@ fn validate_facilitator(config: &Config, errors: &mut Vec<ValidationError>) {
     }
 }
 
-fn validate_database(config: &Config, errors: &mut Vec<ValidationError>) {
+fn validate_database(
+    config: &Config,
+    errors: &mut Vec<ValidationError>,
+) {
     let db = &config.database;
     let count = usize::from(db.duckdb.is_some())
         + usize::from(db.postgresql.is_some())
@@ -107,20 +125,23 @@ fn validate_database(config: &Config, errors: &mut Vec<ValidationError>) {
         });
     }
 
-    // DuckDB path validation
     if let Some(duck) = &db.duckdb {
-        if duck.path.is_empty() {
+        if duck.path.as_os_str().is_empty() {
             errors.push(ValidationError {
                 message: "database.duckdb.path is empty.".into(),
                 hint: Some("Provide a path to a DuckDB file (e.g., \"./data/my.db\").".into()),
             });
-        } else if duck.path != ":memory:" && !std::path::Path::new(&duck.path).exists() {
+        } else if !duck.path.exists() {
             errors.push(ValidationError {
                 message: format!(
                     "database.duckdb.path: file \"{}\" does not exist.",
-                    duck.path
+                    duck.path.display()
                 ),
-                hint: Some("Create the database first, then start the server.".into()),
+                hint: Some(
+                    "Create the database first, then start the server. Relative paths \
+                     are resolved against the config file's directory."
+                        .into(),
+                ),
             });
         }
     }
@@ -241,5 +262,61 @@ fn validate_price_tag(
             message: format!("{prefix}.token: unknown token \"{token}\"."),
             hint: Some(format!("Available tokens: {available}")),
         });
+    }
+}
+
+fn validate_dashboards(config: &Config, errors: &mut Vec<ValidationError>) {
+    let mut seen_names: HashSet<&str> = HashSet::new();
+
+    for (i, d) in config.dashboards.iter().enumerate() {
+        let prefix = format!("dashboards[{i}]");
+
+        if d.name.is_empty() {
+            errors.push(ValidationError {
+                message: format!("{prefix}.name is empty."),
+                hint: Some("Provide a URL slug like \"uniswap_v3\".".into()),
+            });
+            continue;
+        }
+
+        if !DASHBOARD_NAME_PATTERN.is_match(&d.name) {
+            errors.push(ValidationError {
+                message: format!(
+                    "{prefix}.name: \"{}\" is not a valid slug.",
+                    d.name
+                ),
+                hint: Some(
+                    "Use lowercase letters, digits, hyphens, or underscores. \
+                     Must start with a letter or digit."
+                        .into(),
+                ),
+            });
+            continue;
+        }
+
+        if RESERVED_DASHBOARD_NAMES.contains(&d.name.as_str()) {
+            errors.push(ValidationError {
+                message: format!(
+                    "{prefix}.name: \"{}\" is reserved (would shadow a server route).",
+                    d.name
+                ),
+                hint: Some(format!(
+                    "Reserved names: {}. Pick a different slug.",
+                    RESERVED_DASHBOARD_NAMES.join(", ")
+                )),
+            });
+            continue;
+        }
+
+        if !seen_names.insert(d.name.as_str()) {
+            errors.push(ValidationError {
+                message: format!(
+                    "{prefix}.name: \"{}\" is used by more than one dashboard.",
+                    d.name
+                ),
+                hint: Some("Each dashboard must have a unique name.".into()),
+            });
+        }
+
     }
 }

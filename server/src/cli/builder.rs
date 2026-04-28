@@ -14,6 +14,7 @@ use x402_chain_eip155::KnownNetworkEip155;
 use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use x402_types::networks::USDC;
 
+use crate::dashboard::Dashboard;
 use crate::facilitator_client::FacilitatorClient;
 use crate::payment_config::GlobalPaymentConfig;
 use crate::price::{PriceTag, PricingModel, TablePaymentOffers, TokenAmount};
@@ -63,12 +64,30 @@ pub async fn build_app_state(config: &Config) -> Result<AppState> {
     let server_base_url =
         Url::parse(&config.server.base_url).map_err(|e| anyhow!("Invalid server.base_url: {e}"))?;
 
+    let dashboards = resolve_dashboards(config);
+
     Ok(AppState::new(
         db,
         payment_config,
         server_base_url,
         config.server.bind_address.clone(),
+        dashboards,
     ))
+}
+
+/// Convert YAML dashboard entries into runtime form. Paths are already
+/// resolved to absolute by the loader.
+pub fn resolve_dashboards(config: &Config) -> Vec<Dashboard> {
+    config
+        .dashboards
+        .iter()
+        .map(|d| Dashboard {
+            name: d.name.clone(),
+            enabled: !d.disabled,
+            folder_path: d.folder_path.clone().unwrap_or_default(),
+            build_path: d.build_path.clone().unwrap_or_default(),
+        })
+        .collect()
 }
 
 /// Builds the payment configuration from config (without tables).
@@ -110,7 +129,7 @@ pub async fn build_payment_config_from_tables(
 async fn build_database(db_config: &super::config::DatabaseConfig) -> Result<Arc<dyn Database>> {
     #[cfg(feature = "duckdb")]
     if let Some(duck) = &db_config.duckdb {
-        let db = crate::database_duckdb::DuckDbDatabase::from_path(&duck.path)?;
+        let db = crate::database_duckdb::DuckDbDatabase::from_path(&duck.path.to_string_lossy())?;
         return Ok(Arc::new(db));
     }
     #[cfg(not(feature = "duckdb"))]
