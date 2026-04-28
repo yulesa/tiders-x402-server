@@ -14,7 +14,7 @@ use x402_chain_eip155::KnownNetworkEip155;
 use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use x402_types::networks::USDC;
 
-use crate::dashboard::Dashboard;
+use crate::dashboard::{Dashboard, DashboardsState};
 use crate::facilitator_client::FacilitatorClient;
 use crate::payment_config::GlobalPaymentConfig;
 use crate::price::{PriceTag, PricingModel, TablePaymentOffers, TokenAmount};
@@ -64,22 +64,24 @@ pub async fn build_app_state(config: &Config) -> Result<AppState> {
     let server_base_url =
         Url::parse(&config.server.base_url).map_err(|e| anyhow!("Invalid server.base_url: {e}"))?;
 
-    let dashboards = resolve_dashboards(config);
+    let dashboards_state = resolve_dashboards(config);
 
     Ok(AppState::new(
         db,
         payment_config,
         server_base_url,
         config.server.bind_address.clone(),
-        dashboards,
+        dashboards_state,
     ))
 }
 
-/// Convert YAML dashboard entries into runtime form. Paths are already
+/// Convert YAML dashboard config into runtime form. Paths are already
 /// resolved to absolute by the loader.
-pub fn resolve_dashboards(config: &Config) -> Vec<Dashboard> {
-    config
+pub fn resolve_dashboards(config: &Config) -> DashboardsState {
+    let root = config.dashboards.root.clone().unwrap_or_default();
+    let dashboards = config
         .dashboards
+        .entries
         .iter()
         .map(|d| Dashboard {
             name: d.name.clone(),
@@ -87,7 +89,8 @@ pub fn resolve_dashboards(config: &Config) -> Vec<Dashboard> {
             folder_path: d.folder_path.clone().unwrap_or_default(),
             build_path: d.build_path.clone().unwrap_or_default(),
         })
-        .collect()
+        .collect();
+    DashboardsState { root, dashboards }
 }
 
 /// Builds the payment configuration from config (without tables).

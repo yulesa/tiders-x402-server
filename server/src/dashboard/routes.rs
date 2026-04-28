@@ -1,29 +1,53 @@
-//! Build the Axum sub-router that serves all enabled dashboards.
+//! Axum handlers and router for all dashboard-related routes.
 //!
-//! Each enabled dashboard becomes a `/<name>/*` static route backed by a
-//! `ServeDir` with SPA fallback (unknown paths under `/<name>/` fall through
-//! to the dashboard's `index.html` so client-side routing works).
+//! - `GET /` — serves the scaffolded `index.html` from the dashboards root.
+//! - `GET /<name>/*` — serves each built Evidence dashboard as a static SPA.
 //!
-//! Dashboards whose `build_path` is missing or doesn't contain `index.html`
-//! get a 503 fallback page that points at the `dashboard <name>` scaffolder.
+//! Dashboards whose `build_path` has no `index.html` get a 503 page.
+//! The `GET /` route is only registered when dashboards are configured.
 
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 use axum::Router;
-use axum::extract::Request;
+use axum::extract::{Request, State};
 use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse};
+use axum::response::{Html, IntoResponse, Response};
 use axum::routing::any;
 use tower::ServiceExt;
 use tower_http::services::{ServeDir, ServeFile};
 
+use crate::AppState;
+
 use super::Dashboard;
+
+/// Handles `GET /` — serves the scaffolded `index.html` from the dashboards root.
+#[axum::debug_handler]
+pub async fn landing_handler(State(state): State<Arc<AppState>>) -> Response {
+    let dashboards = state.dashboards.load_full();
+    let index_path = dashboards.root.join("index.html");
+
+    match std::fs::read_to_string(&index_path) {
+        Ok(contents) => Html(contents).into_response(),
+        Err(_) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Html(format!(
+                "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\" />\
+                 <title>Not scaffolded</title></head><body>\
+                 <p>Landing page not found at <code>{}</code>.</p>\
+                 <p>Run <code>tiders-x402-server dashboard</code> to scaffold it.</p>\
+                 </body></html>",
+                index_path.display()
+            )),
+        )
+            .into_response(),
+    }
+}
 
 /// Builds a router that nests every enabled dashboard at `/<name>`.
 ///
 /// Missing or unbuilt dashboards get a 503 page instead of a static service.
-pub fn build_router(dashboards: &[Dashboard]) -> Router {
+pub fn build_dashboard_router(dashboards: &[Dashboard]) -> Router {
     let mut router = Router::new();
 
     for d in dashboards.iter().filter(|d| d.enabled) {
@@ -42,7 +66,7 @@ pub fn build_router(dashboards: &[Dashboard]) -> Router {
             let route = format!("/{}", d.name);
             router = router.route(
                 &route,
-                any(move || render_unbuilt(name.clone(), build_path.clone())),
+                any(move || render_unbuilt_dashboard(name.clone(), build_path.clone())),
             );
             // Catch deep links too.
             let catchall = format!("/{}/{{*rest}}", d.name);
@@ -50,7 +74,7 @@ pub fn build_router(dashboards: &[Dashboard]) -> Router {
             let path_c = d.build_path.display().to_string();
             router = router.route(
                 &catchall,
-                any(move || render_unbuilt(name_c.clone(), path_c.clone())),
+                any(move || render_unbuilt_dashboard(name_c.clone(), path_c.clone())),
             );
         }
     }
@@ -58,7 +82,7 @@ pub fn build_router(dashboards: &[Dashboard]) -> Router {
     router
 }
 
-async fn render_unbuilt(name: String, build_path: String) -> impl IntoResponse {
+async fn render_unbuilt_dashboard(name: String, build_path: String) -> impl IntoResponse {
     let body = format!(
         "<!DOCTYPE html>\n\
          <html lang=\"en\"><head><meta charset=\"utf-8\" />\n\

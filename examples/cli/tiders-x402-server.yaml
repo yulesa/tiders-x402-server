@@ -87,7 +87,9 @@ tables:
 # Both are resolved relative to this config file's directory.
 
 dashboards:
-  - name: uniswap_v3              # URL-safe slug; reserved: api, assets, static
-    # disabled: true
-    # folder_path: "./dashboards/uniswap_v3"
-    # build_path: "./dashboards/uniswap_v3/build"
+  # root: "./dashboards"          # optional; defaults to ./dashboards/ relative to this file
+  entries:
+    - name: uniswap_v3            # URL-safe slug; reserved: api, assets, static
+      # disabled: true
+      # folder_path: "./dashboards/uniswap_v3"
+      # build_path: "./dashboards/uniswap_v3/build"

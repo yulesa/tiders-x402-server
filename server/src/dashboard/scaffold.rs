@@ -80,7 +80,7 @@ pub fn scaffold_dashboard_folder(input: &ScaffoldInput<'_>) -> Result<ScaffoldRe
         };
         managed.push((tpl.path.to_string(), contents));
     }
-    for (rel, contents) in &input.generated {
+    for (rel, contents) in &input.rendered_files {
         managed.push((rel.to_string_lossy().into_owned(), contents.clone()));
     }
 
@@ -121,7 +121,7 @@ pub fn scaffold_dashboard_folder(input: &ScaffoldInput<'_>) -> Result<ScaffoldRe
     }
 
     // Always rewrite the manifest with the hashes from this run.
-    let manifest = manifest_json(input.server_version, input.name, &managed_entries);
+    let manifest = manifest_json(input.name, &managed_entries);
     write_file(&project_dir.join(".tiders-managed.json"), &manifest)?;
     written.push(".tiders-managed.json".to_string());
 
@@ -212,16 +212,11 @@ fn sha256_hex(bytes: &[u8]) -> String {
     s
 }
 
-fn manifest_json(
-    server_version: &str,
-    dashboard_name: &str,
-    managed: &[(String, String)],
-) -> String {
+fn manifest_json(dashboard_name: &str, managed: &[(String, String)]) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     let _ = writeln!(out, "{{");
     let _ = writeln!(out, "  \"schema_version\": 1,");
-    let _ = writeln!(out, "  \"server_version\": \"{}\",", json_escape(server_version));
     let _ = writeln!(out, "  \"dashboard_name\": \"{}\",", json_escape(dashboard_name));
     let _ = writeln!(out, "  \"managed_files\": [");
     for (i, (path, sha)) in managed.iter().enumerate() {

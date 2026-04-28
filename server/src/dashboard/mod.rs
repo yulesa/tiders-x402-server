@@ -9,5 +9,5 @@ pub mod scaffold;
 #[cfg(feature = "cli")]
 pub mod templates;
 
-pub use config::Dashboard;
-pub use routes::{DashboardSwap, build_router};
+pub use config::{Dashboard, DashboardsState};
+pub use routes::{DashboardSwap, build_dashboard_router, landing_handler};

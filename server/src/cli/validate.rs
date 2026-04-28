@@ -268,7 +268,7 @@ fn validate_price_tag(
 fn validate_dashboards(config: &Config, errors: &mut Vec<ValidationError>) {
     let mut seen_names: HashSet<&str> = HashSet::new();
 
-    for (i, d) in config.dashboards.iter().enumerate() {
+    for (i, d) in config.dashboards.entries.iter().enumerate() {
         let prefix = format!("dashboards[{i}]");
 
         if d.name.is_empty() {

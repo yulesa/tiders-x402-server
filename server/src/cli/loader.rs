@@ -41,11 +41,18 @@ pub fn load_config(path: &Path) -> Result<Config> {
     if let Some(duck) = &mut config.database.duckdb {
         duck.path = resolve_against_config(path, &duck.path.to_string_lossy());
     }
-    for d in &mut config.dashboards {
-        let folder = d.folder_path.take().unwrap_or_else(|| PathBuf::from(format!("./dashboards/{}", d.name)));
-        let folder = resolve_against_config(path, &folder.to_string_lossy());
-        let build = d.build_path.take().unwrap_or_else(|| folder.join("build"));
-        let build = resolve_against_config(path, &build.to_string_lossy());
+    let default_root = resolve_against_config(path, "./dashboards");
+    let root = config.dashboards.root.take().map(|r| resolve_against_config(path, &r.to_string_lossy())).unwrap_or(default_root);
+    config.dashboards.root = Some(root.clone());
+    for d in &mut config.dashboards.entries {
+        let folder = match d.folder_path.take() {
+            Some(p) => resolve_against_config(path, &p.to_string_lossy()),
+            None => root.join(&d.name),
+        };
+        let build = match d.build_path.take() {
+            Some(p) => resolve_against_config(path, &p.to_string_lossy()),
+            None => folder.join("build"),
+        };
         d.folder_path = Some(folder);
         d.build_path = Some(build);
     }

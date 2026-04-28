@@ -261,25 +261,25 @@ fn run_validate(config: &config::Config) -> ExitCode {
 fn run_dashboard(config_path: &Path, config: &config::Config, name: Option<&str>, force: bool) -> ExitCode {
     use crate::dashboard::config::ScaffoldInput;
     use crate::dashboard::scaffold::scaffold_dashboard_folder;
-    use crate::dashboard::templates::render_connection_files;
+    use crate::dashboard::templates::{render_connection_files, render_landing_page_file, render_sql_files};
 
     let resolved = builder::resolve_dashboards(config);
 
     let targets: Vec<&crate::dashboard::Dashboard> = match name {
         None => {
-            if resolved.is_empty() {
+            if resolved.dashboards.is_empty() {
                 tracing::error!(
                     "No dashboards configured. Add a `dashboards:` block to {}.",
                     config_path.display()
                 );
                 return ExitCode::FAILURE;
             }
-            resolved.iter().collect()
+            resolved.dashboards.iter().collect()
         }
-        Some(n) => match resolved.iter().find(|d| d.name == n) {
+        Some(n) => match resolved.dashboards.iter().find(|d| d.name == n) {
             Some(d) => vec![d],
             None => {
-                let known: Vec<&str> = resolved.iter().map(|d| d.name.as_str()).collect();
+                let known: Vec<&str> = resolved.dashboards.iter().map(|d| d.name.as_str()).collect();
                 tracing::error!(
                     "Dashboard \"{n}\" not found in config. Known dashboards: [{}]",
                     known.join(", ")
@@ -289,14 +289,15 @@ fn run_dashboard(config_path: &Path, config: &config::Config, name: Option<&str>
         },
     };
 
-    // Use the first table in the config yaml as the seed table for the template at `pages/index.md` so the dashboard
-    // real data on the first run instead of empty boilerplate.
-    let seed_table = config
-        .tables
-        .first()
-        .map_or("YOUR_TABLE", |t| t.name.as_str());
-
-    let server_version = env!("CARGO_PKG_VERSION");
+    // All table names drive SQL file generation; the first also seeds pages/index.md.
+    let all_tables: Vec<&str> = config.tables.iter().map(|t| t.name.as_str()).collect();
+    let seed_table = all_tables.first().copied().unwrap_or("YOUR_TABLE");
+    let source_name = match &config.database {
+        db if db.duckdb.is_some()     => "local_duckdb",
+        db if db.postgresql.is_some() => "pg",
+        db if db.clickhouse.is_some() => "clickhouse",
+        _                             => "",
+    };
 
     for d in targets {
         if let Some(parent) = d.folder_path.parent()
@@ -309,8 +310,9 @@ fn run_dashboard(config_path: &Path, config: &config::Config, name: Option<&str>
             return ExitCode::FAILURE;
         }
 
-        let (generated, source_name) =
-            render_connection_files(&config.database, &d.folder_path, seed_table);
+        // Create pre-rendered files with a relative path and content`(project-relative path, content)`
+        let mut rendered_files = render_connection_files(&config.database, &d.folder_path);
+        rendered_files.extend(render_sql_files(source_name, &all_tables));
 
         let input = ScaffoldInput {
             project_dir: &d.folder_path,
@@ -318,8 +320,7 @@ fn run_dashboard(config_path: &Path, config: &config::Config, name: Option<&str>
             seed_table,
             source_name: &source_name,
             force,
-            server_version,
-            generated,
+            rendered_files,
         };
         let project_dir = match scaffold_dashboard_folder(&input) {
             Ok(result) => {
@@ -348,10 +349,23 @@ fn run_dashboard(config_path: &Path, config: &config::Config, name: Option<&str>
         );
     }
 
+    // Write a single index.html to the dashboards root listing every
+    // configured dashboard as a static snapshot.
+    let all_dashboard_names: Vec<&str> = resolved.dashboards.iter().map(|d| d.name.as_str()).collect();
+    if let Err(e) = std::fs::create_dir_all(&resolved.root) {
+        tracing::error!("Failed to create dashboards root {}: {e}", resolved.root.display());
+        return ExitCode::FAILURE;
+    }
+    let (rel, contents) = render_landing_page_file(&all_dashboard_names);
+    let dest = resolved.root.join(rel);
+    if let Err(e) = std::fs::write(&dest, contents) {
+        tracing::error!("Failed to write {}: {e}", dest.display());
+        return ExitCode::FAILURE;
+    }
+
     tracing::info!(
         "After building: tiders-x402-server start {}",
         config_path.display(),
-        config.server.base_url.trim_end_matches('/')
     );
     ExitCode::SUCCESS
 }

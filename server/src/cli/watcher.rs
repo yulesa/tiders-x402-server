@@ -13,7 +13,7 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::RwLock;
 
 use crate::Database;
-use crate::dashboard::{Dashboard, build_router as build_dashboard_router};
+use crate::dashboard::{DashboardsState, build_dashboard_router as build_dashboard_router};
 use crate::payment_config::GlobalPaymentConfig;
 
 use super::builder::resolve_dashboards;
@@ -24,8 +24,8 @@ use super::loader::load_config;
 /// This is the same type as `AppState.payment_config`.
 pub type SharedPaymentConfig = Arc<RwLock<Arc<GlobalPaymentConfig>>>;
 
-/// Shared, swappable dashboard list and router. Mirrors fields on `AppState`.
-pub type SharedDashboards = Arc<ArcSwap<Vec<Dashboard>>>;
+/// Shared, swappable dashboard state and router. Mirrors fields on `AppState`.
+pub type SharedDashboards = Arc<ArcSwap<DashboardsState>>;
 pub type SharedDashboardRouter = Arc<ArcSwap<Router>>;
 
 /// Starts a file watcher on the config file. When the file changes,
@@ -106,13 +106,11 @@ pub fn start_watcher(
 
             // Hot-reload dashboard routes.
             let resolved = resolve_dashboards(&new_config);
-            let new_router = build_dashboard_router(&resolved);
+            let new_router = build_dashboard_router(&resolved.dashboards);
             dashboard_router.store(Arc::new(new_router));
-            dashboards.store(Arc::new(resolved.clone()));
-            tracing::info!(
-                "Dashboard routes reloaded ({} enabled).",
-                resolved.iter().filter(|d| d.enabled).count()
-            );
+            let enabled_count = resolved.dashboards.iter().filter(|d| d.enabled).count();
+            dashboards.store(Arc::new(resolved));
+            tracing::info!("Dashboard routes reloaded ({enabled_count} enabled).");
 
             // Rebuild facilitator (hot-reloadable)
             let facilitator = match super::builder::build_facilitator(&new_config.facilitator) {

@@ -24,9 +24,9 @@ pub struct Config {
     /// Table definitions with pricing.
     #[serde(default)]
     pub tables: Vec<TableConfig>,
-    /// Dashboards to serve at runtime. Each entry produces a route at `/<name>/`.
+    /// Dashboards configuration: optional root directory and list of entries.
     #[serde(default)]
-    pub dashboards: Vec<DashboardConfigYaml>,
+    pub dashboards: DashboardsConfigYaml,
 }
 
 /// Server network configuration.
@@ -175,6 +175,19 @@ pub enum PriceTagConfig {
         #[serde(default)]
         is_default: bool,
     },
+}
+
+/// Top-level dashboards block in the YAML config.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DashboardsConfigYaml {
+    /// Root directory for all dashboard projects.
+    /// Defaults to `./dashboards/` relative to the config file. Resolved to
+    /// absolute by the loader.
+    pub root: Option<PathBuf>,
+    /// Individual dashboard entries.
+    #[serde(default)]
+    pub entries: Vec<DashboardConfigYaml>,
 }
 
 /// YAML form of a single dashboard entry. Resolved into a runtime

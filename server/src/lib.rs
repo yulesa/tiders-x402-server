@@ -33,7 +33,6 @@ pub mod database_duckdb;
 #[cfg(feature = "postgresql")]
 pub mod database_postgresql;
 pub mod facilitator_client;
-pub mod landing_handler;
 pub mod payment_config;
 pub mod payment_processing;
 pub mod price;
@@ -63,8 +62,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 use url::Url;
 
 use crate::api_root_handler::api_root_handler;
-use crate::dashboard::{Dashboard, DashboardSwap, build_router as build_dashboard_router};
-use crate::landing_handler::landing_handler;
+use crate::dashboard::{DashboardSwap, DashboardsState, build_dashboard_router, landing_handler};
 use crate::query_handler::query_handler;
 use crate::table_detail_handler::table_detail_handler;
 pub use database::Database;
@@ -90,9 +88,9 @@ pub struct AppState {
     pub server_base_url: Url,
     /// The address and port the server binds to (e.g. "0.0.0.0:4021").
     pub server_bind_address: String,
-    /// Dashboards configured in YAML, swappable at runtime so the file
+    /// Dashboards state (root path + list), swappable at runtime so the file
     /// watcher can rebuild the list without a restart.
-    pub dashboards: Arc<ArcSwap<Vec<Dashboard>>>,
+    pub dashboards: Arc<ArcSwap<DashboardsState>>,
     /// Currently mounted dashboard sub-router. Replaced atomically when the
     /// config watcher reloads the `dashboards:` block.
     pub dashboard_router: Arc<ArcSwap<Router>>,
@@ -108,15 +106,15 @@ impl AppState {
         payment_config: GlobalPaymentConfig,
         server_base_url: Url,
         server_bind_address: String,
-        dashboards: Vec<Dashboard>,
+        dashboards_state: DashboardsState,
     ) -> Self {
-        let dashboard_router = build_dashboard_router(&dashboards);
+        let dashboard_router = build_dashboard_router(&dashboards_state.dashboards);
         Self {
             db: db.into(),
             payment_config: Arc::new(tokio::sync::RwLock::new(Arc::new(payment_config))),
             server_base_url,
             server_bind_address,
-            dashboards: Arc::new(ArcSwap::from_pointee(dashboards)),
+            dashboards: Arc::new(ArcSwap::from_pointee(dashboards_state)),
             dashboard_router: Arc::new(ArcSwap::from_pointee(dashboard_router)),
         }
     }
@@ -179,10 +177,10 @@ pub async fn start_server(state: AppState) {
     // Build the Axum Router.
     //
     // Layout:
-    //   /                       → landing page (lists dashboards)
-    //   /api/                   → API description (was `/`)
-    //   /api/query              → POST query endpoint (was `/query`)
-    //   /api/table/{name}       → table metadata (was `/table/{name}`)
+    //   /                       → landing page
+    //   /api/                   → API description
+    //   /api/query              → POST query endpoint
+    //   /api/table/{name}       → table metadata
     //
     // Dashboard routes (`/<name>/*`) are registered in tier 2.
     let api_router = Router::new()
@@ -192,9 +190,13 @@ pub async fn start_server(state: AppState) {
 
     let dashboards_service = DashboardSwap(state.dashboard_router.clone());
 
-    let app = Router::new()
-        .route("/", get(landing_handler))
-        .nest("/api", api_router)
+    let has_dashboards = !state.dashboards.load().dashboards.is_empty();
+    let mut app = Router::new()
+        .nest("/api", api_router);
+    if has_dashboards {
+        app = app.route("/", get(landing_handler));
+    }
+    let app = app
         // Anything that doesn't match the static routes above falls through to
         // the dashboard router. Lock-free swap so config reloads don't block.
         .fallback_service(dashboards_service)
