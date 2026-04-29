@@ -3,26 +3,42 @@
 use std::path::{Path, PathBuf};
 
 use crate::cli::config::DatabaseConfig;
+use crate::dashboard::Dashboard;
 
 
 static LANDING_PAGE_HTML: &str = include_str!("templates/landing_page.html");
 
 /// Renders a static `index.html` snapshot of the enabled dashboard list.
 /// Returns the destination filename and fully-rendered HTML content.
-pub fn render_landing_page_file(dashboard_names: &[&str]) -> (PathBuf, String) {
+pub fn render_landing_page_file(dashboards: &[&Dashboard]) -> (PathBuf, String) {
     use std::fmt::Write as _;
     let mut list = String::new();
-    if dashboard_names.is_empty() {
+    if dashboards.is_empty() {
         let _ = list.write_str(
             "<p class=\"empty\">No dashboards are configured yet. Add a \
              <code>dashboards:</code> entry to your YAML config and run \
-             <code>tiders-x402-server dashboard &lt;name&gt;</code> to scaffold one.</p>",
+             <code>tiders-x402-server dashboard &lt;slug&gt;</code> to scaffold one.</p>",
         );
     } else {
         let _ = list.write_str("<ul class=\"dashboards\">");
-        for name in dashboard_names {
-            let escaped = html_escape(name);
-            let _ = write!(list, "<li><a href=\"/{escaped}/\">{escaped}<span class=\"arrow\">\u{2192}</span></a></li>");
+        for d in dashboards {
+            let slug = html_escape(&d.slug);
+            let title = html_escape(&d.title);
+            let _ = write!(
+                list,
+                "<li><a href=\"/{slug}/\"><span class=\"dashboard-title\">{title}<span class=\"arrow\">\u{2192}</span></span>"
+            );
+            if let Some(desc) = &d.description {
+                let _ = write!(list, "<p class=\"dashboard-desc\">{}</p>", html_escape(desc));
+            }
+            if !d.tags.is_empty() {
+                let _ = list.write_str("<div class=\"dashboard-tags\">");
+                for tag in &d.tags {
+                    let _ = write!(list, "<span class=\"dashboard-tag\">{}</span>", html_escape(tag));
+                }
+                let _ = list.write_str("</div>");
+            }
+            let _ = list.write_str("</a></li>");
         }
         let _ = list.write_str("</ul>");
     }

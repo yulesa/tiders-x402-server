@@ -20,11 +20,17 @@ pub struct DashboardsState {
 #[derive(Debug, Clone)]
 pub struct Dashboard {
     /// URL slug — also the path prefix this dashboard is served under.
-    pub name: String,
+    pub slug: String,
+    /// Human-readable title shown on the landing page.
+    pub title: String,
+    /// Optional one-line description shown under the title.
+    pub description: Option<String>,
+    /// Tags rendered as pills on the landing page card.
+    pub tags: Vec<String>,
     /// Whether this dashboard is registered with the router on startup.
     pub enabled: bool,
     /// Absolute path to the dashboard's project directory.
-    /// Defaults to `<config_dir>/dashboards/<name>`.
+    /// Defaults to `<config_dir>/dashboards/<slug>`.
     pub folder_path: PathBuf,
     /// Absolute path to the dashboard's `build/` directory.
     /// Defaults to `<folder_path>/build`.

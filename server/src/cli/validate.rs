@@ -266,24 +266,24 @@ fn validate_price_tag(
 }
 
 fn validate_dashboards(config: &Config, errors: &mut Vec<ValidationError>) {
-    let mut seen_names: HashSet<&str> = HashSet::new();
+    let mut seen_slugs: HashSet<&str> = HashSet::new();
 
     for (i, d) in config.dashboards.entries.iter().enumerate() {
         let prefix = format!("dashboards[{i}]");
 
-        if d.name.is_empty() {
+        if d.slug.is_empty() {
             errors.push(ValidationError {
-                message: format!("{prefix}.name is empty."),
+                message: format!("{prefix}.slug is empty."),
                 hint: Some("Provide a URL slug like \"uniswap_v3\".".into()),
             });
             continue;
         }
 
-        if !DASHBOARD_NAME_PATTERN.is_match(&d.name) {
+        if !DASHBOARD_NAME_PATTERN.is_match(&d.slug) {
             errors.push(ValidationError {
                 message: format!(
-                    "{prefix}.name: \"{}\" is not a valid slug.",
-                    d.name
+                    "{prefix}.slug: \"{}\" is not a valid slug.",
+                    d.slug
                 ),
                 hint: Some(
                     "Use lowercase letters, digits, hyphens, or underscores. \
@@ -294,29 +294,47 @@ fn validate_dashboards(config: &Config, errors: &mut Vec<ValidationError>) {
             continue;
         }
 
-        if RESERVED_DASHBOARD_NAMES.contains(&d.name.as_str()) {
+        if RESERVED_DASHBOARD_NAMES.contains(&d.slug.as_str()) {
             errors.push(ValidationError {
                 message: format!(
-                    "{prefix}.name: \"{}\" is reserved (would shadow a server route).",
-                    d.name
+                    "{prefix}.slug: \"{}\" is reserved (would shadow a server route).",
+                    d.slug
                 ),
                 hint: Some(format!(
-                    "Reserved names: {}. Pick a different slug.",
+                    "Reserved slugs: {}. Pick a different one.",
                     RESERVED_DASHBOARD_NAMES.join(", ")
                 )),
             });
             continue;
         }
 
-        if !seen_names.insert(d.name.as_str()) {
+        if !seen_slugs.insert(d.slug.as_str()) {
             errors.push(ValidationError {
                 message: format!(
-                    "{prefix}.name: \"{}\" is used by more than one dashboard.",
-                    d.name
+                    "{prefix}.slug: \"{}\" is used by more than one dashboard.",
+                    d.slug
                 ),
-                hint: Some("Each dashboard must have a unique name.".into()),
+                hint: Some("Each dashboard must have a unique slug.".into()),
             });
         }
 
+        if d.title.trim().is_empty() {
+            errors.push(ValidationError {
+                message: format!("{prefix}.title is empty."),
+                hint: Some(
+                    "Provide a human-readable title like \"Uniswap V3\" — shown on the landing page."
+                        .into(),
+                ),
+            });
+        }
+
+        for (j, tag) in d.tags.iter().enumerate() {
+            if tag.trim().is_empty() {
+                errors.push(ValidationError {
+                    message: format!("{prefix}.tags[{j}] is empty."),
+                    hint: Some("Remove the empty entry or fill it in.".into()),
+                });
+            }
+        }
     }
 }

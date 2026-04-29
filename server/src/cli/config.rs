@@ -196,12 +196,20 @@ pub struct DashboardsConfigYaml {
 #[serde(deny_unknown_fields)]
 pub struct DashboardConfigYaml {
     /// URL slug (also the path prefix). Must match `^[a-z0-9][a-z0-9_-]*$`.
-    pub name: String,
+    pub slug: String,
+    /// Human-readable title shown on the landing page. Allows capitalization
+    /// and spaces (e.g. "Uniswap V3").
+    pub title: String,
+    /// Optional one-line description shown under the title on the landing page.
+    pub description: Option<String>,
+    /// Optional tags rendered as pills on the landing page card.
+    #[serde(default)]
+    pub tags: Vec<String>,
     /// Set to true to exclude this dashboard from the server. Defaults to false.
     #[serde(default)]
     pub disabled: bool,
-    /// Path to the dashboard's project directory (where `dashboard <name>`
-    /// writes scaffolds). Defaults to `./dashboards/<name>` relative to the
+    /// Path to the dashboard's project directory (where `dashboard <slug>`
+    /// writes scaffolds). Defaults to `./dashboards/<slug>` relative to the
     /// config file's directory. Resolved to absolute by the loader.
     pub folder_path: Option<PathBuf>,
     /// Path to the dashboard's `build/` directory served at runtime. Defaults

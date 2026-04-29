@@ -84,7 +84,10 @@ pub fn resolve_dashboards(config: &Config) -> DashboardsState {
         .entries
         .iter()
         .map(|d| Dashboard {
-            name: d.name.clone(),
+            slug: d.slug.clone(),
+            title: d.title.clone(),
+            description: d.description.clone(),
+            tags: d.tags.clone(),
             enabled: !d.disabled,
             folder_path: d.folder_path.clone().unwrap_or_default(),
             build_path: d.build_path.clone().unwrap_or_default(),

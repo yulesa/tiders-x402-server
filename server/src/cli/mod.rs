@@ -45,17 +45,17 @@ pub enum Command {
 
     /// Scaffold a new Evidence dashboard project from the server config.
     ///
-    /// If `<name>` matches an entry in `dashboards:`, only that dashboard is
+    /// If `<slug>` matches an entry in `dashboards:`, only that dashboard is
     /// scaffolded. Omit it to scaffold every entry. The project is written to
-    /// `{dashboards_root}/{name}/`.
+    /// `{dashboards_root}/{slug}/`.
     Dashboard {
         /// Path to the YAML configuration file.
         /// If omitted, auto-discovers a single .yaml/.yml file in the current directory.
         config: Option<PathBuf>,
 
-        /// Dashboard name. If omitted, scaffolds
+        /// Dashboard slug. If omitted, scaffolds
         /// every dashboard configured in `dashboards:`.
-        name: Option<String>,
+        slug: Option<String>,
 
         /// Overwrite managed files in an existing dashboard directory.
         /// User-owned files (`pages/*.md`, `sources/**/*.sql`) are preserved.
@@ -99,7 +99,7 @@ pub fn run() -> ExitCode {
         Start { no_watch: bool },
         Validate,
         Dashboard {
-            name: Option<&'a str>,
+            slug: Option<&'a str>,
             force: bool,
         },
     }
@@ -108,14 +108,14 @@ pub fn run() -> ExitCode {
         match &cli.command {
             Command::Validate { config, env_file } => (config, Action::Validate, env_file),
             Command::Dashboard {
-                name,
+                slug,
                 config,
                 force,
                 env_file,
             } => (
                 config,
                 Action::Dashboard {
-                    name: name.as_deref(),
+                    slug: slug.as_deref(),
                     force: *force,
                 },
                 env_file,
@@ -168,7 +168,7 @@ pub fn run() -> ExitCode {
 
     match action {
         Action::Validate => run_validate(&config),
-        Action::Dashboard { name, force } => run_dashboard(&config_path, &config, name, force),
+        Action::Dashboard { slug, force } => run_dashboard(&config_path, &config, slug, force),
         Action::Start { no_watch } => run_server(&config_path, no_watch, &config),
     }
 }
@@ -258,14 +258,14 @@ fn run_validate(config: &config::Config) -> ExitCode {
     })
 }
 
-fn run_dashboard(config_path: &Path, config: &config::Config, name: Option<&str>, force: bool) -> ExitCode {
+fn run_dashboard(config_path: &Path, config: &config::Config, slug: Option<&str>, force: bool) -> ExitCode {
     use crate::dashboard::config::ScaffoldInput;
     use crate::dashboard::scaffold::scaffold_dashboard_folder;
     use crate::dashboard::templates::{render_connection_files, render_landing_page_file, render_sql_files};
 
     let resolved = builder::resolve_dashboards(config);
 
-    let targets: Vec<&crate::dashboard::Dashboard> = match name {
+    let targets: Vec<&crate::dashboard::Dashboard> = match slug {
         None => {
             if resolved.dashboards.is_empty() {
                 tracing::error!(
@@ -276,12 +276,12 @@ fn run_dashboard(config_path: &Path, config: &config::Config, name: Option<&str>
             }
             resolved.dashboards.iter().collect()
         }
-        Some(n) => match resolved.dashboards.iter().find(|d| d.name == n) {
+        Some(s) => match resolved.dashboards.iter().find(|d| d.slug == s) {
             Some(d) => vec![d],
             None => {
-                let known: Vec<&str> = resolved.dashboards.iter().map(|d| d.name.as_str()).collect();
+                let known: Vec<&str> = resolved.dashboards.iter().map(|d| d.slug.as_str()).collect();
                 tracing::error!(
-                    "Dashboard \"{n}\" not found in config. Known dashboards: [{}]",
+                    "Dashboard \"{s}\" not found in config. Known dashboards: [{}]",
                     known.join(", ")
                 );
                 return ExitCode::FAILURE;
@@ -316,7 +316,7 @@ fn run_dashboard(config_path: &Path, config: &config::Config, name: Option<&str>
 
         let input = ScaffoldInput {
             project_dir: &d.folder_path,
-            name: &d.name,
+            name: &d.slug,
             seed_table,
             source_name: &source_name,
             force,
@@ -330,7 +330,7 @@ fn run_dashboard(config_path: &Path, config: &config::Config, name: Option<&str>
                     .unwrap_or_else(|_| result.project_dir.clone());
                 tracing::info!(
                     "Scaffolded dashboard \"{}\" at {} ({} files written, {} preserved)",
-                    d.name,
+                    d.slug,
                     abs.display(),
                     result.written.len(),
                     result.preserved.len()
@@ -338,7 +338,7 @@ fn run_dashboard(config_path: &Path, config: &config::Config, name: Option<&str>
                 abs
             }
             Err(e) => {
-                tracing::error!("Failed to scaffold dashboard \"{}\": {e}", d.name);
+                tracing::error!("Failed to scaffold dashboard \"{}\": {e}", d.slug);
                 return ExitCode::FAILURE;
             }
         };
@@ -351,12 +351,12 @@ fn run_dashboard(config_path: &Path, config: &config::Config, name: Option<&str>
 
     // Write a single index.html to the dashboards root listing every
     // configured dashboard as a static snapshot.
-    let all_dashboard_names: Vec<&str> = resolved.dashboards.iter().map(|d| d.name.as_str()).collect();
+    let all_dashboards: Vec<&crate::dashboard::Dashboard> = resolved.dashboards.iter().collect();
     if let Err(e) = std::fs::create_dir_all(&resolved.root) {
         tracing::error!("Failed to create dashboards root {}: {e}", resolved.root.display());
         return ExitCode::FAILURE;
     }
-    let (rel, contents) = render_landing_page_file(&all_dashboard_names);
+    let (rel, contents) = render_landing_page_file(&all_dashboards);
     let dest = resolved.root.join(rel);
     if let Err(e) = std::fs::write(&dest, contents) {
         tracing::error!("Failed to write {}: {e}", dest.display());

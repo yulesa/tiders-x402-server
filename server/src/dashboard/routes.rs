@@ -55,26 +55,27 @@ pub fn build_dashboard_router(dashboards: &[Dashboard]) -> Router {
         if index.is_file() {
             // SPA fallback: client-side router handles deep links.
             let serve = ServeDir::new(&d.build_path).fallback(ServeFile::new(&index));
-            router = router.nest_service(&format!("/{}", d.name), serve);
+            router = router.nest_service(&format!("/{}", d.slug), serve);
         } else {
-            let name = d.name.clone();
+            let slug = d.slug.clone();
             let build_path = d.build_path.display().to_string();
+            let folder_path = d.folder_path.display().to_string();
             tracing::warn!(
-                "Dashboard \"{name}\" build directory missing or has no index.html at {build_path}. \
-                 Run `tiders-x402-server dashboard {name}` to scaffold and `npm run build` to populate it."
+                "Dashboard \"{slug}\" build directory missing or has no index.html at {build_path}. \
+                 Run `tiders-x402-server dashboard {slug}` to scaffold and `(cd {folder_path} && npm install && npm run build)` to populate it."
             );
-            let route = format!("/{}", d.name);
+            let route = format!("/{}", d.slug);
             router = router.route(
                 &route,
-                any(move || render_unbuilt_dashboard(name.clone(), build_path.clone())),
+                any(move || render_unbuilt_dashboard(slug.clone(), build_path.clone())),
             );
             // Catch deep links too.
-            let catchall = format!("/{}/{{*rest}}", d.name);
-            let name_c = d.name.clone();
+            let catchall = format!("/{}/{{*rest}}", d.slug);
+            let slug_c = d.slug.clone();
             let path_c = d.build_path.display().to_string();
             router = router.route(
                 &catchall,
-                any(move || render_unbuilt_dashboard(name_c.clone(), path_c.clone())),
+                any(move || render_unbuilt_dashboard(slug_c.clone(), path_c.clone())),
             );
         }
     }

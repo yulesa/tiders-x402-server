@@ -89,7 +89,10 @@ tables:
 dashboards:
   # root: "./dashboards"          # optional; defaults to ./dashboards/ relative to this file
   entries:
-    - name: uniswap_v3            # URL-safe slug; reserved: api, assets, static
+    - slug: uniswap_v3            # URL-safe slug; reserved: api, assets, static
+      title: "Uniswap V3"         # human-readable, shown on the landing page
+      description: "Pool swaps and liquidity events on Uniswap V3."
+      tags: ["Dex", "DeFi", "Ethereum"]
       # disabled: true
       # folder_path: "./dashboards/uniswap_v3"
       # build_path: "./dashboards/uniswap_v3/build"

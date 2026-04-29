@@ -47,7 +47,7 @@ pub fn load_config(path: &Path) -> Result<Config> {
     for d in &mut config.dashboards.entries {
         let folder = match d.folder_path.take() {
             Some(p) => resolve_against_config(path, &p.to_string_lossy()),
-            None => root.join(&d.name),
+            None => root.join(&d.slug),
         };
         let build = match d.build_path.take() {
             Some(p) => resolve_against_config(path, &p.to_string_lossy()),
