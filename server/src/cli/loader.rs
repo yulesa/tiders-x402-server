@@ -75,10 +75,9 @@ pub fn load_config(path: &Path) -> Result<Config> {
 }
 
 
-/// Resolves `target` against the config file's directory.
-/// Absolute paths are returned as-is. Relative paths are joined to the config
-/// file's parent and canonicalized when they exist; non-existent paths are
-/// returned in their joined form so callers can still write to them.
+/// Resolves `target` to an absolute path against the config file's directory.
+/// Always returns an absolute path: canonicalized when the target exists,
+/// otherwise lexically-normalized against the absolute config dir.
 fn resolve_against_config(config_path: &Path, target: &str) -> PathBuf {
     let p = Path::new(target);
     if p.is_absolute() {
@@ -86,5 +85,23 @@ fn resolve_against_config(config_path: &Path, target: &str) -> PathBuf {
     }
     let base = config_path.parent().unwrap_or_else(|| Path::new("."));
     let joined = base.join(p);
-    joined.canonicalize().unwrap_or(joined)
+    if let Ok(c) = joined.canonicalize() {
+        return c;
+    }
+    // The target doesn't exist yet. Make sure the result is still absolute by
+    // anchoring against current_dir, then lexically resolve `..` components.
+    let abs = if joined.is_absolute() {
+        joined
+    } else {
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(joined)
+    };
+    let mut out = PathBuf::new();
+    for c in abs.components() {
+        match c {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => { out.pop(); }
+            c => out.push(c),
+        }
+    }
+    out
 }

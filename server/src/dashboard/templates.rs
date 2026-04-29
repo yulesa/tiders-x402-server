@@ -22,7 +22,7 @@ pub fn render_landing_page_file(dashboard_names: &[&str]) -> (PathBuf, String) {
         let _ = list.write_str("<ul class=\"dashboards\">");
         for name in dashboard_names {
             let escaped = html_escape(name);
-            let _ = write!(list, "<li><a href=\"/{escaped}/\">{escaped}</a></li>");
+            let _ = write!(list, "<li><a href=\"/{escaped}/\">{escaped}<span class=\"arrow\">\u{2192}</span></a></li>");
         }
         let _ = list.write_str("</ul>");
     }

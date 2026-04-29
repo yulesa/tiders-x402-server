@@ -3,26 +3,620 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tiders-x402</title>
+  <title>Tiders</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiID8+CjxzdmcgYmFzZVByb2ZpbGU9InRpbnkiIGhlaWdodD0iMTYxNyIgdmVyc2lvbj0iMS4yIiB2aWV3Qm94PSIyMCwtMTQzNCwxMzQ2LDE2MTciIHdpZHRoPSIxMzQ2IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOmV2PSJodHRwOi8vd3d3LnczLm9yZy8yMDAxL3htbC1ldmVudHMiIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj48ZGVmcyAvPjxnIHRyYW5zZm9ybT0ic2NhbGUoMSwgLTEpIj48cGF0aCBkPSJNMTIwIDE0MzRIMjEwUTIxNCAxNDM0IDIxNCAxNDMwVjE0MDNIMzA4UTMwOCAxNDA5IDMxMiAxNDA5SDQwNFYxNDE5UTQwNSAxNDIzIDQwOCAxNDIzSDQ5OFE1MDIgMTQyMiA1MDIgMTQxOVYxNDAxSDU5NlYxNDEzUTU5NyAxNDE3IDYwMCAxNDE3SDY5MFE2OTQgMTQxNyA2OTQgMTQwN0g3ODZMNzkyIDE0MTFROTQ3IDE0MTMgOTgwIDE0MTNWMTQzMFE5ODEgMTQzNCA5ODQgMTQzNEgxMDc0UTEwNzggMTQzNCAxMDc4IDE0MzBWMTQxM0gxMTcwUTExNzQgMTQxMiAxMTc0IDE0MDlWMTM5OEgxMjY4VjE0MTlRMTI2OSAxNDIzIDEyNzIgMTQyM0gxMzYyUTEzNjYgMTQyMiAxMzY2IDE0MTlWMTMyOVExMzY2IDEzMjUgMTM2MiAxMzI1SDEyNzBWMTMwMEgxMzYyUTEzNjYgMTI5OSAxMzY2IDEyOTZWMTAyOVExMzY2IDEwMjUgMTM2MiAxMDI1UTExNzQgMTAyNCAxMTc0IDEwMjFRMTE3NCAxMDE2IDExNzAgMTAxNkgxMDc4UTEwNzggMTAxMCAxMDc0IDEwMTBIOTgyVjg4OVE5ODIgODA0IDk4MCA2NTVMOTc2IDY1M0g4ODZRODgyIDY1MiA4ODIgNjQ5VjU2MlE4ODIgNTU5IDg3OCA1NTlINzk0UTc5MCA1NTkgNzkwIDU2MlY2NTFINzg4UTc4NiA2MDkgNzg2IDU4OVY1NTVRNzg2IDU1MSA3ODIgNTUxSDY5OFE2OTQgNTUxIDY5NCA1NTVWNTk3UTY5NCA2MTMgNjkyIDY0NUg2MDBRNTk2IDY0NSA1OTYgNjUzSDUwNFE1MDAgNjUzIDUwMCA2NTdWOTA4UTUwMSA5MTIgNTA0IDkxMkg1OTZWOTMxSDUwNFE1MDAgOTMxIDUwMCA5MzVWMTAyOUg0MDZRNDA2IDEwMTkgNDAyIDEwMTlIMzEyUTMwOCAxMDE5IDMwOCAxMDIzVjEwNDhIMjE0VjEwMjNRMjE0IDEwMTkgMjA4IDEwMTlRMTg4IDEwMTkgMjIgMTAyMUwyMCAxMDI1VjEyMDlRMjEgMTIxMyAyNCAxMjEzSDExNlYxMjMzSDI0UTIwIDEyMzMgMjAgMTIzNlYxNDA5UTIxIDE0MTMgMjQgMTQxM0gxMTZWMTQzMFExMTcgMTQzNCAxMjAgMTQzNFpNMTE4IDEzMzZWMTMwN0gyMTJWMTMzNlpNOTgyIDEzMzZWMTMzMEgxMDc2VjEzMzZaTTQwNiAxMzI1VjEzMTdINTAwVjEzMjVaTTg4NiAxMzE1VjEzMTNIOTgwVjEzMTVaTTU5OCAxMjM2VjEyMzFINjkyVjEyMzZaTTIxNCAxMjMzVjEyMTNRMjE0IDEyMDkgMjEwIDEyMDlIMTE4VjEyMDRIMTIwUTI5MiAxMjAyIDMwOCAxMjAyVjEyMzNaTTk4MiAxMjMzVjEyMTdIMTA3NFExMDc4IDEyMTcgMTA3OCAxMjEzVjEyMDJIMTE3MlYxMjMzWk00MDYgMTIxOVYxMjA2SDUwMFYxMjE5Wk01MDIgMTE0MFYxMTMzSDU5NlYxMTQwWk02OTQgMTEzMVYxMTI3SDY5NlE3MTIgMTEyNyA4ODQgMTEyNVYxMTI5SDg4MlE4NjYgMTEyOSA2OTQgMTEzMVpNODg2IDExMjVWMTEyMUg5ODBWMTEyNVpNMTE3NCAxMTIzVjExMjFIMTI2OFYxMTIzWk0zMTAgMTEyMVYxMTE3SDQwNFYxMTIxWk05ODIgMTExOVYxMTA4SDEwNzZWMTExOVpNNTk0IDEwMzVINTAyVjEwMjlINTk0UTU5OCAxMDI5IDU5OCAxMDE3SDY5MlE2OTIgMTAyMyA2OTYgMTAyM0g3ODhWMTAyOUg2OTZRNjkyIDEwMjkgNjkyIDEwMzlINjAwWk03OTAgOTUyVjkyOUg4ODRWOTUyWk02OTQgOTI1VjkxNEg3ODhWOTI1Wk03OTAgODMxVjgyNUg4ODRWODMxWk01OTggNzU4Vjc0OUw1OTYgNzM5SDY5MlY3NThaTTY5MiA3MzFWNzIySDc4OFY3MzFaTTg5MCA2NDdIOTc0UTk3OCA2NDcgOTc4IDY0MVE5NzYgNDk1IDk3NiA0NzBMOTcyIDQ2OEg4OTJRODg4IDQ2OCA4ODggNDcyUTg4NiA2MTUgODg2IDY0NVpNNTA2IDY0M0g1OTBRNTk0IDY0MyA1OTQgNjM3UTU5NCA2MDQgNTkyIDQ3Nkw1ODggNDc0SDUwOFE1MDQgNDc0IDUwNCA0NzhRNTAyIDYwNiA1MDIgNjQxWk02MDIgNjI4SDY4NlE2OTAgNjI3IDY5MCA2MjRWNjIyUTY5MCA1NzYgNjg4IDQ3OEw2ODQgNDc2SDYwNFE2MDAgNDc2IDYwMCA0ODBRNTk4IDU3MiA1OTggNjIyVjYyNFE1OTkgNjI4IDYwMiA2MjhaTTc5NiA1NTNIODc2UTg4MCA1NTIgODgwIDU0OVY0NjhRODgwIDQ2NSA4NzYgNDY1SDc5NlE3OTIgNDY1IDc5MiA0NjhWNTQ5UTc5MiA1NTMgNzk2IDU1M1pNNzAwIDUzN0g3ODBRNzg0IDUzNyA3ODQgNTM0VjQ1NUw3ODAgNDQ5VjM4MFE3ODAgMzc2IDc3NiAzNzZINzA0UTcwMCAzNzYgNzAwIDM4MFY0NDlMNjk2IDQ1NVY1MzRRNjk2IDUzNyA3MDAgNTM3Wk02MDggNDU3SDY4MFE2ODQgNDU2IDY4NCA0NTNWMzgwUTY4NCAzNzYgNjgwIDM3Nkg2MDhRNjA0IDM3NiA2MDQgMzgwVjQ1M1E2MDQgNDU3IDYwOCA0NTdaTTg5NiA0NTNIOTY4UTk3MiA0NTIgOTcyIDQ0OVYzNzRROTcyIDM3MCA5NjggMzcwSDg5NlE4OTIgMzcwIDg5MiAzNzRWNDQ5UTg5MiA0NTMgODk2IDQ1M1pNNTEyIDQ1MUg1ODRRNTg4IDQ1MCA1ODggNDQ3VjM3MlE1ODggMzY5IDU4NCAzNjlINTEyUTUwOCAzNjkgNTA4IDM3MlY0NDdRNTA4IDQ1MSA1MTIgNDUxWk04MDAgNDI4SDg3MlE4NzYgNDI3IDg3NiA0MjRWMzUxTDg3MiAzNDVWMjg2UTg3MiAyODIgODY5IDI4Mkg4MDNRODAwIDI4MiA4MDAgMjg2VjM0NUw3OTYgMzUxVjQyNFE3OTYgNDI4IDgwMCA0MjhaTTYxMSAzNDVINjc3UTY4MCAzNDUgNjgwIDM0MlYyNzRRNjgwIDI3MSA2NzcgMjcxSDYxMVE2MDggMjcxIDYwOCAyNzRWMzQyUTYwOCAzNDUgNjExIDM0NVpNODk5IDM0NUg5NjVROTY4IDM0NSA5NjggMzQyVjI3NFE5NjggMjcxIDk2NSAyNzFIODk5UTg5NiAyNzEgODk2IDI3NFYzNDJRODk2IDM0NSA4OTkgMzQ1Wk03MDcgMzM2SDc3M1E3NzYgMzM1IDc3NiAzMzJWMjY3UTc3NiAyNjMgNzczIDI2M0g3MDdRNzA0IDI2MyA3MDQgMjY3VjMzMlE3MDQgMzM2IDcwNyAzMzZaTTUxNSAzMzBINTgxUTU4NCAzMzAgNTg0IDMyNlYyNTlRNTg0IDI1NSA1ODEgMjU1SDUxNVE1MTIgMjU1IDUxMiAyNTlWMzI2UTUxMiAzMzAgNTE1IDMzMFpNODA3IDI1NUg4NjVRODY5IDI1NSA4NjkgMjUxVjE5NlE4NjkgMTkyIDg2NSAxOTJIODA3UTgwMyAxOTIgODAzIDE5NlYyNTFRODA0IDI1NSA4MDcgMjU1Wk03MTEgMjUxSDc2OVE3NzMgMjUxIDc3MyAyNDhWMTkyUTc3MyAxODggNzY5IDE4OEg3MTFRNzA3IDE4OCA3MDcgMTkyVjI0OFE3MDggMjUxIDcxMSAyNTFaTTUxOSAyNDhINTc3UTU4MSAyNDcgNTgxIDI0NFYxODhRNTgxIDE4NCA1NzcgMTg0SDUxOVE1MTUgMTg0IDUxNSAxODhWMjQ0UTUxNiAyNDggNTE5IDI0OFpNNjE1IDI0Nkg2NzNRNjc3IDI0NSA2NzcgMjQyVjE4NlE2NzcgMTgyIDY3MyAxODJINjE1UTYxMSAxODIgNjExIDE4NlYyNDJRNjEyIDI0NiA2MTUgMjQ2Wk05MDMgMjQySDk2MVE5NjUgMjQxIDk2NSAyMzhWMTgyUTk2NSAxNzggOTYxIDE3OEg5MDNRODk5IDE3OCA4OTkgMTgyVjIzOFE5MDAgMjQyIDkwMyAyNDJaTTYyMSAxNDhINjY3UTY3MSAxNDcgNjcxIDE0NFYxMDBRNjcxIDk2IDY2NyA5Nkg2MjFRNjE3IDk2IDYxNyAxMDBWMTQ0UTYxOCAxNDggNjIxIDE0OFpNNzE3IDE0Nkg3NjNRNzY3IDE0NSA3NjcgMTQyVjk4UTc2NyA5NCA3NjMgOTRINzE3UTcxMyA5NCA3MTMgOThWMTQyUTcxNCAxNDYgNzE3IDE0NlpNNTI1IDE0Mkg1NzFRNTc1IDE0MSA1NzUgMTM4Vjk0UTU3NSA5MCA1NzEgOTBINTI1UTUyMSA5MCA1MjEgOTRWMTM4UTUyMiAxNDIgNTI1IDE0MlpNODEzIDEzOEg4NTlRODYzIDEzOCA4NjMgMTM0Vjg4UTg2MyA4NCA4NTkgODRIODEzUTgwOSA4NCA4MDkgODhWMTM0UTgxMCAxMzggODEzIDEzOFpNOTA5IDEzMkg5NTVROTU5IDEzMiA5NTkgMTI5Vjg0UTk1OSA4MSA5NTUgODFIOTA5UTkwNSA4MSA5MDUgODRWMTI5UTkwNiAxMzIgOTA5IDEzMlpNNjI5IDUySDY1OVE2NjMgNTEgNjYzIDQ4VjE3UTY2MyAxMyA2NTkgMTNINjI5UTYyNSAxMyA2MjUgMTdWNDhRNjI1IDUyIDYyOSA1MlpNOTE3IDQwSDk0N1E5NTEgNDAgOTUxIDM2VjRROTUxIDAgOTQ3IDBIOTE3UTkxMyAwIDkxMyA0VjM2UTkxMyA0MCA5MTcgNDBaTTUzMyAyNUg1NjNRNTY3IDI0IDU2NyAyMVYtMTJRNTY3IC0xNSA1NjMgLTE1SDUzM1E1MjkgLTE1IDUyOSAtMTJWMjFRNTI5IDI1IDUzMyAyNVpNODIxIDI1SDg1MVE4NTUgMjQgODU1IDIxVi0xMFE4NTUgLTE0IDg1MSAtMTRIODIxUTgxNyAtMTQgODE3IC0xMFYyMVE4MTcgMjUgODIxIDI1Wk03MjUgMjFINzU1UTc1OSAyMCA3NTkgMTdWLTE0UTc1OSAtMTcgNzU1IC0xN0g3MjVRNzIxIC0xNyA3MjEgLTE0VjE3UTcyMSAyMSA3MjUgMjFaTTgyNiAtNDJIODQ2UTg0OSAtNDMgODQ5IC00NlYtNjVRODQ5IC02OSA4NDYgLTY5SDgyNlE4MjMgLTY5IDgyMyAtNjVWLTQ2UTgyMyAtNDIgODI2IC00MlpNNTM4IC03MUg1NThRNTYxIC03MiA1NjEgLTc1Vi05MlE1NjEgLTk2IDU1OCAtOTZINTM4UTUzNSAtOTYgNTM1IC05MlYtNzVRNTM1IC03MSA1MzggLTcxWk03MzAgLTgxSDc1MFE3NTMgLTgxIDc1MyAtODVWLTEwNFE3NTMgLTEwOCA3NTAgLTEwOEg3MzBRNzI3IC0xMDggNzI3IC0xMDRWLTg1UTcyNyAtODEgNzMwIC04MVpNNjM0IC04M0g2NTRRNjU3IC04MyA2NTcgLTg3Vi0xMDZRNjU3IC0xMTAgNjU0IC0xMTBINjM0UTYzMSAtMTEwIDYzMSAtMTA2Vi04N1E2MzEgLTgzIDYzNCAtODNaTTkyMiAtODNIOTQyUTk0NSAtODMgOTQ1IC04N1YtMTA0UTk0NSAtMTA4IDk0MiAtMTA4SDkyMlE5MTkgLTEwOCA5MTkgLTEwNFYtODdROTE5IC04MyA5MjIgLTgzWk04MzQgLTE0OEg4MzhRODQyIC0xNDkgODQyIC0xNTJWLTE1NFE4NDIgLTE1OCA4MzggLTE1OEg4MzRRODMwIC0xNTggODMwIC0xNTRWLTE1MlE4MzEgLTE0OCA4MzQgLTE0OFpNOTMwIC0xNDhIOTM0UTkzOCAtMTQ5IDkzOCAtMTUyVi0xNTZROTM4IC0xNTkgOTM0IC0xNTlIOTMwUTkyNiAtMTU5IDkyNiAtMTU2Vi0xNTJROTI3IC0xNDggOTMwIC0xNDhaTTU0NiAtMTY3SDU1MFE1NTQgLTE2OCA1NTQgLTE3MVYtMTc1UTU1NCAtMTc5IDU1MCAtMTc5SDU0NlE1NDIgLTE3OSA1NDIgLTE3NVYtMTcxUTU0MyAtMTY3IDU0NiAtMTY3Wk02NDIgLTE3MUg2NDZRNjUwIC0xNzIgNjUwIC0xNzVWLTE3N1E2NTAgLTE4MSA2NDYgLTE4MUg2NDJRNjM4IC0xODEgNjM4IC0xNzdWLTE3NVE2MzkgLTE3MSA2NDIgLTE3MVpNNzM4IC0xNzFINzQyUTc0NiAtMTcyIDc0NiAtMTc1Vi0xNzlRNzQ2IC0xODMgNzQyIC0xODNINzM4UTczNCAtMTgzIDczNCAtMTc5Vi0xNzVRNzM1IC0xNzEgNzM4IC0xNzFaIiBmaWxsPSIjMzQ3M2FkIiAvPjwvZz48L3N2Zz4=" />
   <style>
-    :root { color-scheme: dark; }
-    body { font-family: -apple-system, system-ui, sans-serif; background: #0b1220; color: #e2e8f0; max-width: 640px; margin: 4rem auto; padding: 0 1.5rem; line-height: 1.6; }
-    h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
-    p { color: #94a3b8; }
-    code { background: #1e293b; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
-    ul.dashboards { list-style: none; padding: 0; margin: 1.5rem 0; }
-    ul.dashboards li { margin: 0.5rem 0; }
-    ul.dashboards a { display: inline-block; padding: 0.6rem 1rem; background: #1e293b; border-radius: 6px; color: #60a5fa; text-decoration: none; font-weight: 500; }
-    ul.dashboards a:hover { background: #334155; color: #93c5fd; }
-    footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #1e293b; font-size: 0.9rem; color: #64748b; }
-    footer a { color: #60a5fa; }
-    .empty { background: #1e293b; padding: 1rem 1.25rem; border-radius: 6px; }
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root {
+      color-scheme: dark;
+      --bg: #07111d;
+      --panel: rgba(10, 20, 36, 0.82);
+      --line: rgba(132, 188, 255, 0.16);
+      --line-strong: rgba(132, 188, 255, 0.32);
+      --text: #ecf4ff;
+      --muted: #9ab1ca;
+      --soft: #6f86a0;
+      --accent: #7cc7ff;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+    }
+
+    html {
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(76, 224, 210, 0.12), transparent 24%),
+        radial-gradient(circle at 80% 18%, rgba(63, 136, 255, 0.2), transparent 26%),
+        linear-gradient(180deg, #0a1424 0%, #040913 100%);
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "SF Pro Text", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      line-height: 1.6;
+      background:
+        linear-gradient(rgba(132, 188, 255, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(132, 188, 255, 0.06) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      pointer-events: none;
+      z-index: 0;
+      filter: blur(18px);
+      border-radius: 50%;
+    }
+
+    body::before {
+      top: 5%;
+      left: -8%;
+      width: 26rem;
+      height: 26rem;
+      background: rgba(76, 224, 210, 0.12);
+    }
+
+    body::after {
+      right: -6%;
+      bottom: 8%;
+      width: 30rem;
+      height: 30rem;
+      background: rgba(63, 136, 255, 0.15);
+    }
+
+    a { color: inherit; }
+
+    .shell {
+      position: relative;
+      z-index: 1;
+      width: min(1180px, calc(100vw - 32px));
+      margin: 24px auto;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: linear-gradient(180deg, rgba(6, 12, 24, 0.9), rgba(5, 10, 19, 0.96));
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at top, rgba(124, 199, 255, 0.1), transparent 36%),
+        linear-gradient(135deg, rgba(124, 199, 255, 0.05), transparent 42%);
+      pointer-events: none;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--line);
+      background: rgba(5, 12, 22, 0.72);
+      backdrop-filter: blur(10px);
+    }
+
+    .brandline,
+    .toplinks,
+    .kicker,
+    .eyebrow,
+    .meta,
+    .mini-list {
+      display: flex;
+      align-items: center;
+    }
+
+    .brandline { gap: 0.85rem; }
+
+    .brandline img {
+      height: 38px;
+      width: auto;
+      display: block;
+      transform: translateY(2px);
+    }
+
+    .brandtext {
+      display: grid;
+      gap: 0.08rem;
+    }
+
+    .section-title h2 {
+      letter-spacing: 0.03em;
+    }
+
+    .brandtext strong {
+      font-family: "IBM Plex Serif", system-ui, monospace;
+      font-size: 1.1rem;
+      font-weight: 800;
+      font-style: italic;
+      line-height: 1.2;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .brandtext strong::before {
+      content: "—";
+      flex: 0 0 auto;
+    }
+
+    .brandtext span,
+    .toplinks a,
+    .hero-copy p,
+    .eyebrow,
+    .section-title p,
+    .dashboards p,
+    .api-card p,
+    .footer,
+    .mini-list,
+    .empty {
+      color: var(--muted);
+    }
+
+    .brandtext span { font-size: 0.82rem; }
+
+    .toplinks {
+      gap: 0.8rem;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .toplinks a {
+      padding: 0.45rem 0.8rem;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      text-decoration: none;
+      font-size: 0.92rem;
+      transition: 180ms ease;
+    }
+
+    .toplinks a:hover {
+      border-color: var(--line);
+      color: var(--text);
+      background: rgba(124, 199, 255, 0.06);
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);
+      grid-template-areas:
+        "hero rail"
+        "dashboards dashboards";
+      gap: 1.4rem;
+      padding: 1.4rem;
+      align-items: stretch;
+    }
+
+    .hero { grid-area: hero; }
+    .rail { grid-area: rail; }
+    .dashboards-section { grid-area: dashboards; }
+
+    .hero,
+    .rail {
+      display: grid;
+      gap: 1.2rem;
+    }
+
+    .hero-panel,
+    .dashboards a,
+    .api-card,
+    .empty {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--panel);
+      backdrop-filter: blur(14px);
+    }
+
+    .hero-panel {
+      padding: 1.7rem;
+      min-height: 420px;
+      display: grid;
+      align-content: space-between;
+      background:
+        linear-gradient(180deg, rgba(10, 20, 36, 0.76), rgba(7, 15, 28, 0.94)),
+        radial-gradient(circle at top right, rgba(124, 199, 255, 0.18), transparent 34%);
+    }
+
+    .hero-panel::after,
+    .api-card::after {
+      content: "";
+      position: absolute;
+      inset: auto -40px -40px auto;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(124, 199, 255, 0.18), transparent 70%);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      gap: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      font-size: 0.72rem;
+      margin-bottom: 1rem;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 36px;
+      height: 1px;
+      background: var(--line-strong);
+    }
+
+    .hero-copy h1 {
+      max-width: 12ch;
+      margin: 0 0 1rem;
+      font-size: clamp(2.4rem, 6vw, 5rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+
+    .hero-copy p {
+      max-width: 60ch;
+      margin: 0;
+      font-size: 1.05rem;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 0.85rem;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+
+    .button,
+    .link-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      min-height: 48px;
+      padding: 0.85rem 1.15rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      text-decoration: none;
+      font-weight: 600;
+      transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+    }
+
+    .button {
+      color: #04111f;
+      background: linear-gradient(135deg, #84e8ff, #71b8ff);
+      border-color: transparent;
+      box-shadow: 0 14px 32px rgba(113, 184, 255, 0.26);
+    }
+
+    .link-button {
+      color: var(--text);
+      background: rgba(124, 199, 255, 0.06);
+    }
+
+    .button:hover,
+    .link-button:hover,
+    .dashboards a:hover {
+      transform: translateY(-1px);
+    }
+
+    .signal-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.9rem;
+      margin-top: 1.8rem;
+    }
+
+    .signal {
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(124, 199, 255, 0.05);
+    }
+
+    .signal strong {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 1.25rem;
+    }
+
+    .signal span {
+      font-size: 0.86rem;
+      color: var(--soft);
+    }
+
+    .section-title {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0 0.2rem;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 1.4rem;
+    }
+
+    .section-title p {
+      margin: 0.35rem 0 0;
+      font-size: 0.96rem;
+      max-width: 48ch;
+    }
+
+    .dashboards {
+      list-style: none;
+      padding: 0;
+      margin: 1.4rem 0 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .dashboards li { margin: 0; }
+
+    .dashboards a {
+      display: grid;
+      min-height: 250px;
+      padding: 1.35rem;
+      color: inherit;
+      text-decoration: none;
+      transition: background 180ms ease, border-color 180ms ease;
+    }
+
+    .dashboards a:hover {
+      background: rgba(124, 199, 255, 0.04);
+    }
+
+    .dashboards a::before {
+      content: "Dashboard";
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.8rem;
+      width: fit-content;
+      padding: 0.3rem 0.55rem;
+      margin-bottom: 1.2rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(76, 224, 210, 0.08);
+      color: #a7fff3;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+    }
+
+    .dashboards a {
+      font-size: 1.45rem;
+      font-weight: 700;
+      align-content: start;
+    }
+
+    .dashboards .arrow {
+      display: inline-block;
+      margin-left: 0.55rem;
+      font-size: 1.15rem;
+      color: var(--accent);
+    }
+
+    .empty {
+      padding: 1.35rem;
+      font-size: 0.96rem;
+    }
+
+    .empty code,
+    code {
+      display: inline-block;
+      padding: 0.18rem 0.4rem;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: rgba(124, 199, 255, 0.08);
+      color: #bde7ff;
+      font-size: 0.9em;
+    }
+
+    .rail { align-content: stretch; }
+
+    .api-card {
+      padding: 1.35rem;
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      background:
+        linear-gradient(180deg, rgba(12, 22, 38, 0.92), rgba(7, 15, 28, 0.96)),
+        radial-gradient(circle at top right, rgba(76, 224, 210, 0.12), transparent 32%);
+    }
+
+    .api-card .hero-actions {
+      margin-top: auto;
+      justify-content: flex-end;
+    }
+
+    .api-card h3,
+    .mini-list strong {
+      margin: 0;
+    }
+
+    .api-card p {
+      margin: 0.75rem 0 1rem;
+      font-size: 0.95rem;
+    }
+
+    .mini-list {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.3rem;
+      margin: 0.85rem 0;
+      font-size: 0.92rem;
+    }
+
+    .mini-list strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .mini-list span {
+      line-height: 1.5;
+    }
+
+    .mini-list a {
+      color: var(--accent);
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.2rem 1.4rem 1.4rem;
+      border-top: 1px solid var(--line);
+      font-size: 0.9rem;
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .footer a:hover { color: #bde7ff; }
+
+    @media (max-width: 980px) {
+      .content {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "hero"
+          "rail"
+          "dashboards";
+      }
+      .dashboards { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 720px) {
+      .shell {
+        width: min(100vw - 16px, 100%);
+        margin: 8px auto;
+        border-radius: 22px;
+      }
+
+      .topbar,
+      .content,
+      .footer {
+        padding-left: 1rem;
+        padding-right: 1rem;
+      }
+
+      .topbar,
+      .section-title,
+      .footer {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .hero-panel {
+        min-height: auto;
+        padding: 1.25rem;
+      }
+
+      .signal-grid { grid-template-columns: 1fr; }
+
+      .hero-copy h1 {
+        font-size: clamp(2.2rem, 12vw, 3.3rem);
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>Tiders-x402</h1>
-  <p>Pay-per-query data marketplace.</p>
-  <!--DASHBOARD_LIST-->
-  <footer>API description and table catalog: <a href="/api">/api/</a></footer>
+  <div class="shell">
+    <div class="topbar">
+      <div class="brandline">
+        <img src="data:image/png;base64,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" alt="Tiders logo" />
+        <div class="brandtext">
+          <strong>Data from wizards backed by x402</strong>
+        </div>
+      </div>
+
+      <nav class="toplinks" aria-label="Quick links">
+        <a href="#dashboards">Dashboards</a>
+        <a href="https://github.com/yulesa/tiders-x402-server" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+
+    <main class="content">
+      <section class="hero">
+        <div class="hero-panel">
+          <div class="hero-copy">
+            <div class="eyebrow">Data Surfaces for the Open Web</div>
+            <h1>Explore dashboards. Follow the data deeper.</h1>
+            <p>Explore live data through open dashboards backed by Tiders. Preview our datasets visually, then access the full data through our API.</p>
+
+            <div class="hero-actions">
+              <a class="button" href="#dashboards">Browse dashboards <span aria-hidden="true">↓</span></a>
+            </div>
+          </div>
+
+          <div class="signal-grid" aria-label="Highlights">
+            <div class="signal">
+              <strong>Visual first</strong>
+              <span>Use dashboards to scan the shape of each dataset before querying the full tables.</span>
+            </div>
+            <div class="signal">
+              <strong>API ready</strong>
+              <span>Every dashboard can point users to the structured data behind it through the same server.</span>
+            </div>
+            <div class="signal">
+              <strong>Built with Tiders</strong>
+              <span>Open-source infrastructure for serving SQL-accessible datasets with a clean landing surface.</span>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <aside class="rail">
+        <section class="api-card">
+          <div class="eyebrow">How to Connect?</div>
+          <h3>Dashboards are the front door. The API is the full archive.</h3>
+          <p>The dashboards help visitors discover datasets, while the query API endpoint give access to the complete data available in the database.</p>
+
+          <div class="mini-list">
+            <strong>Through code</strong>
+            <span>Send a <code>POST /api/query</code> with a single-table <code>SELECT</code> — <code>WHERE</code>, <code>ORDER BY</code>, and <code>LIMIT</code> are supported; Subqueries, <code>JOIN</code>, <code>CTEs</code>, <code>GROUP BY</code>, aggregates, and window functions are rejected (see the docs for the full grammar).</span>
+            <span>Wrap the call in any <a href="https://github.com/x402-foundation/x402" target="_blank" rel="noopener">x402 Protocol</a> client library and it handles pricing, settlement, and signing for you. Results stream back as Apache Arrow IPC.</span>
+          </div>
+          <div class="mini-list">
+            <strong>Through dashboards</strong>
+            <span>Each dashboard ships with a download button. Visitors connect a wallet, modify a pre-configured query, if necessary sign the x402 payment in-browser, and the resulted data is converted to a CSV file — no code required.</span>
+          </div>
+
+          <div class="hero-actions">
+            <a class="link-button" href="/api/">Inspect API</a>
+          </div>
+        </section>
+      </aside>
+
+      <section class="dashboards-section">
+        <div id="dashboards" class="section-title">
+          <div>
+            <h2>Available Dashboards</h2>
+            <p>Each dashboard is a guided entry point into a larger dataset. Start with the story, then move into the raw data when you need more depth.</p>
+          </div>
+        </div>
+
+        <!--DASHBOARD_LIST-->
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Landing page for Tiders dashboard directories.</span>
+      <span><a href="/api/">API docs</a> · <a href="https://github.com/yulesa/tiders-x402-server" target="_blank" rel="noopener">Open-source server on GitHub</a></span>
+    </footer>
+  </div>
 </body>
 </html>
