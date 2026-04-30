@@ -316,7 +316,8 @@ fn run_dashboard(config_path: &Path, config: &config::Config, slug: Option<&str>
 
         let input = ScaffoldInput {
             project_dir: &d.folder_path,
-            name: &d.slug,
+            slug: &d.slug,
+            title: &d.title,
             seed_table,
             source_name: &source_name,
             force,

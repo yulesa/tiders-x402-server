@@ -74,7 +74,7 @@ pub fn scaffold_dashboard_folder(input: &ScaffoldInput<'_>) -> Result<ScaffoldRe
 
     for tpl in templates::TEMPLATES {
         let contents = if tpl.substitute {
-            templates::render(tpl.contents, input.name, input.seed_table, input.source_name)
+            templates::render(tpl.contents, input.slug, input.title, input.seed_table, input.source_name)
         } else {
             tpl.contents.to_string()
         };
@@ -115,13 +115,13 @@ pub fn scaffold_dashboard_folder(input: &ScaffoldInput<'_>) -> Result<ScaffoldRe
     if index_md_path.exists() {
         preserved.push(index_md_rel.to_string());
     } else {
-        let starter = templates::render(templates::STARTER_INDEX_MD, input.name, input.seed_table, input.source_name);
+        let starter = templates::render(templates::STARTER_INDEX_MD, input.slug, input.title, input.seed_table, input.source_name);
         write_file(&index_md_path, &starter)?;
         written.push(index_md_rel.to_string());
     }
 
     // Always rewrite the manifest with the hashes from this run.
-    let manifest = manifest_json(input.name, &managed_entries);
+    let manifest = manifest_json(input.slug, &managed_entries);
     write_file(&project_dir.join(".tiders-managed.json"), &manifest)?;
     written.push(".tiders-managed.json".to_string());
 

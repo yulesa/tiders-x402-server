@@ -1,23 +1,21 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { walletStore, startWalletSync } from './lib/walletStore';
-  import { connectInjected, disconnectWallet, ensureCorrectChain, tryReconnect } from './lib/wagmi';
+  import { disconnectWallet, tryReconnect, usdcBalance, startUsdcBalanceWatch, stopUsdcBalanceWatch } from './lib/wagmi';
+  import WalletPicker from './WalletPicker.svelte';
 
   let err = '';
+  let pickerOpen = false;
 
   onMount(() => {
     startWalletSync();
     tryReconnect();
   });
 
-  async function onConnect() {
-    err = '';
-    try {
-      await connectInjected();
-      await ensureCorrectChain();
-    } catch (e) {
-      err = (e as Error).message ?? String(e);
-    }
+  $: if ($walletStore.status === 'connected' && $walletStore.address && $walletStore.chainId) {
+    startUsdcBalanceWatch($walletStore.address, $walletStore.chainId);
+  } else {
+    stopUsdcBalanceWatch();
   }
 
   async function onDisconnect() {
@@ -32,29 +30,25 @@
 
 <div class="inline-flex items-center gap-2 text-sm">
   {#if $walletStore.status === 'connected'}
-    {#if $walletStore.isWrongChain}
-      <button
-        on:click={ensureCorrectChain}
-        class="px-3 py-1.5 rounded bg-amber-600 text-white hover:bg-amber-700"
-      >
-        Switch to Base Sepolia
-      </button>
-    {:else}
-      <span class="px-3 py-1.5 rounded bg-slate-700 text-slate-100 font-mono">
-        {short($walletStore.address)}
+    <span class="rounded-md shadow-sm h-8 border border-base-300 flex items-center px-3 text-xs font-medium bg-base-100">
+      {short($walletStore.address)}
+    </span>
+    {#if $usdcBalance}
+      <span class="rounded-md shadow-sm h-8 border border-base-300 flex items-center px-3 text-xs font-medium bg-base-100">
+        {$usdcBalance.formatted} {$usdcBalance.symbol}
       </span>
     {/if}
     <button
       on:click={onDisconnect}
-      class="px-3 py-1.5 rounded border border-slate-600 text-slate-300 hover:bg-slate-800"
+      class="rounded-md shadow-sm h-8 border border-base-300 flex items-center px-3 text-xs font-medium bg-base-100 hover:bg-base-200"
     >
       Disconnect
     </button>
   {:else}
     <button
-      on:click={onConnect}
+      on:click={() => (pickerOpen = true)}
       disabled={$walletStore.status === 'connecting'}
-      class="px-4 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+      class="rounded-md shadow-sm h-8 border border-base-300 flex items-center px-3 text-xs font-medium bg-base-100 hover:bg-base-200 disabled:opacity-50"
     >
       {$walletStore.status === 'connecting' ? 'Connecting…' : 'Connect wallet'}
     </button>
@@ -64,3 +58,5 @@
 {#if err}
   <p class="text-xs text-red-400 mt-1">{err}</p>
 {/if}
+
+<WalletPicker bind:open={pickerOpen} />

@@ -53,7 +53,8 @@ pub struct ScaffoldInput<'a> {
     /// Where to write the dashboard project. Must be the absolute path the
     /// caller wants the project to live at.
     pub project_dir: &'a Path,
-    pub name: &'a str,
+    pub slug: &'a str,
+    pub title: &'a str,
     pub seed_table: &'a str,
     /// Evidence source name — becomes the schema prefix in page queries
     /// (e.g. `local_duckdb`, `pg`, `clickhouse`).

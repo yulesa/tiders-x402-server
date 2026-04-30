@@ -133,7 +133,7 @@ pub fn render_sql_files(source_name: &str, tables: &[&str]) -> Vec<(PathBuf, Str
 /// One embedded template.
 /// Files written to the dashboard directory by the scaffolder. Most are fixed
 /// boilerplate (Svelte components, npm config), but a
-/// few contain `{{NAME}}` / `{{SEED_TABLE}}` placeholders that are filled in
+/// few contain `{{SLUG}}` / `{{SEED_TABLE}}` placeholders that are filled in
 /// by `render` at scaffold time. Managed files are always overwritten on
 /// `--force`; 
 /// 
@@ -171,7 +171,7 @@ pub const TEMPLATES: &[Template] = &[
     Template {
         path: "pages/+layout.svelte",
         contents: include_str!("templates/pages/+layout.svelte"),
-        substitute: true,
+        substitute: false,
     },
     Template {
         path: "components/ConnectButton.svelte",
@@ -179,13 +179,23 @@ pub const TEMPLATES: &[Template] = &[
         substitute: false,
     },
     Template {
-        path: "components/PaidDownloadButton.svelte",
-        contents: include_str!("templates/components/PaidDownloadButton.svelte"),
+        path: "components/WalletPicker.svelte",
+        contents: include_str!("templates/components/WalletPicker.svelte"),
         substitute: false,
     },
     Template {
-        path: "components/PaidDownloadModal.svelte",
-        contents: include_str!("templates/components/PaidDownloadModal.svelte"),
+        path: "components/TidersDownloadButton.svelte",
+        contents: include_str!("templates/components/TidersDownloadButton.svelte"),
+        substitute: false,
+    },
+    Template {
+        path: "components/TidersDownloadModal.svelte",
+        contents: include_str!("templates/components/TidersDownloadModal.svelte"),
+        substitute: false,
+    },
+    Template {
+        path: "components/lib/eip6963.ts",
+        contents: include_str!("templates/components/lib/eip6963.ts"),
         substitute: false,
     },
     Template {
@@ -214,10 +224,11 @@ pub const TEMPLATES: &[Template] = &[
 /// exist so the user's edits to `pages/index.md` survive re-runs.
 pub const STARTER_INDEX_MD: &str = include_str!("templates/pages/index.md");
 
-/// Fills `{{NAME}}`, `{{SEED_TABLE}}`, and `{{SOURCE_NAME}}` placeholders in a template.
-pub fn render(contents: &str, name: &str, seed_table: &str, source_name: &str) -> String {
+/// Fills `{{SLUG}}`, `{{SEED_TABLE}}`, and `{{SOURCE_NAME}}` placeholders in a template.
+pub fn render(contents: &str, slug: &str, title: &str, seed_table: &str, source_name: &str) -> String {
     contents
-        .replace("{{NAME}}", name)
+        .replace("{{SLUG}}", slug)
+        .replace("{{TITLE}}", title)
         .replace("{{SEED_TABLE}}", seed_table)
         .replace("{{SOURCE_NAME}}", source_name)
 }

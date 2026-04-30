@@ -1,5 +1,5 @@
 {
-  "name": "tiders-dashboard-{{NAME}}",
+  "name": "tiders-dashboard-{{SLUG}}",
   "version": "0.1.0",
   "private": true,
   "type": "module",

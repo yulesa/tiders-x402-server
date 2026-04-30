@@ -1,6 +1,6 @@
-title: {{NAME}}
+title: {{SLUG}}
 deployment:
-  basePath: /{{NAME}}
+  basePath: /{{SLUG}}
 appearance:
   default: dark
   switcher: true
