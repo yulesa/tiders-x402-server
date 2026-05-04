@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "dashboard_name": "uniswap_v3",
+  "managed_files": [
+    { "path": ".npmrc", "sha256": "a093bb2fed59d699b7f9a62a5203cc196054c624e9c39c6d908c9e7db5dd2464" },
+    { "path": ".gitignore", "sha256": "faafa4fac348f6128b24fa5940d056da49a5423da23abc74ee60cc36a44e4849" },
+    { "path": "package.json", "sha256": "365f682a573085103812f64e3b23cd6a4adb92dd0b592546c608e1fd2f3d0e8d" },
+    { "path": "evidence.config.yaml", "sha256": "24db977fde51d84a89f1eb6aef2d61626cbb2409597e8cb47f3e72cf295ad55b" },
+    { "path": "pages/+layout.svelte", "sha256": "9851e4eb5fd696535972ff9c962a566006f09b148cebe21458a132441f8d4c4f" },
+    { "path": "components/ConnectButton.svelte", "sha256": "7cf88b6e567555c70a3edb5c2f13cee529135cac1050aced309dafd71bf5a167" },
+    { "path": "components/WalletPicker.svelte", "sha256": "7cdff358d34193fd4319bef41439874971661a77f9a640166b66d11c9bb8ae51" },
+    { "path": "components/TidersDownloadButton.svelte", "sha256": "bcc6f088085bbd9d48266ba9a8576e5a4ecac513b8874d390bfaccbd9da8b317" },
+    { "path": "components/TidersDownloadModal.svelte", "sha256": "672caf045e7ff7ffae4f38611b02a642b4836169b1df5a7dd1113ccea1efa21d" },
+    { "path": "components/lib/eip6963.ts", "sha256": "c730e92c29bdb8c055d35bec942c2ffff860ee4552d820a02942cb43ae84845b" },
+    { "path": "components/lib/arrowToCsv.ts", "sha256": "c09d07bc79b3bca353e67a830b177398d2733caccde544d2108d089740aa2976" },
+    { "path": "components/lib/wagmi.ts", "sha256": "0a59774f3082975dd4d79539a6eced47604a3e276be6084bf6f054886e1cd961" },
+    { "path": "components/lib/walletStore.ts", "sha256": "b79607ae30e92632ebcd37b4d565f7bdec9aee109bbf2fe38ff241f5bb6158c2" },
+    { "path": "components/lib/x402Client.ts", "sha256": "ca2e017af68ce0cc093af7308df7a11504d5c9d671e0a4f39d3627b8d2295e56" },
+    { "path": "sources/local_duckdb/connection.yaml", "sha256": "498153d08912d6625f67c81fdf820d4d673bebe84f039bdd1ae32d528f56ac6e" },
+    { "path": "sources/local_duckdb/uniswap_v3_pool_swap.sql", "sha256": "8c836a0e260fd50ee38edb48630b1ff4e7de68cfe2484173912c66f316a3de4b" }
+  ]
+}
