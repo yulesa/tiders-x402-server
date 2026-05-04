@@ -3,17 +3,18 @@ import Papa from 'papaparse';
 
 export async function arrowBytesToCsv(bytes: Uint8Array): Promise<string> {
   const table = tableFromIPC(bytes);
-  const columns = table.schema.fields.map(f => f.name);
-  const rows: Record<string, unknown>[] = [];
+  const fields = table.schema.fields.map(f => f.name);
+  const vectors = fields.map(name => table.getChild(name));
+  const rows: unknown[][] = new Array(table.numRows);
   for (let i = 0; i < table.numRows; i++) {
-    const row: Record<string, unknown> = {};
-    for (const col of columns) {
-      const v = table.getChild(col)?.get(i);
-      row[col] = typeof v === 'bigint' ? v.toString() : v;
+    const row = new Array(fields.length);
+    for (let c = 0; c < fields.length; c++) {
+      const v = vectors[c]?.get(i);
+      row[c] = typeof v === 'bigint' ? v.toString() : v;
     }
-    rows.push(row);
+    rows[i] = row;
   }
-  return Papa.unparse({ fields: columns, data: rows.map(r => columns.map(c => r[c])) });
+  return Papa.unparse({ fields, data: rows });
 }
 
 export function triggerDownload(csv: string, filename: string) {

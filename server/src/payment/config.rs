@@ -10,8 +10,8 @@ use std::sync::Arc;
 use url::Url;
 use x402_types::proto::v2::{PaymentRequired, PaymentRequirements, ResourceInfo, X402Version2};
 
-use crate::facilitator_client::FacilitatorClient;
-use crate::price::{PriceTag, PricingModel, TablePaymentOffers};
+use crate::payment::facilitator_client::FacilitatorClient;
+use crate::payment::price::{PriceTag, PricingModel, TablePaymentOffers};
 
 /// Central payment configuration shared across all request handlers.
 ///

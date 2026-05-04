@@ -11,9 +11,9 @@ use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use duckdb::{AccessMode, Config, Connection};
 
-use crate::database::Database;
-use crate::sql_duckdb::create_duckdb_query;
-use crate::sqp_parser::AnalyzedQuery;
+use super::Database;
+use super::sql_duckdb::create_duckdb_query;
+use super::sql_parser::AnalyzedQuery;
 
 /// DuckDB database backend.
 #[derive(Debug, Clone)]

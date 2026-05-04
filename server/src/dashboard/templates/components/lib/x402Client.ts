@@ -12,6 +12,9 @@ async function buildFetchWithPayment() {
   return wrapFetchWithPayment(globalThis.fetch.bind(globalThis), client);
 }
 
+// Brittle: x402/fetch does not export typed error classes, so we sniff the
+// CAIP-2 chain id out of the error message. Revisit if the upstream error
+// shape changes or starts exposing structured fields.
 function extractChainId(err: unknown): number | null {
   const msg = err instanceof Error ? err.message : String(err);
   const match = msg.match(/eip155:(\d+)/);
@@ -34,6 +37,6 @@ export async function fetchWithChainSwitch(
     await switchToChain(chainId);
 
     const retryFetch = await buildFetchWithPayment();
-    return retryFetch(url, { ...init, body: JSON.stringify(JSON.parse(init.body as string)) });
+    return retryFetch(url, init);
   }
 }

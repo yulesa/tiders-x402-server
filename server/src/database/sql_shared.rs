@@ -4,7 +4,7 @@
 //! a SQL string, and [`display_common_expr`] for rendering standard SQL
 //! expressions that are identical across dialects.
 
-use crate::sqp_parser::AnalyzedQuery;
+use super::sql_parser::AnalyzedQuery;
 use anyhow::{Result, anyhow};
 use sqlparser::ast::{CastKind, Expr, TrimWhereField, Value};
 

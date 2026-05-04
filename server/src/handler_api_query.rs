@@ -7,9 +7,9 @@
 
 use crate::AppState;
 use crate::database::serialize_batches_to_arrow_ipc;
-use crate::payment_config::GlobalPaymentConfig;
-use crate::payment_processing::{settle_payment, verify_payment};
-use crate::sqp_parser::{analyze_query, create_estimate_rows_query};
+use crate::database::sql_parser::{analyze_query, create_estimate_rows_query};
+use crate::payment::config::GlobalPaymentConfig;
+use crate::payment::processing::{settle_payment, verify_payment};
 use arrow::record_batch::RecordBatch;
 use axum::Json;
 use axum::body::Bytes;

@@ -74,7 +74,13 @@ pub fn scaffold_dashboard_folder(input: &ScaffoldInput<'_>) -> Result<ScaffoldRe
 
     for tpl in templates::TEMPLATES {
         let contents = if tpl.substitute {
-            templates::render(tpl.contents, input.slug, input.title, input.seed_table, input.source_name)
+            templates::render(
+                tpl.contents,
+                input.slug,
+                input.title,
+                input.seed_table,
+                input.source_name,
+            )
         } else {
             tpl.contents.to_string()
         };
@@ -91,7 +97,9 @@ pub fn scaffold_dashboard_folder(input: &ScaffoldInput<'_>) -> Result<ScaffoldRe
 
         if input.force && path.exists() {
             let current_hash = hash_file(&path)?;
-            let clean = recorded.get(rel.as_str()).map_or(false, |h| *h == current_hash);
+            let clean = recorded
+                .get(rel.as_str())
+                .is_some_and(|h| *h == current_hash);
             if !clean {
                 // User has edited this file — back it up before overwriting.
                 backup_file(&project_dir, &path, rel)?;
@@ -115,7 +123,13 @@ pub fn scaffold_dashboard_folder(input: &ScaffoldInput<'_>) -> Result<ScaffoldRe
     if index_md_path.exists() {
         preserved.push(index_md_rel.to_string());
     } else {
-        let starter = templates::render(templates::STARTER_INDEX_MD, input.slug, input.title, input.seed_table, input.source_name);
+        let starter = templates::render(
+            templates::STARTER_INDEX_MD,
+            input.slug,
+            input.title,
+            input.seed_table,
+            input.source_name,
+        );
         write_file(&index_md_path, &starter)?;
         written.push(index_md_rel.to_string());
     }
@@ -150,7 +164,10 @@ fn parse_manifest_hashes(raw: &str) -> HashMap<String, String> {
     // Each entry looks like: { "path": "foo/bar", "sha256": "abcd..." }
     for line in raw.lines() {
         let line = line.trim();
-        if let (Some(path), Some(sha)) = (extract_json_str(line, "path"), extract_json_str(line, "sha256")) {
+        if let (Some(path), Some(sha)) = (
+            extract_json_str(line, "path"),
+            extract_json_str(line, "sha256"),
+        ) {
             map.insert(path, sha);
         }
     }
@@ -174,8 +191,13 @@ fn backup_file(project_dir: &Path, file_path: &Path, rel: &str) -> Result<()> {
     std::fs::create_dir_all(&old_dir)
         .with_context(|| format!("Failed to create {}", old_dir.display()))?;
     let dest = old_dir.join(filename_of(rel));
-    std::fs::copy(file_path, &dest)
-        .with_context(|| format!("Failed to back up {} to {}", file_path.display(), dest.display()))?;
+    std::fs::copy(file_path, &dest).with_context(|| {
+        format!(
+            "Failed to back up {} to {}",
+            file_path.display(),
+            dest.display()
+        )
+    })?;
     Ok(())
 }
 
@@ -185,8 +207,8 @@ fn filename_of(rel: &str) -> &str {
 }
 
 fn hash_file(path: &Path) -> Result<String> {
-    let bytes = std::fs::read(path)
-        .with_context(|| format!("Failed to read {}", path.display()))?;
+    let bytes =
+        std::fs::read(path).with_context(|| format!("Failed to read {}", path.display()))?;
     Ok(sha256_hex(&bytes))
 }
 
@@ -217,7 +239,11 @@ fn manifest_json(dashboard_name: &str, managed: &[(String, String)]) -> String {
     let mut out = String::new();
     let _ = writeln!(out, "{{");
     let _ = writeln!(out, "  \"schema_version\": 1,");
-    let _ = writeln!(out, "  \"dashboard_name\": \"{}\",", json_escape(dashboard_name));
+    let _ = writeln!(
+        out,
+        "  \"dashboard_name\": \"{}\",",
+        json_escape(dashboard_name)
+    );
     let _ = writeln!(out, "  \"managed_files\": [");
     for (i, (path, sha)) in managed.iter().enumerate() {
         let comma = if i + 1 == managed.len() { "" } else { "," };

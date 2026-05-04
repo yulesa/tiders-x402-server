@@ -5,8 +5,8 @@
 //! payment before returning the data.
 
 use crate::AppState;
-use crate::payment_config::GlobalPaymentConfig;
-use crate::payment_processing::{settle_payment, verify_payment};
+use crate::payment::config::GlobalPaymentConfig;
+use crate::payment::processing::{settle_payment, verify_payment};
 use axum::Json;
 use axum::body::Bytes;
 use axum::extract::{Path, State};

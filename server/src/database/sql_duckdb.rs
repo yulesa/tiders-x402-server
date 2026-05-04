@@ -3,8 +3,8 @@
 //! Handles DuckDB dialect differences such as `date_part()` for EXTRACT,
 //! `AT TIME ZONE` syntax, `TRY_CAST`, and typed string literals.
 
-use crate::sql_shared::{create_query, display_common_expr, format_value};
-use crate::sqp_parser::AnalyzedQuery;
+use super::sql_parser::AnalyzedQuery;
+use super::sql_shared::{create_query, display_common_expr, format_value};
 use anyhow::{Result, anyhow};
 use sqlparser::ast::{CastKind, Expr};
 
@@ -70,8 +70,8 @@ fn duckdb_display_expr(expr: &Expr) -> Result<String> {
 mod tests {
     use sqlparser::dialect::DuckDbDialect;
 
+    use super::sql_parser::analyze_query;
     use super::*;
-    use crate::sqp_parser::analyze_query;
     use sqlparser::parser::Parser;
 
     #[test]

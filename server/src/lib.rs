@@ -21,31 +21,14 @@
 //! - `GET /api/table/{name}` — schema and pricing for a single table.
 //! - `GET /<dashboard>/` — static Evidence dashboard, one per `dashboards:` entry.
 
-pub mod api_root_handler;
 #[cfg(feature = "cli")]
 pub mod cli;
 pub mod dashboard;
 pub mod database;
-#[cfg(feature = "clickhouse")]
-pub mod database_clickhouse;
-#[cfg(feature = "duckdb")]
-pub mod database_duckdb;
-#[cfg(feature = "postgresql")]
-pub mod database_postgresql;
-pub mod facilitator_client;
-pub mod payment_config;
-pub mod payment_processing;
-pub mod price;
-pub mod query_handler;
-#[cfg(feature = "clickhouse")]
-pub mod sql_clickhouse;
-#[cfg(feature = "duckdb")]
-pub mod sql_duckdb;
-#[cfg(feature = "postgresql")]
-pub mod sql_postgresql;
-pub mod sql_shared;
-pub mod sqp_parser;
-pub mod table_detail_handler;
+pub mod handler_api_query;
+pub mod handler_api_root;
+pub mod handler_api_table_detail;
+pub mod payment;
 
 use std::sync::Arc;
 
@@ -61,14 +44,14 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use url::Url;
 
-use crate::api_root_handler::api_root_handler;
 use crate::dashboard::{DashboardSwap, DashboardsState, build_dashboard_router, landing_handler};
-use crate::query_handler::query_handler;
-use crate::table_detail_handler::table_detail_handler;
+use crate::handler_api_query::query_handler;
+use crate::handler_api_root::api_root_handler;
+use crate::handler_api_table_detail::table_detail_handler;
 pub use database::Database;
-pub use facilitator_client::FacilitatorClient;
-pub use payment_config::GlobalPaymentConfig;
-pub use price::{PriceTag, PricingModel, TablePaymentOffers};
+pub use payment::config::GlobalPaymentConfig;
+pub use payment::facilitator_client::FacilitatorClient;
+pub use payment::price::{PriceTag, PricingModel, TablePaymentOffers};
 
 /// Shared application state accessible by every request handler.
 ///
@@ -177,7 +160,7 @@ pub async fn start_server(state: AppState) {
     // Build the Axum Router.
     //
     // Layout:
-    //   /                       → landing page
+    //   /                       → dashboard router
     //   /api/                   → API description
     //   /api/query              → POST query endpoint
     //   /api/table/{name}       → table metadata
@@ -189,32 +172,36 @@ pub async fn start_server(state: AppState) {
         .route("/table/{name}", get(table_detail_handler));
 
     let dashboards_service = DashboardSwap(state.dashboard_router.clone());
-
     let has_dashboards = !state.dashboards.load().dashboards.is_empty();
-    let mut app = Router::new()
-        .nest("/api", api_router);
-    if has_dashboards {
-        app = app.route("/", get(landing_handler));
+
+    let app = {
+        let base = Router::new().nest("/api", api_router);
+        if has_dashboards {
+            base.route("/", get(landing_handler))
+        } else {
+            base
+        }
     }
-    let app = app
-        // Anything that doesn't match the static routes above falls through to
-        // the dashboard router. Lock-free swap so config reloads don't block.
-        .fallback_service(dashboards_service)
-        // Attach shared state so handlers can access it via Axum's `State` extractor.
-        // Axum "extractors" are typed parameters on handler functions that Axum
-        // automatically populates from the incoming request (e.g., State, Json, Path).
-        .with_state(state)
-        // Add a middleware layer for HTTP request/response tracing.
-        // Layers in Axum wrap the entire request pipeline — they run before the
-        // handler (on the request) and after (on the response). Tower's `TraceLayer`
-        // emits structured log spans for every HTTP request.
-        .layer(
-            TraceLayer::new_for_http()
-                // `make_span_with` creates a tracing span when a request arrives.
-                // This span is active for the entire request lifecycle and collects
-                // metadata like method, URI, and version.
-                .make_span_with(|request: &axum::http::Request<_>| {
+    // Anything not matched above falls through to the dashboard router.
+    // Lock-free swap so config reloads don't block.
+    .fallback_service(dashboards_service)
+    .with_state(state)
+    .layer(
+        TraceLayer::new_for_http()
+            .make_span_with(|request: &axum::http::Request<_>| {
+                let is_query = request.uri().path() == "/api/query"
+                    && request.method() == axum::http::Method::POST;
+                if is_query {
                     tracing::info_span!(
+                        "api_query",
+                        otel.kind = "server",
+                        otel.name = %format!("{} {}", request.method(), request.uri()),
+                        method = %request.method(),
+                        uri = %request.uri(),
+                        version = ?request.version(),
+                    )
+                } else {
+                    tracing::debug_span!(
                         "http_request",
                         otel.kind = "server",
                         otel.name = %format!("{} {}", request.method(), request.uri()),
@@ -222,41 +209,46 @@ pub async fn start_server(state: AppState) {
                         uri = %request.uri(),
                         version = ?request.version(),
                     )
-                })
-                // `on_response` runs after the handler has produced a response.
-                // Here we record the HTTP status and latency into the tracing span,
-                // and set the OpenTelemetry span status to Ok or Error accordingly.
-                .on_response(
-                    |response: &axum::http::Response<_>,
-                     latency: std::time::Duration,
-                     span: &tracing::Span| {
-                        span.record("status", tracing::field::display(response.status()));
-                        span.record("latency", tracing::field::display(latency.as_millis()));
-                        span.record(
-                            "http.status_code",
-                            tracing::field::display(response.status().as_u16()),
-                        );
+                }
+            })
+            .on_response(
+                |response: &axum::http::Response<_>,
+                 latency: std::time::Duration,
+                 span: &tracing::Span| {
+                    let status = response.status();
+                    let is_query_span = span
+                        .metadata()
+                        .map(|m| m.name() == "api_query")
+                        .unwrap_or(false);
 
-                        if response.status().is_success() {
-                            span.set_status(Status::Ok);
-                        } else {
-                            span.set_status(Status::error(
-                                response
-                                    .status()
-                                    .canonical_reason()
-                                    .unwrap_or("unknown")
-                                    .to_string(),
-                            ));
-                        }
+                    span.record("status", tracing::field::display(status));
+                    span.record("latency", tracing::field::display(latency.as_millis()));
+                    span.record("http.status_code", tracing::field::display(status.as_u16()));
 
+                    if status.is_client_error() || status.is_server_error() {
+                        span.set_status(Status::error(
+                            status.canonical_reason().unwrap_or("unknown").to_string(),
+                        ));
+                    } else {
+                        span.set_status(Status::Ok);
+                    }
+
+                    if is_query_span {
                         tracing::info!(
                             "status={}, latency={}ms",
-                            response.status().as_u16(),
+                            status.as_u16(),
                             latency.as_millis()
                         );
-                    },
-                ),
-        );
+                    } else {
+                        tracing::debug!(
+                            "status={}, latency={}ms",
+                            status.as_u16(),
+                            latency.as_millis()
+                        );
+                    }
+                },
+            ),
+    );
 
     let listener = tokio::net::TcpListener::bind(&bind_addr)
         .await

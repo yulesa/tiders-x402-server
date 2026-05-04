@@ -98,10 +98,7 @@ pub fn run() -> ExitCode {
     enum Action<'a> {
         Start { no_watch: bool },
         Validate,
-        Dashboard {
-            slug: Option<&'a str>,
-            force: bool,
-        },
+        Dashboard { slug: Option<&'a str>, force: bool },
     }
 
     let (explicit_path, action, env_file): (&Option<PathBuf>, Action<'_>, &Option<PathBuf>) =
@@ -258,10 +255,17 @@ fn run_validate(config: &config::Config) -> ExitCode {
     })
 }
 
-fn run_dashboard(config_path: &Path, config: &config::Config, slug: Option<&str>, force: bool) -> ExitCode {
+fn run_dashboard(
+    config_path: &Path,
+    config: &config::Config,
+    slug: Option<&str>,
+    force: bool,
+) -> ExitCode {
     use crate::dashboard::config::ScaffoldInput;
     use crate::dashboard::scaffold::scaffold_dashboard_folder;
-    use crate::dashboard::templates::{render_connection_files, render_landing_page_file, render_sql_files};
+    use crate::dashboard::templates::{
+        render_connection_files, render_landing_page_file, render_sql_files,
+    };
 
     let resolved = builder::resolve_dashboards(config);
 
@@ -279,7 +283,11 @@ fn run_dashboard(config_path: &Path, config: &config::Config, slug: Option<&str>
         Some(s) => match resolved.dashboards.iter().find(|d| d.slug == s) {
             Some(d) => vec![d],
             None => {
-                let known: Vec<&str> = resolved.dashboards.iter().map(|d| d.slug.as_str()).collect();
+                let known: Vec<&str> = resolved
+                    .dashboards
+                    .iter()
+                    .map(|d| d.slug.as_str())
+                    .collect();
                 tracing::error!(
                     "Dashboard \"{s}\" not found in config. Known dashboards: [{}]",
                     known.join(", ")
@@ -293,10 +301,10 @@ fn run_dashboard(config_path: &Path, config: &config::Config, slug: Option<&str>
     let all_tables: Vec<&str> = config.tables.iter().map(|t| t.name.as_str()).collect();
     let seed_table = all_tables.first().copied().unwrap_or("YOUR_TABLE");
     let source_name = match &config.database {
-        db if db.duckdb.is_some()     => "local_duckdb",
+        db if db.duckdb.is_some() => "local_duckdb",
         db if db.postgresql.is_some() => "pg",
         db if db.clickhouse.is_some() => "clickhouse",
-        _                             => "",
+        _ => "",
     };
 
     for d in targets {
@@ -319,7 +327,7 @@ fn run_dashboard(config_path: &Path, config: &config::Config, slug: Option<&str>
             slug: &d.slug,
             title: &d.title,
             seed_table,
-            source_name: &source_name,
+            source_name,
             force,
             rendered_files,
         };
@@ -354,7 +362,10 @@ fn run_dashboard(config_path: &Path, config: &config::Config, slug: Option<&str>
     // configured dashboard as a static snapshot.
     let all_dashboards: Vec<&crate::dashboard::Dashboard> = resolved.dashboards.iter().collect();
     if let Err(e) = std::fs::create_dir_all(&resolved.root) {
-        tracing::error!("Failed to create dashboards root {}: {e}", resolved.root.display());
+        tracing::error!(
+            "Failed to create dashboards root {}: {e}",
+            resolved.root.display()
+        );
         return ExitCode::FAILURE;
     }
     let (rel, contents) = render_landing_page_file(&all_dashboards);

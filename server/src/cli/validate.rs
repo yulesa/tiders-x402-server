@@ -16,9 +16,8 @@ const RESERVED_DASHBOARD_NAMES: &[&str] = &["api", "assets", "static"];
 
 /// Slug pattern from the plan: lowercase alphanumeric, hyphens and
 /// underscores allowed, must start with a letter or digit.
-static DASHBOARD_NAME_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^[a-z0-9][a-z0-9_-]*$").unwrap_or_else(|_| unreachable!())
-});
+static DASHBOARD_NAME_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-z0-9][a-z0-9_-]*$").unwrap_or_else(|_| unreachable!()));
 
 /// A validation error with an optional hint for the user.
 #[derive(Debug)]
@@ -91,10 +90,7 @@ fn validate_facilitator(config: &Config, errors: &mut Vec<ValidationError>) {
     }
 }
 
-fn validate_database(
-    config: &Config,
-    errors: &mut Vec<ValidationError>,
-) {
+fn validate_database(config: &Config, errors: &mut Vec<ValidationError>) {
     let db = &config.database;
     let count = usize::from(db.duckdb.is_some())
         + usize::from(db.postgresql.is_some())
@@ -281,10 +277,7 @@ fn validate_dashboards(config: &Config, errors: &mut Vec<ValidationError>) {
 
         if !DASHBOARD_NAME_PATTERN.is_match(&d.slug) {
             errors.push(ValidationError {
-                message: format!(
-                    "{prefix}.slug: \"{}\" is not a valid slug.",
-                    d.slug
-                ),
+                message: format!("{prefix}.slug: \"{}\" is not a valid slug.", d.slug),
                 hint: Some(
                     "Use lowercase letters, digits, hyphens, or underscores. \
                      Must start with a letter or digit."

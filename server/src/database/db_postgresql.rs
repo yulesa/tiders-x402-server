@@ -19,9 +19,9 @@ use deadpool_postgres::{Manager, ManagerConfig, Pool, RecyclingMethod};
 use postgres_types::{FromSql, Type, accepts};
 use tokio_postgres::Row;
 
-use crate::database::Database;
-use crate::sql_postgresql::create_postgresql_query;
-use crate::sqp_parser::AnalyzedQuery;
+use super::Database;
+use super::sql_parser::AnalyzedQuery;
+use super::sql_postgresql::create_postgresql_query;
 
 /// PostgreSQL database backend.
 #[derive(Debug, Clone)]
@@ -35,9 +35,10 @@ impl PostgresqlDatabase {
     /// Parses the connection string, builds a `deadpool_postgres::Pool` (max 16
     /// connections), and verifies connectivity before returning.
     pub async fn from_connection_string(conn_str: &str) -> Result<Self> {
-        let pg_config: tokio_postgres::Config = conn_str
+        let mut pg_config: tokio_postgres::Config = conn_str
             .parse()
             .map_err(|e| anyhow!("Failed to parse Postgres connection string: {}", e))?;
+        pg_config.options("-c default_transaction_read_only=on");
 
         let mgr_config = ManagerConfig {
             recycling_method: RecyclingMethod::Fast,
@@ -90,6 +91,7 @@ impl PostgresqlDatabase {
         pg_config.user(user);
         pg_config.password(password);
         pg_config.dbname(dbname);
+        pg_config.options("-c default_transaction_read_only=on");
 
         let recycling = match recycling_method.unwrap_or("fast") {
             "fast" => RecyclingMethod::Fast,

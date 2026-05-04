@@ -13,9 +13,9 @@ use async_trait::async_trait;
 use clickhouse::Client;
 use serde::Deserialize;
 
-use crate::database::Database;
-use crate::sql_clickhouse::create_clickhouse_query;
-use crate::sqp_parser::AnalyzedQuery;
+use super::Database;
+use super::sql_clickhouse::create_clickhouse_query;
+use super::sql_parser::AnalyzedQuery;
 
 /// ClickHouse database backend.
 #[derive(Clone)]
@@ -81,7 +81,7 @@ impl ClickHouseDatabase {
         }
         if let Some(opts) = options {
             for (k, v) in opts {
-                client = client.with_option(k, v);
+                client = client.with_setting(k, v);
             }
         }
         if let Some(hdrs) = headers {
@@ -89,6 +89,7 @@ impl ClickHouseDatabase {
                 client = client.with_header(k, v);
             }
         }
+        client = client.with_setting("readonly", "1");
 
         Ok(Self { client })
     }

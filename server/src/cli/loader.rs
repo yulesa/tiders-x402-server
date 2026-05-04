@@ -1,12 +1,11 @@
 //! Config file loading pipeline: read file -> expand env vars -> parse YAML -> validate.
 
-use std::path::{Path, PathBuf};
 use anyhow::{Result, bail};
+use std::path::{Path, PathBuf};
 
 use super::config::Config;
 use super::env::expand_env_vars;
 use super::validate::validate_config;
-
 
 /// Loads, expands, parses, and validates a config file.
 ///
@@ -42,7 +41,12 @@ pub fn load_config(path: &Path) -> Result<Config> {
         duck.path = resolve_against_config(path, &duck.path.to_string_lossy());
     }
     let default_root = resolve_against_config(path, "./dashboards");
-    let root = config.dashboards.root.take().map(|r| resolve_against_config(path, &r.to_string_lossy())).unwrap_or(default_root);
+    let root = config
+        .dashboards
+        .root
+        .take()
+        .map(|r| resolve_against_config(path, &r.to_string_lossy()))
+        .unwrap_or(default_root);
     config.dashboards.root = Some(root.clone());
     for d in &mut config.dashboards.entries {
         let folder = match d.folder_path.take() {
@@ -74,7 +78,6 @@ pub fn load_config(path: &Path) -> Result<Config> {
     Ok(config)
 }
 
-
 /// Resolves `target` to an absolute path against the config file's directory.
 /// Always returns an absolute path: canonicalized when the target exists,
 /// otherwise lexically-normalized against the absolute config dir.
@@ -93,13 +96,17 @@ fn resolve_against_config(config_path: &Path, target: &str) -> PathBuf {
     let abs = if joined.is_absolute() {
         joined
     } else {
-        std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(joined)
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(joined)
     };
     let mut out = PathBuf::new();
     for c in abs.components() {
         match c {
             std::path::Component::CurDir => {}
-            std::path::Component::ParentDir => { out.pop(); }
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
             c => out.push(c),
         }
     }

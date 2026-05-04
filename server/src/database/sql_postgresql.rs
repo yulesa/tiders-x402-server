@@ -5,8 +5,8 @@
 //! handles Postgres-specific syntax: standard `EXTRACT`, `AT TIME ZONE`,
 //! typed-string casts (`'value'::type`), and rejection of `TRY_CAST`/`SafeCast`.
 
-use crate::sql_shared::{create_query, display_common_expr, format_value};
-use crate::sqp_parser::AnalyzedQuery;
+use super::sql_parser::AnalyzedQuery;
+use super::sql_shared::{create_query, display_common_expr, format_value};
 use anyhow::{Result, anyhow};
 use sqlparser::ast::{CastKind, Expr};
 

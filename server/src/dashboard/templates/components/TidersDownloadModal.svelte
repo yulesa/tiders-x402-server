@@ -15,7 +15,7 @@
   export let open = false;
   export let initialSql = '';
   export let filename = 'download.csv';
-  export let serverBase = '';   // same-origin: POST /query
+  export let serverBase = '';
 
   let sql = initialSql;
   $: if (open) { sql = initialSql; status = 'idle'; error = ''; }
