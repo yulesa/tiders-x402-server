@@ -40,7 +40,6 @@ http = { workspace = true }
 reqwest = { workspace = true }
 thiserror = { workspace = true }
 alloy-primitives = { workspace = true }
-pyo3 = { workspace = true, features = ["anyhow"], optional = true }
 async-trait = { workspace = true }
 tokio-postgres = { workspace = true, optional = true }
 deadpool-postgres = { workspace = true, optional = true }
@@ -64,7 +63,6 @@ cli = ["dep:clap", "dep:serde_yaml", "dep:notify", "dep:regex", "dep:sha2"]
 duckdb = ["dep:duckdb"]
 postgresql = ["dep:tokio-postgres", "dep:deadpool-postgres", "dep:postgres-types", "dep:bytes"]
 clickhouse = ["dep:clickhouse"]
-pyo3 = ["dep:pyo3"]
 
 [package.metadata.docs.rs]
 features = ["duckdb", "postgresql", "clickhouse"]

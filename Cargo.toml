@@ -2,7 +2,6 @@
 resolver = "2"
 members = [
   "server",
-  "python",
 ]
 exclude = ["examples/rust"]
 
@@ -34,7 +33,6 @@ http = { version = "1.4.0" }
 reqwest = { version = "0.13.2", features = ["json"] }
 thiserror = { version = "2.0.18" }
 alloy-primitives = { version = "1.5.7", features = ["serde"] }
-pyo3 = { version = "0.28", features = ["anyhow"]}
 async-trait = "0.1"
 tokio-postgres = "0.7"
 deadpool-postgres = "0.14"
