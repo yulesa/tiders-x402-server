@@ -1,8 +1,7 @@
-// Browser-only wagmi + viem setup. Do not import at module scope from SSR code.
 import { createConfig, http, connect, disconnect, getAccount, getWalletClient, reconnect, readContract, switchChain } from '@wagmi/core';
-import { injected, coinbaseWallet } from '@wagmi/connectors';
+import { injected } from '@wagmi/connectors';
 import { base, baseSepolia, polygon, polygonAmoy, arbitrum, arbitrumSepolia } from 'viem/chains';
-import { publicActions, type WalletClient } from 'viem';
+import { publicActions, formatUnits, type WalletClient } from 'viem';
 import { writable, type Readable } from 'svelte/store';
 import { DEFAULT_STABLECOINS } from '@x402/evm';
 import type { Eip1193Provider } from './eip6963';
@@ -10,11 +9,11 @@ import type { Eip1193Provider } from './eip6963';
 const SUPPORTED_CHAINS = [base, baseSepolia, polygon, polygonAmoy, arbitrum, arbitrumSepolia] as const;
 type SupportedChainId = (typeof SUPPORTED_CHAINS)[number]['id'];
 
-const coinbase = coinbaseWallet({ appName: 'Tiders Dashboard' });
+const isBrowser = typeof window !== 'undefined';
 
-export const wagmiConfig = createConfig({
+export const wagmiConfig = isBrowser ? createConfig({
   chains: SUPPORTED_CHAINS,
-  connectors: [injected(), coinbase],
+  connectors: [injected()],
   transports: {
     [base.id]: http(),
     [baseSepolia.id]: http(),
@@ -23,7 +22,7 @@ export const wagmiConfig = createConfig({
     [arbitrum.id]: http(),
     [arbitrumSepolia.id]: http(),
   },
-});
+}) : (null as any);
 
 export async function connectInjected() {
   const account = getAccount(wagmiConfig);
@@ -40,12 +39,6 @@ export async function connectEip6963(detail: { info: { rdns: string; name: strin
     }),
   });
   return await connect(wagmiConfig, { connector: target });
-}
-
-export async function connectCoinbase() {
-  const account = getAccount(wagmiConfig);
-  if (account.status === 'connected') return account;
-  return await connect(wagmiConfig, { connector: coinbase });
 }
 
 export async function disconnectWallet() {
@@ -74,7 +67,10 @@ export async function switchToChain(chainId: number): Promise<void> {
   await switchChain(wagmiConfig, { chainId: chainId as SupportedChainId });
 }
 
-const BALANCE_ABI = [{ name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] }] as const;
+const ERC20_ABI = [
+  { name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'symbol', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
+] as const;
 
 export type UsdcBalance = { formatted: string; symbol: string } | null;
 const usdcBalanceStore = writable<UsdcBalance>(null);
@@ -89,18 +85,27 @@ export function startUsdcBalanceWatch(address: `0x${string}`, chainId: number) {
   if (!stablecoin) return;
 
   const tokenAddress = stablecoin.address as `0x${string}`;
+  let symbol: string | null = null;
 
   async function fetch() {
     try {
+      if (!symbol) {
+        symbol = await readContract(wagmiConfig, {
+          address: tokenAddress,
+          abi: ERC20_ABI,
+          functionName: 'symbol',
+          chainId: chainId as SupportedChainId,
+        });
+      }
       const raw = await readContract(wagmiConfig, {
         address: tokenAddress,
-        abi: BALANCE_ABI,
+        abi: ERC20_ABI,
         functionName: 'balanceOf',
         args: [address],
         chainId: chainId as SupportedChainId,
       });
-      const formatted = (Number(raw) / 10 ** stablecoin.decimals).toFixed(2);
-      usdcBalanceStore.set({ formatted, symbol: stablecoin.name });
+      const formatted = Number(formatUnits(raw, stablecoin.decimals)).toFixed(2);
+      usdcBalanceStore.set({ formatted, symbol: symbol ?? stablecoin.name });
     } catch {
       // Silently ignore — RPC errors are transient.
     }
