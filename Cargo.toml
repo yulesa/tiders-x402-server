@@ -17,7 +17,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 opentelemetry = { version = "0.31.0" }
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
 opentelemetry-otlp = { version = "0.31.1", features = ["grpc-tonic"] }
-sha2 = "0.10"
+sha2 = "0.11"
 tower = "0.5"
 tower-http = { version = "0.6.8", features = ["trace", "fs"] }
 arc-swap = "1"
@@ -36,7 +36,7 @@ alloy-primitives = { version = "1.5.7", features = ["serde"] }
 async-trait = "0.1"
 tokio-postgres = "0.7"
 deadpool-postgres = "0.14"
-clickhouse = "0.13"
+clickhouse = "0.15"
 postgres-types = { version = "0.2", features = ["with-serde_json-1"] }
 bytes = "1"
 
