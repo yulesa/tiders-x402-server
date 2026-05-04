@@ -15,8 +15,8 @@ use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use x402_types::networks::USDC;
 
 use crate::dashboard::{Dashboard, DashboardsState};
-use crate::payment::facilitator_client::FacilitatorClient;
 use crate::payment::config::GlobalPaymentConfig;
+use crate::payment::facilitator_client::FacilitatorClient;
 use crate::payment::price::{PriceTag, PricingModel, TablePaymentOffers, TokenAmount};
 use crate::{AppState, Database};
 
@@ -135,7 +135,8 @@ pub async fn build_payment_config_from_tables(
 async fn build_database(db_config: &super::config::DatabaseConfig) -> Result<Arc<dyn Database>> {
     #[cfg(feature = "duckdb")]
     if let Some(duck) = &db_config.duckdb {
-        let db = crate::database::db_duckdb::DuckDbDatabase::from_path(&duck.path.to_string_lossy())?;
+        let db =
+            crate::database::db_duckdb::DuckDbDatabase::from_path(&duck.path.to_string_lossy())?;
         return Ok(Arc::new(db));
     }
     #[cfg(not(feature = "duckdb"))]

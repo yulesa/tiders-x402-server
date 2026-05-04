@@ -20,8 +20,8 @@ use postgres_types::{FromSql, Type, accepts};
 use tokio_postgres::Row;
 
 use super::Database;
-use super::sql_postgresql::create_postgresql_query;
 use super::sql_parser::AnalyzedQuery;
+use super::sql_postgresql::create_postgresql_query;
 
 /// PostgreSQL database backend.
 #[derive(Debug, Clone)]

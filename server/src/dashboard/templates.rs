@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use crate::cli::config::DatabaseConfig;
 use crate::dashboard::Dashboard;
 
-
 static LANDING_PAGE_HTML: &str = include_str!("templates/landing_page.html");
 
 /// Renders a static `index.html` snapshot of the enabled dashboard list.
@@ -29,12 +28,20 @@ pub fn render_landing_page_file(dashboards: &[&Dashboard]) -> (PathBuf, String) 
                 "<li><a href=\"/{slug}/\"><span class=\"dashboard-title\">{title}<span class=\"arrow\">\u{2192}</span></span>"
             );
             if let Some(desc) = &d.description {
-                let _ = write!(list, "<p class=\"dashboard-desc\">{}</p>", html_escape(desc));
+                let _ = write!(
+                    list,
+                    "<p class=\"dashboard-desc\">{}</p>",
+                    html_escape(desc)
+                );
             }
             if !d.tags.is_empty() {
                 let _ = list.write_str("<div class=\"dashboard-tags\">");
                 for tag in &d.tags {
-                    let _ = write!(list, "<span class=\"dashboard-tag\">{}</span>", html_escape(tag));
+                    let _ = write!(
+                        list,
+                        "<span class=\"dashboard-tag\">{}</span>",
+                        html_escape(tag)
+                    );
                 }
                 let _ = list.write_str("</div>");
             }
@@ -69,10 +76,7 @@ const CONNECTION_HEADER: &str =
 /// Generates the Evidence `sources/<dir>/connection.yaml` for the configured database.
 ///
 /// DuckDB only: `filename` must be relative to `project_dir/sources/<dir>/` due to Evidence's implementation of the DuckDB connector.
-pub fn render_connection_files(
-    db: &DatabaseConfig,
-    project_dir: &Path,
-) -> Vec<(PathBuf, String)> {
+pub fn render_connection_files(db: &DatabaseConfig, project_dir: &Path) -> Vec<(PathBuf, String)> {
     if let Some(duck) = &db.duckdb {
         let connection_dir = project_dir.join("sources/local_duckdb");
         let db_filename = relative_path(&connection_dir, &duck.path);
@@ -135,8 +139,8 @@ pub fn render_sql_files(source_name: &str, tables: &[&str]) -> Vec<(PathBuf, Str
 /// boilerplate (Svelte components, npm config), but a
 /// few contain `{{SLUG}}` / `{{SEED_TABLE}}` placeholders that are filled in
 /// by `render` at scaffold time. Managed files are always overwritten on
-/// `--force`; 
-/// 
+/// `--force`;
+///
 /// path: its path relative to the dashboard folder
 /// contents: its raw contents
 /// substitute: whether variable substitution are needed.
@@ -225,7 +229,13 @@ pub const TEMPLATES: &[Template] = &[
 pub const STARTER_INDEX_MD: &str = include_str!("templates/pages/index.md");
 
 /// Fills `{{SLUG}}`, `{{SEED_TABLE}}`, and `{{SOURCE_NAME}}` placeholders in a template.
-pub fn render(contents: &str, slug: &str, title: &str, seed_table: &str, source_name: &str) -> String {
+pub fn render(
+    contents: &str,
+    slug: &str,
+    title: &str,
+    seed_table: &str,
+    source_name: &str,
+) -> String {
     contents
         .replace("{{SLUG}}", slug)
         .replace("{{TITLE}}", title)
@@ -237,7 +247,11 @@ pub fn render(contents: &str, slug: &str, title: &str, seed_table: &str, source_
 fn relative_path(from: &Path, to: &Path) -> PathBuf {
     let from: Vec<_> = from.components().collect();
     let to: Vec<_> = to.components().collect();
-    let common = from.iter().zip(to.iter()).take_while(|(a, b)| a == b).count();
+    let common = from
+        .iter()
+        .zip(to.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
     let mut rel = PathBuf::new();
     for _ in 0..(from.len() - common) {
         rel.push("..");

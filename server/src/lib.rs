@@ -21,14 +21,14 @@
 //! - `GET /api/table/{name}` — schema and pricing for a single table.
 //! - `GET /<dashboard>/` — static Evidence dashboard, one per `dashboards:` entry.
 
-pub mod handler_api_root;
 #[cfg(feature = "cli")]
 pub mod cli;
 pub mod dashboard;
 pub mod database;
-pub mod payment;
 pub mod handler_api_query;
+pub mod handler_api_root;
 pub mod handler_api_table_detail;
+pub mod payment;
 
 use std::sync::Arc;
 
@@ -44,13 +44,13 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use url::Url;
 
-use crate::handler_api_root::api_root_handler;
 use crate::dashboard::{DashboardSwap, DashboardsState, build_dashboard_router, landing_handler};
 use crate::handler_api_query::query_handler;
+use crate::handler_api_root::api_root_handler;
 use crate::handler_api_table_detail::table_detail_handler;
 pub use database::Database;
-pub use payment::facilitator_client::FacilitatorClient;
 pub use payment::config::GlobalPaymentConfig;
+pub use payment::facilitator_client::FacilitatorClient;
 pub use payment::price::{PriceTag, PricingModel, TablePaymentOffers};
 
 /// Shared application state accessible by every request handler.
@@ -234,9 +234,17 @@ pub async fn start_server(state: AppState) {
                     }
 
                     if is_query_span {
-                        tracing::info!("status={}, latency={}ms", status.as_u16(), latency.as_millis());
+                        tracing::info!(
+                            "status={}, latency={}ms",
+                            status.as_u16(),
+                            latency.as_millis()
+                        );
                     } else {
-                        tracing::debug!("status={}, latency={}ms", status.as_u16(), latency.as_millis());
+                        tracing::debug!(
+                            "status={}, latency={}ms",
+                            status.as_u16(),
+                            latency.as_millis()
+                        );
                     }
                 },
             ),

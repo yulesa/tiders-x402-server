@@ -86,7 +86,10 @@ pub async fn api_root_handler(State(state): State<Arc<AppState>>) -> impl IntoRe
     let mut endpoints = BTreeMap::new();
     endpoints.insert(
         "GET /api/".to_string(),
-        EndpointInfo { description: "This document.".to_string(), response_format: None },
+        EndpointInfo {
+            description: "This document.".to_string(),
+            response_format: None,
+        },
     );
     endpoints.insert(
         "GET /api/table/{name}".to_string(),
@@ -110,11 +113,7 @@ pub async fn api_root_handler(State(state): State<Arc<AppState>>) -> impl IntoRe
         .offers_tables
         .values()
         .map(|offer| {
-            let pricing = offer
-                .price_tags
-                .iter()
-                .filter_map(price_summary)
-                .collect();
+            let pricing = offer.price_tags.iter().filter_map(price_summary).collect();
 
             TableSummary {
                 name: offer.table_name.clone(),

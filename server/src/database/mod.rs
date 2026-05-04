@@ -3,20 +3,20 @@
 //! Defines the async `Database` trait that all database backends must implement,
 //! plus backend-agnostic helpers like Arrow IPC serialization.
 
-pub mod sql_parser;
-pub mod sql_shared;
-#[cfg(feature = "clickhouse")]
-pub mod sql_clickhouse;
-#[cfg(feature = "duckdb")]
-pub mod sql_duckdb;
-#[cfg(feature = "postgresql")]
-pub mod sql_postgresql;
 #[cfg(feature = "clickhouse")]
 pub mod db_clickhouse;
 #[cfg(feature = "duckdb")]
 pub mod db_duckdb;
 #[cfg(feature = "postgresql")]
 pub mod db_postgresql;
+#[cfg(feature = "clickhouse")]
+pub mod sql_clickhouse;
+#[cfg(feature = "duckdb")]
+pub mod sql_duckdb;
+pub mod sql_parser;
+#[cfg(feature = "postgresql")]
+pub mod sql_postgresql;
+pub mod sql_shared;
 
 use anyhow::Result;
 use arrow::datatypes::Schema;
