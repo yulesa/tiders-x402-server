@@ -24,13 +24,13 @@ jobs:
       - name: Rustfmt
         run: cargo fmt --all -- --check
       - name: Clippy
-        run: cargo clippy --workspace --exclude tiders-x402-python -- -D warnings
+        run: cargo clippy --workspace -- -D warnings
       - name: Build
-        run: cargo build --workspace --exclude tiders-x402-python
+        run: cargo build --workspace
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Install maturin
         run: pip install maturin
-      - name: Build Python wheel
-        run: cd python && maturin build --release
+      - name: Build CLI wheel
+        run: cd cli-python && maturin build --release
