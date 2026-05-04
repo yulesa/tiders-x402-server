@@ -21,31 +21,14 @@
 //! - `GET /api/table/{name}` — schema and pricing for a single table.
 //! - `GET /<dashboard>/` — static Evidence dashboard, one per `dashboards:` entry.
 
-pub mod api_root_handler;
+pub mod handler_api_root;
 #[cfg(feature = "cli")]
 pub mod cli;
 pub mod dashboard;
 pub mod database;
-#[cfg(feature = "clickhouse")]
-pub mod database_clickhouse;
-#[cfg(feature = "duckdb")]
-pub mod database_duckdb;
-#[cfg(feature = "postgresql")]
-pub mod database_postgresql;
-pub mod facilitator_client;
-pub mod payment_config;
-pub mod payment_processing;
-pub mod price;
-pub mod query_handler;
-#[cfg(feature = "clickhouse")]
-pub mod sql_clickhouse;
-#[cfg(feature = "duckdb")]
-pub mod sql_duckdb;
-#[cfg(feature = "postgresql")]
-pub mod sql_postgresql;
-pub mod sql_shared;
-pub mod sqp_parser;
-pub mod table_detail_handler;
+pub mod payment;
+pub mod handler_query;
+pub mod handler_table_detail;
 
 use std::sync::Arc;
 
@@ -61,14 +44,14 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use url::Url;
 
-use crate::api_root_handler::api_root_handler;
+use crate::handler_api_root::api_root_handler;
 use crate::dashboard::{DashboardSwap, DashboardsState, build_dashboard_router, landing_handler};
-use crate::query_handler::query_handler;
-use crate::table_detail_handler::table_detail_handler;
+use crate::handler_query::query_handler;
+use crate::handler_table_detail::table_detail_handler;
 pub use database::Database;
-pub use facilitator_client::FacilitatorClient;
-pub use payment_config::GlobalPaymentConfig;
-pub use price::{PriceTag, PricingModel, TablePaymentOffers};
+pub use payment::facilitator_client::FacilitatorClient;
+pub use payment::config::GlobalPaymentConfig;
+pub use payment::price::{PriceTag, PricingModel, TablePaymentOffers};
 
 /// Shared application state accessible by every request handler.
 ///

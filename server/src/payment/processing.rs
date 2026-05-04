@@ -4,7 +4,7 @@
 //! This module is stateless — pricing logic lives in [`crate::payment_config`],
 //! and HTTP transport lives in [`crate::facilitator_client`].
 
-use crate::facilitator_client::FacilitatorClient;
+use crate::payment::facilitator_client::FacilitatorClient;
 use std::sync::Arc;
 use x402_types::proto;
 use x402_types::proto::v2;

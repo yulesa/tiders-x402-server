@@ -13,9 +13,9 @@ use async_trait::async_trait;
 use clickhouse::Client;
 use serde::Deserialize;
 
-use crate::database::Database;
-use crate::sql_clickhouse::create_clickhouse_query;
-use crate::sqp_parser::AnalyzedQuery;
+use super::Database;
+use super::sql_clickhouse::create_clickhouse_query;
+use super::sql_parser::AnalyzedQuery;
 
 /// ClickHouse database backend.
 #[derive(Clone)]

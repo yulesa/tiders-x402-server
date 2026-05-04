@@ -19,9 +19,9 @@ use deadpool_postgres::{Manager, ManagerConfig, Pool, RecyclingMethod};
 use postgres_types::{FromSql, Type, accepts};
 use tokio_postgres::Row;
 
-use crate::database::Database;
-use crate::sql_postgresql::create_postgresql_query;
-use crate::sqp_parser::AnalyzedQuery;
+use super::Database;
+use super::sql_postgresql::create_postgresql_query;
+use super::sql_parser::AnalyzedQuery;
 
 /// PostgreSQL database backend.
 #[derive(Debug, Clone)]

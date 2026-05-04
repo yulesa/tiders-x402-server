@@ -6,8 +6,8 @@
 //! `position(haystack, needle)` for `POSITION`, and rejection of
 //! `SIMILAR TO`, `TRY_CAST`, `SafeCast`, and `OVERLAY`.
 
-use crate::sql_shared::{create_query, display_common_expr, format_value};
-use crate::sqp_parser::AnalyzedQuery;
+use super::sql_shared::{create_query, display_common_expr, format_value};
+use super::sql_parser::AnalyzedQuery;
 use anyhow::{Result, anyhow};
 use sqlparser::ast::{CastKind, Expr};
 

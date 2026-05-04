@@ -3,13 +3,28 @@
 //! Defines the async `Database` trait that all database backends must implement,
 //! plus backend-agnostic helpers like Arrow IPC serialization.
 
+pub mod sql_parser;
+pub mod sql_shared;
+#[cfg(feature = "clickhouse")]
+pub mod sql_clickhouse;
+#[cfg(feature = "duckdb")]
+pub mod sql_duckdb;
+#[cfg(feature = "postgresql")]
+pub mod sql_postgresql;
+#[cfg(feature = "clickhouse")]
+pub mod db_clickhouse;
+#[cfg(feature = "duckdb")]
+pub mod db_duckdb;
+#[cfg(feature = "postgresql")]
+pub mod db_postgresql;
+
 use anyhow::Result;
 use arrow::datatypes::Schema;
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 
-use crate::sqp_parser::AnalyzedQuery;
+use crate::database::sql_parser::AnalyzedQuery;
 
 /// Async database abstraction.
 ///

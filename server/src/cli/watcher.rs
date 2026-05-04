@@ -14,7 +14,7 @@ use tokio::sync::RwLock;
 
 use crate::Database;
 use crate::dashboard::{DashboardsState, build_dashboard_router as build_dashboard_router};
-use crate::payment_config::GlobalPaymentConfig;
+use crate::payment::config::GlobalPaymentConfig;
 
 use super::builder::resolve_dashboards;
 use super::config::Config;
