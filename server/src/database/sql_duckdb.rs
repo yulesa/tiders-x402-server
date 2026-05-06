@@ -70,8 +70,8 @@ fn duckdb_display_expr(expr: &Expr) -> Result<String> {
 mod tests {
     use sqlparser::dialect::DuckDbDialect;
 
-    use crate::database::sql_parser::analyze_query;
     use super::*;
+    use crate::database::sql_parser::analyze_query;
     use sqlparser::parser::Parser;
 
     #[test]
