@@ -61,7 +61,7 @@ dashboard: # Optional
       description: "Description text for the dashboard"
       tags: ["Tag1", "Tag2"]
 ```
-4. Create the dashboards:
+3. Create the dashboards:
 
 Scaffold all dashboards defined in the YAML:
 
@@ -83,7 +83,7 @@ Once the dashboard is ready, build it into a static site:
 The server will pick up and serve the built files automatically. Dashboards are static — they do not update live. Rebuild whenever the underlying data changes.
 
 
-5. Start the server:
+4. Start the server:
 
 ```bash
 tiders-x402-server start
