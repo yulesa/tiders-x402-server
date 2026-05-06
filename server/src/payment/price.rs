@@ -2,7 +2,7 @@
 //!
 //! Defines the data structures that describe how much a query costs
 //! (`PriceTag`) and how tables are configured with pricing tiers
-//! (`TablePaymentOffers`). Used by [`crate::payment_config`] to
+//! (`TablePaymentOffers`). Used by [`crate::payment::config`] to
 //! generate x402 payment requirements.
 
 use alloy_primitives::U256;
@@ -46,7 +46,7 @@ pub enum PricingModel {
 /// and in which token.
 ///
 /// A table can have multiple price tags (e.g., different tokens or tiers for
-/// small vs. large queries). The [`crate::payment_config`] module selects which
+/// small vs. large queries). The [`crate::payment::config`] module selects which
 /// ones apply for a given row count.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct PriceTag {
@@ -93,7 +93,7 @@ impl PriceTag {
     ///
     /// For [`PricingModel::PerRow`], returns `amount_per_item * item_count`.
     /// Does **not** apply `min_total_amount` — that enforcement happens in
-    /// [`crate::payment_config`].
+    /// [`crate::payment::config`].
     ///
     /// For [`PricingModel::Fixed`], returns the flat amount (ignores `item_count`).
     pub fn calculate_total_price(&self, item_count: usize) -> TokenAmount {
@@ -138,9 +138,11 @@ pub struct TablePaymentOffers {
     pub price_tags: Vec<PriceTag>,
     /// Whether queries against this table require payment (derived from whether price tags exist).
     pub requires_payment: bool,
-    /// Optional description shown in the root endpoint and 402 responses.
+    /// Optional description shown in `GET /api/`, `GET /api/table/{name}`,
+    /// and the `resource.description` field of 402 responses.
     pub description: Option<String>,
-    /// Optional Arrow schema, displayed in the root endpoint to help clients discover columns.
+    /// Optional Arrow schema returned by `GET /api/table/{name}` so clients
+    /// can discover column names and types.
     pub schema: Option<Schema>,
 }
 

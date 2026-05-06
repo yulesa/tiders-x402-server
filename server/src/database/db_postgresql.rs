@@ -1,7 +1,13 @@
 //! PostgreSQL implementation of the `Database` trait.
 //!
 //! Uses `deadpool-postgres` for async connection pooling and converts
-//! query results from `tokio-postgres` rows into Arrow `RecordBatch`es.
+//! `tokio-postgres` rows into Arrow `RecordBatch`es column-by-column (Postgres
+//! does not return Arrow natively, so each column is built via a typed
+//! arrow array builder).
+//!
+//! All pool sessions are configured with `default_transaction_read_only=on`
+//! so a misconfigured query can't mutate the database. Override at the role
+//! level if you need a different posture.
 
 use std::sync::Arc;
 
@@ -136,6 +142,10 @@ impl PostgresqlDatabase {
     }
 
     /// Creates a new `PostgresqlDatabase` from a user-managed pool.
+    ///
+    /// The caller is responsible for setting `default_transaction_read_only=on`
+    /// (or equivalent role-level posture) on the supplied pool — unlike the
+    /// other constructors, this one does not enforce it.
     pub fn from_pool(pool: Pool) -> Self {
         Self { pool }
     }

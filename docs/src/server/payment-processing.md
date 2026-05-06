@@ -1,6 +1,6 @@
 # Payment Processing
 
-The payment processing module (`server/src/payment_processing.rs`) handles the communication with the x402 facilitator for payment verification and settlement. It sits between the query handler and the facilitator client, translating between the server's V2 types and the facilitator's wire format.
+The payment processing module (`server/src/payment/processing.rs`) handles the communication with the x402 facilitator for payment verification and settlement. It sits between the query handler and the facilitator client, translating between the server's V2 types and the facilitator's wire format.
 
 ## Role
 

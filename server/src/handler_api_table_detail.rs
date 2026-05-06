@@ -1,4 +1,4 @@
-//! Axum handler for the `GET /table/:name` endpoint.
+//! Axum handler for the `GET /api/table/{name}` endpoint.
 //!
 //! Returns full schema and payment offer details for a specific table as JSON.
 //! If the table has a `MetadataPrice` price tag, the endpoint requires x402
@@ -17,7 +17,7 @@ use tracing::instrument;
 use x402_types::proto::v2::{PaymentPayload, PaymentRequirements, VerifyResponse};
 use x402_types::util::Base64Bytes;
 
-/// Handles `GET /table/:name` — returns full schema and payment offers as JSON.
+/// Handles `GET /api/table/{name}` — returns full schema and payment offers as JSON.
 ///
 /// If the table has a `MetadataPrice` tag, the caller must provide a valid
 /// `Payment-Signature` header following the x402 protocol. Otherwise the
@@ -31,7 +31,9 @@ pub async fn table_detail_handler(
     headers: HeaderMap,
 ) -> Result<axum::response::Response, TableDetailError> {
     let payment_config = state.payment_config.read().await.clone();
-    let path = format!("/table/{name}");
+    // Path used in the 402 response's `resource.url`. Mirrors the route this
+    // handler is mounted on (`/api/table/{name}`).
+    let path = format!("/api/table/{name}");
 
     let offer = payment_config
         .offers_tables
@@ -117,11 +119,20 @@ fn decode_payment_payload(
         .map_err(|e| TableDetailError::BadRequest(format!("Failed to parse payment payload: {e}")))
 }
 
+/// All error outcomes from the table detail handler, each mapping to an HTTP status code.
 #[derive(Debug)]
 pub enum TableDetailError {
+    /// The requested table is not registered (404). Carries the requested name.
     NotFound(String),
+    /// The client sent something invalid — typically an undecodable
+    /// `Payment-Signature` header (400).
     BadRequest(String),
+    /// An unexpected server-side failure — facilitator or serialization error (500).
     Internal(String),
+    /// The metadata is paywalled and either no payment was provided or the
+    /// provided payment was rejected (402). Carries both the base64-encoded
+    /// payment requirements (for the `Payment-Required` header) and the raw
+    /// JSON body (for `x402-fetch` clients).
     PaymentRequired {
         header_value: String,
         json_body: Vec<u8>,

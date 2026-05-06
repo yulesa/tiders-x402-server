@@ -1,8 +1,14 @@
 //! Payment verification and settlement via the x402 facilitator.
 //!
-//! Translates between the server's V2 types and the facilitator's wire format.
-//! This module is stateless — pricing logic lives in [`crate::payment_config`],
-//! and HTTP transport lives in [`crate::facilitator_client`].
+//! Translates between the server's V2 types ([`v2::VerifyRequest`], etc.) and
+//! the facilitator's protobuf wire format ([`proto::VerifyRequest`], etc.),
+//! and forwards calls through the [`FacilitatorClient`].
+//!
+//! This module owns no state and makes no policy decisions — pricing logic
+//! lives in [`crate::payment::config`] and HTTP transport lives in
+//! [`crate::payment::facilitator_client`]. The query handler and table
+//! detail handler call into these two functions once they have a payment
+//! payload and a matching requirement.
 
 use crate::payment::facilitator_client::FacilitatorClient;
 use std::sync::Arc;

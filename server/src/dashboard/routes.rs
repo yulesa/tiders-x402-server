@@ -1,10 +1,18 @@
 //! Axum handlers and router for all dashboard-related routes.
 //!
-//! - `GET /` — serves the scaffolded `index.html` from the dashboards root.
-//! - `GET /<name>/*` — serves each built Evidence dashboard as a static SPA.
+//! - `GET /` — serves the scaffolded `index.html` from the dashboards root
+//!   (only mounted by `start_server` when at least one dashboard is configured).
+//! - `GET /<slug>/*` — serves each built Evidence dashboard as a static SPA,
+//!   with a fallback to its own `index.html` so client-side routing works on
+//!   deep links.
 //!
-//! Dashboards whose `build_path` has no `index.html` get a 503 page.
-//! The `GET /` route is only registered when dashboards are configured.
+//! Configured-but-unbuilt dashboards (no `<build_path>/index.html`) get a 503
+//! page with instructions instead of a blank ServeDir miss.
+//!
+//! The whole sub-router is wrapped in [`DashboardSwap`], a `tower::Service`
+//! that reads the current router from `arc-swap` on every call. The watcher
+//! rebuilds the router on config reload and stores a new `Arc<Router>`; in-flight
+//! requests keep using the old router until they finish.
 
 use std::sync::Arc;
 

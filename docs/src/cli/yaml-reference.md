@@ -190,7 +190,7 @@ A flat fee regardless of how many rows are returned.
 
 **Metadata Price**
 
-A flat fee for accessing table metadata (schema and payment offers) via the `GET /table/:name` endpoint. Without this tag, metadata is returned freely. Charging for the metadata API calls can be used to prevent API abuse.
+A flat fee for accessing table metadata (schema and payment offers) via the `GET /api/table/{name}` endpoint. Without this tag, metadata is returned freely. Charging for the metadata API calls can be used to prevent API abuse.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -222,3 +222,68 @@ Token identifiers use the format `token_name/network`. Supported tokens:
 | `usdc/polygon_amoy` | USDC | Polygon Amoy (testnet) |
 
 See also [`examples/cli/`](https://github.com/yulesa/tiders-x402-server/tree/main/examples/cli) for a ready-to-use config and `.env.example`.
+
+---
+
+## Dashboards
+
+**Optional.** Configures Evidence dashboards served by the server. Each entry is served as a static site at `/<slug>/`. Use `tiders-x402-server dashboard <slug>` to scaffold the Evidence project on disk.
+
+### Top-level fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `root` | string | `./dashboards/` | Root directory where dashboard project folders are scaffolded (resolved relative to the config file) |
+| `entries` | list | `[]` | List of dashboard definitions |
+
+```yaml
+dashboards:
+  root: "./dashboards"   # optional
+  entries:
+    - slug: my-dashboard
+      title: "My Dashboard"
+      description: "A short description shown on the landing page."
+      tags: ["DeFi", "Ethereum"]
+```
+
+### Entry fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `slug` | string | yes | URL-safe identifier; becomes the route prefix `/<slug>/`. Must match `^[a-z0-9][a-z0-9_-]*$`. Reserved: `api`, `assets`, `static` |
+| `title` | string | yes | Human-readable name shown on the landing page |
+| `description` | string | no | One-line description shown under the title on the landing page card |
+| `tags` | list | no | Labels rendered as pills on the landing page card (e.g., `["DeFi", "Ethereum"]`) |
+| `disabled` | boolean | no | Set to `true` to exclude this dashboard from the server without removing the entry (default: `false`) |
+| `folder_path` | string | no | Path where the Evidence project will be scaffolded. Defaults to `<root>/<slug>/`. Resolved relative to the config file |
+| `build_path` | string | no | Path to the built static site served at runtime. Defaults to `<folder_path>/build`. Resolved relative to the config file |
+
+```yaml
+dashboards:
+  entries:
+    - slug: uniswap_v3
+      title: "Uniswap V3"
+      description: "Pool swaps and liquidity events on Uniswap V3."
+      tags: ["Dex", "DeFi", "Ethereum"]
+      # disabled: true
+      # folder_path: "./dashboards/uniswap_v3"
+      # build_path: "./dashboards/uniswap_v3/build"
+```
+
+### Scaffolding and serving
+
+Scaffold a dashboard project with:
+
+```bash
+tiders-x402-server dashboard uniswap_v3        # scaffold one dashboard
+tiders-x402-server dashboard                    # scaffold all dashboards
+tiders-x402-server dashboard uniswap_v3 --force # overwrite managed files
+```
+
+After scaffolding, build the Evidence project:
+
+```bash
+cd dashboards/uniswap_v3 && npm install && npm run build
+```
+
+Then start the server — the built site is served automatically at `/<slug>/`.

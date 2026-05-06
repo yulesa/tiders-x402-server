@@ -11,11 +11,13 @@ use regex::Regex;
 
 use super::config::{Config, PriceTagConfig};
 
-/// Names that conflict with reserved server route prefixes.
+/// Slugs that would collide with built-in route prefixes (`/api`) or common
+/// asset paths if registered as dashboard routes.
 const RESERVED_DASHBOARD_NAMES: &[&str] = &["api", "assets", "static"];
 
-/// Slug pattern from the plan: lowercase alphanumeric, hyphens and
-/// underscores allowed, must start with a letter or digit.
+/// Allowed slug shape: lowercase alphanumeric plus `-` and `_`, must start
+/// with a letter or digit. Keeps slugs URL-safe and unambiguous as path
+/// segments.
 static DASHBOARD_NAME_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[a-z0-9][a-z0-9_-]*$").unwrap_or_else(|_| unreachable!()));
 

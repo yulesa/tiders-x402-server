@@ -20,19 +20,31 @@ use super::builder::resolve_dashboards;
 use super::config::Config;
 use super::loader::load_config;
 
-/// Shared, swappable payment configuration used by the server.
-/// This is the same type as `AppState.payment_config`.
+/// Same type as [`crate::AppState::payment_config`] — passed in so the watcher
+/// can swap the inner `Arc<GlobalPaymentConfig>` on config reload.
 pub type SharedPaymentConfig = Arc<RwLock<Arc<GlobalPaymentConfig>>>;
 
-/// Shared, swappable dashboard state and router. Mirrors fields on `AppState`.
+/// Same type as [`crate::AppState::dashboards`] — the watcher rebuilds and
+/// stores a new [`DashboardsState`] when the `dashboards:` block changes.
 pub type SharedDashboards = Arc<ArcSwap<DashboardsState>>;
+
+/// Same type as [`crate::AppState::dashboard_router`] — the watcher swaps in
+/// a freshly built sub-router whenever dashboards are added, removed, or
+/// re-enabled.
 pub type SharedDashboardRouter = Arc<ArcSwap<Router>>;
 
-/// Starts a file watcher on the config file. When the file changes,
-/// re-parses it and swaps the payment configuration atomically.
+/// Starts a file watcher and spawns a background task that hot-reloads the
+/// config on every change.
 ///
-/// Fields that require a restart (server bind address, database, facilitator)
-/// are detected and logged as warnings — they are not applied until restart.
+/// Watches the config file's parent directory (so atomic-rename saves from
+/// editors are caught) and debounces bursts of events. On each change it
+/// re-parses the YAML; the reload swaps in a new payment config, dashboard
+/// state, and dashboard router via `arc-swap`/`RwLock`.
+///
+/// Cold-restart-only fields (`server.bind_address`, `server.base_url`,
+/// `database`) are detected via fingerprint comparison and surfaced as
+/// warnings — the running server keeps using the original values until it
+/// is restarted.
 pub fn start_watcher(
     config_path: &Path,
     original_config: &Config,

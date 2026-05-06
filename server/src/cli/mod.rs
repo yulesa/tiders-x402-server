@@ -1,8 +1,19 @@
 //! YAML-configured CLI for running the server from a config file.
 //!
-//! This module powers the `tiders-x402-server` binary. It reads a YAML config,
-//! builds the runtime state, and either starts the server (with optional
-//! hot reload) or validates the config and exits.
+//! Powers the `tiders-x402-server` binary. Three subcommands:
+//!
+//! - `validate` — load + parse + connect to the database, then exit non-zero
+//!   on any error. Used in CI and pre-deploy checks.
+//! - `dashboard [slug]` — scaffold one or all dashboards from the embedded
+//!   templates. Writes user-owned files (`pages/index.md`) only when missing
+//!   so re-runs preserve edits; managed files are overwritten on `--force`.
+//! - `start` — load the config, build the runtime state, and serve. Watches
+//!   the config file for changes by default (disable with `--no-watch`).
+//!
+//! Submodules: `config` holds the YAML deserialization types, `loader`
+//! turns a path into a validated `Config`, `builder` turns that into the
+//! runtime [`crate::AppState`], and `watcher` hot-reloads the payment
+//! config and dashboard router on file change.
 //!
 //! The binary entrypoint lives in `src/bin/tiders-x402-server.rs` and calls
 //! [`run`] after parsing command-line arguments.

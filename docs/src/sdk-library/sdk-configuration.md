@@ -4,7 +4,7 @@ This page covers programmatic configuration via the Rust and Python SDKs. All co
 
 ## AppState
 
-The shared application state accessible by every request handler. Holds the database connection, payment configuration, server URL, and bind address.
+The shared application state accessible by every request handler. Holds the database connection, payment configuration, server URL, bind address, and dashboards state.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -12,16 +12,34 @@ The shared application state accessible by every request handler. Holds the data
 | `payment_config` | `Arc<RwLock<Arc<GlobalPaymentConfig>>>` | Global payment configuration (wrapped in `RwLock` to support hot-reload) |
 | `server_base_url` | `Url` | Server's public URL, used for building resource URLs in payment requirements (e.g. `https://api.tiders.com`) |
 | `server_bind_address` | `String` | Address and port the server binds to (e.g. `0.0.0.0:4021`) |
+| `dashboards` | `Arc<ArcSwap<DashboardsState>>` | Configured dashboards (root path + per-slug entries). Lock-free swappable so the file watcher can update them without restarting |
+| `dashboard_router` | `Arc<ArcSwap<Router>>` | The currently mounted Axum sub-router for `/<slug>/...`. Atomically replaced when `dashboards:` changes |
+
+`AppState::new` takes a `DashboardsState`. Pass an empty one if you don't want dashboards — the API endpoints work the same either way.
 
 **Construction**
 
 ```rust
 // Rust
-let state = AppState::new(db, config, Url::parse("https://api.tiders.com").unwrap(), "0.0.0.0:4021".to_string());
+use std::path::PathBuf;
+use tiders_x402_server::dashboard::DashboardsState;
+
+let dashboards_state = DashboardsState {
+    root: PathBuf::new(),
+    dashboards: vec![],
+};
+
+let state = AppState::new(
+    db,
+    payment_config,
+    Url::parse("https://api.tiders.com").unwrap(),
+    "0.0.0.0:4021".to_string(),
+    dashboards_state,
+);
 ```
 
 ```python
-# Python
+# Python — dashboards configuration via SDK is not yet exposed; use the CLI for that.
 state = AppState(database, payment_config, "https://api.tiders.com", "0.0.0.0:4021")
 ```
 
@@ -146,7 +164,7 @@ A single pricing tier for a table. Defines who gets paid, how much, and in which
 |---------|--------|-------------|
 | `PerRow` | `amount_per_item`, `min_items`, `max_items`, `min_total_amount` | Price scales with row count |
 | `Fixed` | `amount` | Flat fee regardless of row count |
-| `MetadataPrice` | `amount` | Flat fee for accessing table metadata via `GET /table/:name` |
+| `MetadataPrice` | `amount` | Flat fee for accessing table metadata via `GET /api/table/{name}` |
 
 **Construction (Per-Row)**
 

@@ -55,18 +55,19 @@ pub use payment::price::{PriceTag, PricingModel, TablePaymentOffers};
 
 /// Shared application state accessible by every request handler.
 ///
-/// Holds the database connection and the global payment configuration.
-/// Axum clones the wrapping `Arc` for each incoming request, so all
-/// handlers share the same underlying state.
+/// Holds the database connection, the payment configuration, the bind/base
+/// addresses, and the dashboards state (with its lock-free swappable router).
+/// Axum clones the wrapping `Arc` for each incoming request, so all handlers
+/// share the same underlying state.
 #[derive(Debug, Clone)]
 pub struct AppState {
     /// Database backend (DuckDB, Postgres, ClickHouse, etc.) behind a trait object.
     pub db: Arc<dyn Database>,
-    /// Global payment configuration: offer's tables, pricing rules, and facilitator settings.
-    /// Wrapped in `RwLock` to support hot-reloading the configuration at runtime.
+    /// Global payment configuration: registered tables, pricing rules, and facilitator settings.
+    /// Wrapped in `RwLock` so the file watcher can swap it at runtime without dropping requests.
     pub payment_config: Arc<tokio::sync::RwLock<Arc<GlobalPaymentConfig>>>,
     /// The server's public URL, used for building resource URLs in payment requirements
-    /// (e.g. "https://api.tiders.com"). This is the URL the x402 facilitator uses
+    /// (e.g. <https://api.tiders.com>). This is the URL the x402 facilitator uses
     /// for payment verification callbacks.
     pub server_base_url: Url,
     /// The address and port the server binds to (e.g. "0.0.0.0:4021").
@@ -83,7 +84,10 @@ impl AppState {
     /// Creates a new `AppState`.
     ///
     /// Accepts either a concrete `impl Database` or a pre-wrapped
-    /// `Arc<dyn Database>` — all other wrapping is handled internally.
+    /// `Arc<dyn Database>` — all other wrapping (`RwLock`, `ArcSwap`) is
+    /// handled internally. The dashboard router is built eagerly from
+    /// `dashboards_state`; pass an empty [`DashboardsState`] for an
+    /// API-only deployment.
     pub fn new(
         db: impl Into<Arc<dyn Database>>,
         payment_config: GlobalPaymentConfig,
@@ -160,12 +164,15 @@ pub async fn start_server(state: AppState) {
     // Build the Axum Router.
     //
     // Layout:
-    //   /                       → dashboard router
-    //   /api/                   → API description
-    //   /api/query              → POST query endpoint
-    //   /api/table/{name}       → table metadata
+    //   GET  /                  → landing_handler (only mounted when dashboards exist)
+    //   GET  /api/              → discovery document
+    //   POST /api/query         → SQL query endpoint
+    //   GET  /api/table/{name}  → table metadata
+    //   *                       → DashboardSwap fallback (serves /<slug>/... for each dashboard)
     //
-    // Dashboard routes (`/<name>/*`) are registered in tier 2.
+    // The dashboard sub-router lives behind a `DashboardSwap` fallback so the
+    // file watcher can replace it atomically (`arc-swap`) on config reload
+    // without taking a lock or dropping in-flight requests.
     let api_router = Router::new()
         .route("/", get(api_root_handler))
         .route("/query", post(query_handler))
@@ -182,8 +189,6 @@ pub async fn start_server(state: AppState) {
             base
         }
     }
-    // Anything not matched above falls through to the dashboard router.
-    // Lock-free swap so config reloads don't block.
     .fallback_service(dashboards_service)
     .with_state(state)
     .layer(

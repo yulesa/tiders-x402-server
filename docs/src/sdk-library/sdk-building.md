@@ -4,7 +4,7 @@ When using tiders-x402-server as a library, you construct and start the server f
 
 Both Rust and Python examples are shown side by side. They follow the same steps and produce identical servers. For the full range of configuration options see the [Configuration Reference](./sdk-configuration.md).
 
-> **Prefer zero-code setup?** Use the [CLI](../cli/cli-overview.md) instead -- define everything in a YAML config file and run
+> **Prefer zero-code setup?** Use the [CLI](../cli/cli-overview.md) instead — define everything in a YAML config file and run
 >```bash
 >tiders-x402-server start
 > ```
@@ -15,13 +15,10 @@ The facilitator handles blockchain-side payment operations (verification and set
 
 **Rust:**
 ```rust
-use std::sync::Arc;
-use tiders_x402_server::facilitator_client::FacilitatorClient;
+use tiders_x402_server::FacilitatorClient;
 
-let facilitator = Arc::new(
-    FacilitatorClient::try_from("https://facilitator.x402.rs")
-        .expect("Failed to create facilitator client")
-);
+let facilitator = FacilitatorClient::try_from("https://facilitator.x402.rs")
+    .expect("Failed to create facilitator client");
 ```
 
 **Python:**
@@ -41,22 +38,26 @@ Create a database backend.
 
 **Rust:**
 ```rust
-// Load sample data from CSV into an in-memory DuckDB database.
-let conn = duckdb::Connection::open_in_memory().unwrap();
-let db = tiders_x402_server::database_duckdb::DuckDbDatabase::new(conn);
+let conn = duckdb::Connection::open_in_memory().expect("Failed to open DuckDB");
+conn.execute_batch(
+    "CREATE TABLE uniswap_v3_pool_swap AS \
+     SELECT * FROM read_csv_auto('../uniswap_v3_pool_swap.csv');"
+).expect("Failed to load sample data");
+let db = tiders_x402_server::database::db_duckdb::DuckDbDatabase::new(conn);
 ```
 
 **Python:**
 ```python
 import duckdb
 db_path = "data/duckdb.db"
-conn = duckdb.connect(db_path)
 db = tiders_x402_server.DuckDbDatabase(db_path)
 ```
 
+See `examples/rust/src/main.rs` and `examples/seed_postgresql.sql` / `examples/seed_clickhouse.sql` for the PostgreSQL and ClickHouse construction patterns.
+
 ## 3. Define Price Tags
 
-A `PriceTag` describes a single pricing tier: who gets paid, how much, in which token, and under which pricing model. Tables can have multiple price tags for tiered pricing -- clients receive all applicable options in the 402 response.
+A `PriceTag` describes a single pricing tier: who gets paid, how much, in which token, and under which pricing model. Tables can have multiple price tags for tiered pricing — clients receive all applicable options in the 402 response.
 
 Three pricing models are supported: **per-row**, **fixed**, and **metadata price**. Amounts accept human-readable decimal strings (e.g., `"0.002"`).
 
@@ -69,7 +70,8 @@ Price scales linearly with the number of rows returned. Supports tiered pricing 
 use std::str::FromStr;
 use x402_chain_eip155::chain::ChecksummedAddress;
 use x402_types::networks::USDC;
-use tiders_x402_server::price::{PriceTag, PricingModel, TokenAmount};
+use tiders_x402_server::{PriceTag, PricingModel};
+use tiders_x402_server::payment::price::TokenAmount;
 
 let usdc = USDC::base_sepolia();
 
@@ -106,7 +108,6 @@ let bulk_tag = PriceTag {
 ```python
 usdc = tiders_x402_server.USDC("base_sepolia")
 
-# Default tier: $0.002 per row
 default_tag = tiders_x402_server.PriceTag(
     pay_to="0x[your_address]",
     amount_per_item="0.002",
@@ -114,7 +115,6 @@ default_tag = tiders_x402_server.PriceTag(
     is_default=True,
 )
 
-# Bulk tier: $0.001 per row for 100+ rows
 bulk_tag = tiders_x402_server.PriceTag(
     pay_to="0x[your_address]",
     amount_per_item="0.001",
@@ -152,7 +152,7 @@ fixed_tag = tiders_x402_server.PriceTag.fixed(
 
 **Metadata Price**
 
-A flat fee for accessing table metadata (schema and payment offers) via the `GET /table/:name` endpoint. Without this tag, metadata is returned freely. Charging for metadata API calls can be used to prevent API abuse.
+A flat fee for accessing table metadata (schema and payment offers) via `GET /api/table/{name}`. Without this tag, metadata is returned freely. Charging for metadata is useful to deter scraping or fund schema-discovery costs.
 
 **Rust:**
 ```rust
@@ -179,12 +179,11 @@ metadata_tag = tiders_x402_server.PriceTag.metadata_price(
 
 ## 4. Build Table Payment Offers
 
-A `TablePaymentOffers` groups the price tags for a single table along with its description and schema. The schema is optional but recommended -- it is shown to clients in the root endpoint.
+A `TablePaymentOffers` groups the price tags for a single table along with its description and schema. The schema is optional but recommended — it is shown to clients in the discovery document.
 
 **Rust:**
 ```rust
-use tiders_x402_server::price::TablePaymentOffers;
-use tiders_x402_server::Database;
+use tiders_x402_server::{TablePaymentOffers, Database};
 
 let schema = db.get_table_schema("uniswap_v3_pool_swap")
     .await
@@ -218,7 +217,7 @@ The global payment configuration holds the facilitator client and all table offe
 
 **Rust:**
 ```rust
-use tiders_x402_server::payment_config::GlobalPaymentConfig;
+use tiders_x402_server::GlobalPaymentConfig;
 
 let mut global_payment_config = GlobalPaymentConfig::default(facilitator);
 global_payment_config.add_offers_table(offers_table);
@@ -226,24 +225,38 @@ global_payment_config.add_offers_table(offers_table);
 
 **Python:**
 ```python
-
-global_payment_config = tiders_x402_server.GlobalPaymentConfig(
-    facilitator,
-)
+global_payment_config = tiders_x402_server.GlobalPaymentConfig(facilitator)
 global_payment_config.add_offers_table(offers_table)
 ```
 
 ## 6. Create State and Start the Server
 
-Wrap the database and payment configuration into the application state, then start the server.
+Wrap the database, payment configuration, and dashboards state into the application state, then start the server.
+
+`AppState::new` takes a `DashboardsState` even when you don't want any dashboards — pass an empty one. The CLI's auto-built `AppState` does the same when `dashboards:` is missing from the YAML.
 
 **Rust:**
 ```rust
+use std::path::PathBuf;
 use url::Url;
 use tiders_x402_server::{AppState, start_server};
+use tiders_x402_server::dashboard::DashboardsState;
 
-let server_base_url = Url::parse("http://localhost:4021").expect("Failed to parse server base URL");
-let state = AppState::new(db, global_payment_config, server_base_url, "0.0.0.0:4021".to_string());
+let server_base_url = Url::parse("http://localhost:4021").expect("Failed to parse base URL");
+let server_bind_address = "0.0.0.0:4021".to_string();
+
+let dashboards_state = DashboardsState {
+    root: PathBuf::new(),
+    dashboards: vec![],
+};
+
+let state = AppState::new(
+    db,
+    global_payment_config,
+    server_base_url,
+    server_bind_address,
+    dashboards_state,
+);
 
 start_server(state).await;
 ```
@@ -264,13 +277,13 @@ The server blocks until it receives a shutdown signal (Ctrl+C or SIGTERM).
 
 ## Verifying the Server
 
-Once running, check the root endpoint:
+Once running, hit the discovery endpoint:
 
 ```bash
-curl http://localhost:4021/
+curl http://localhost:4021/api/
 ```
 
-This returns the available tables, their schemas, and the SQL parser rules.
+This returns a JSON document listing every table, its pricing tiers, and the available endpoints. Use one of the [client scripts](https://github.com/yulesa/tiders-x402-server/tree/main/client-scripts) to actually run a paid query end-to-end.
 
 ## Environment Variables
 

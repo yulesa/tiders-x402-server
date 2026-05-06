@@ -88,8 +88,10 @@ impl GlobalPaymentConfig {
         self.offers_tables.get(table_name)
     }
 
-    /// Returns whether a table is free (`Some(false)`), paid (`Some(true)`),
-    /// or not configured at all (`None`).
+    /// Three-valued lookup distinguishing free / paid / unknown:
+    /// - `Some(false)` — table is registered with no price tags (free).
+    /// - `Some(true)` — table is registered and at least one price tag applies.
+    /// - `None` — table is not registered (the handler should reject the request).
     pub fn table_requires_payment(&self, table_name: &str) -> Option<bool> {
         self.offers_tables
             .get(table_name)

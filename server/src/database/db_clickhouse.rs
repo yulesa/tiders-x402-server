@@ -1,7 +1,12 @@
 //! ClickHouse implementation of the `Database` trait.
 //!
 //! Uses the `clickhouse` crate (natively async) with `FORMAT ArrowStream` to
-//! get results directly as Arrow IPC, avoiding JSON intermediate representation.
+//! get results directly as Arrow IPC, avoiding any JSON intermediate.
+//!
+//! [`ClickHouseDatabase::from_params`] forces `readonly=1` on the underlying
+//! client so the server can never issue write or DDL queries even if a bug
+//! produced a malformed SQL string. [`ClickHouseDatabase::from_client`] does
+//! not — the caller is responsible for the safety posture there.
 
 use std::io::Cursor;
 
@@ -203,7 +208,8 @@ impl Database for ClickHouseDatabase {
 
 // --- Helper structs ---
 
-/// Row type for `DESCRIBE TABLE` results.
+/// Row type for `SELECT name, type FROM system.columns ...` results used by
+/// [`ClickHouseDatabase::get_table_schema`].
 #[derive(Debug, Deserialize, clickhouse::Row)]
 struct ColumnInfo {
     name: String,

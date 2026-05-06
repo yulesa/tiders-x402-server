@@ -1,4 +1,4 @@
-//! Axum handler for the `/query` endpoint.
+//! Axum handler for the `POST /api/query` endpoint.
 //!
 //! Parses incoming SQL queries, checks whether the target table requires
 //! payment via the x402 protocol, and either returns results directly
@@ -23,22 +23,27 @@ use tracing::instrument;
 use x402_types::proto::v2::{PaymentPayload, PaymentRequirements, VerifyResponse};
 use x402_types::util::Base64Bytes;
 
-/// JSON body for the `/query` endpoint.
+/// JSON body for the `POST /api/query` endpoint.
 #[derive(Debug, Deserialize)]
 pub struct QueryRequest {
     /// The SQL query to execute against the database.
     pub query: String,
 }
 
-/// Main axum handler for the `/query` route.
+/// Main axum handler for the `POST /api/query` route.
 ///
 /// Workflow:
-/// 1. Parse and validate the SQL query.
+/// 1. Parse and validate the SQL query, then render it in the active backend's dialect.
 /// 2. If the target table is free, execute and return Arrow IPC data.
-/// 3. If the table requires payment and no `Payment-Signature` header is present,
-///    return HTTP 402 with estimated cost and payment requirements.
-/// 4. If a payment header is present, decode it, execute the query,
-///    verify/settle payment via the x402 facilitator, and return the data.
+/// 3. If the table is paid and no `Payment-Signature` header is present, return
+///    HTTP 402 with the applicable payment options. For per-row tables this
+///    requires running a `COUNT(*)` to estimate price; fixed-price tables skip it.
+/// 4. If a payment header is present, decode the payload and dispatch by pricing model:
+///    - **Per-row** (`process_payment`): execute first to get the actual row
+///      count, then verify and settle.
+///    - **Fixed-price** (`process_fixed_price_payment`): verify first, then
+///      execute and settle. This prevents bogus payment headers from triggering
+///      expensive queries.
 #[axum::debug_handler]
 #[instrument(skip_all)]
 #[allow(dead_code)]
@@ -90,9 +95,10 @@ pub async fn query_handler(
     let is_fixed = offers_table.is_all_fixed_price();
 
     match headers.get("Payment-Signature") {
+        // No payment header — return 402 with pricing info. For fixed-price
+        // tables we skip the COUNT(*) estimation since the price doesn't
+        // depend on row count.
         None => {
-            // Step 1: No payment header - return 402 with pricing info
-            // For fixed-price tables, skip the COUNT(*) estimation query
             let estimated_rows = if is_fixed {
                 0
             } else {
@@ -108,13 +114,13 @@ pub async fn query_handler(
             ))
         }
 
-        // Step 2: Payment header present - verify payment and return data
+        // Payment header present — verify payment and return data.
         Some(payment_header) => {
             let payment_payload = decode_payment_payload(payment_header)?;
 
             if is_fixed {
-                // Fixed-price flow: verify payment BEFORE executing the query
-                // to prevent bogus payment headers from triggering expensive queries
+                // Fixed-price flow: verify BEFORE executing the query so
+                // bogus payment headers can't trigger expensive work.
                 process_fixed_price_payment(
                     &state,
                     &payment_config,

@@ -1,6 +1,6 @@
 # Facilitator Client
 
-The facilitator client (`server/src/facilitator_client.rs`) is responsible for communicating with a remote x402 facilitator service. It handles the HTTP details so the rest of the server can verify and settle payments through simple function calls.
+The facilitator client (`server/src/payment/facilitator_client.rs`) is responsible for communicating with a remote x402 facilitator service. It handles the HTTP details so the rest of the server can verify and settle payments through simple function calls.
 
 ## What is a Facilitator?
 

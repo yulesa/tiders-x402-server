@@ -5,7 +5,8 @@
 //! service via this client.
 //!
 //! [`FacilitatorClient`] implements the [`x402_types::facilitator::Facilitator`]
-//! trait, so it can be swapped with other implementations (e.g., a mock for testing).
+//! trait, so it can be swapped with other implementations (e.g. a mock in
+//! tests, or a custom in-process facilitator).
 //!
 //! The client is cheap to clone and internally shares a connection pool,
 //! making it safe to reuse across concurrent requests.
@@ -125,9 +126,14 @@ impl FacilitatorClient {
         &self.verify_url
     }
 
-    /// Returns the computed `./settle` URL relative to [`FacilitatorClient::base_url`]
+    /// Returns the computed `./settle` URL relative to [`FacilitatorClient::base_url`].
     pub fn settle_url(&self) -> &Url {
         &self.settle_url
+    }
+
+    /// Returns the computed `./supported` URL relative to [`FacilitatorClient::base_url`].
+    pub fn supported_url(&self) -> &Url {
+        &self.supported_url
     }
 
     /// Returns any custom headers configured on the client.

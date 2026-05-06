@@ -1,4 +1,12 @@
-//! Config file loading pipeline: read file -> expand env vars -> parse YAML -> validate.
+//! Config file loading pipeline.
+//!
+//! Reads the YAML, expands `${VAR_NAME}` references against the process
+//! environment (see [`super::env`]), parses with `serde_yaml`, resolves
+//! relative paths to absolute against the config file's directory, and
+//! runs semantic validation (see [`super::validate`]).
+//!
+//! Errors at every stage are wrapped with the config file path so users
+//! can see exactly what failed.
 
 use anyhow::{Result, bail};
 use std::path::{Path, PathBuf};

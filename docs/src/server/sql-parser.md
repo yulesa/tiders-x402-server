@@ -1,6 +1,6 @@
 # SQL Parser
 
-The SQL parser (`server/src/sqp_parser.rs`) implements a restricted SQL dialect called "Simplified SQL" that prevents expensive or dangerous operations. It uses the `sqlparser` crate with the ANSI dialect.
+The SQL parser (`server/src/database/sql_parser.rs`) implements a restricted SQL dialect called "Simplified SQL" that prevents expensive or dangerous operations. It uses the `sqlparser` crate with the ANSI dialect.
 
 ## Supported SQL Features
 

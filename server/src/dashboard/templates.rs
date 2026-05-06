@@ -134,19 +134,19 @@ pub fn render_sql_files(source_name: &str, tables: &[&str]) -> Vec<(PathBuf, Str
         .collect()
 }
 
-/// One embedded template.
-/// Files written to the dashboard directory by the scaffolder. Most are fixed
-/// boilerplate (Svelte components, npm config), but a
-/// few contain `{{SLUG}}` / `{{SEED_TABLE}}` placeholders that are filled in
-/// by `render` at scaffold time. Managed files are always overwritten on
-/// `--force`;
+/// One embedded template file written to the dashboard project by the scaffolder.
 ///
-/// path: its path relative to the dashboard folder
-/// contents: its raw contents
-/// substitute: whether variable substitution are needed.
+/// Most templates are fixed boilerplate (Svelte components, npm config); a
+/// few contain `{{SLUG}}` / `{{TITLE}}` / `{{SEED_TABLE}}` / `{{SOURCE_NAME}}`
+/// placeholders that [`render`] substitutes at scaffold time. Every template
+/// in [`TEMPLATES`] is treated as managed — overwritten on `--force` (with
+/// drift detection backing up user-edited copies to `.old/`).
 pub struct Template {
+    /// Path relative to the dashboard project root (e.g. `components/lib/wagmi.ts`).
     pub path: &'static str,
+    /// Raw template contents, embedded into the binary via `include_str!`.
     pub contents: &'static str,
+    /// Whether [`render`] should run placeholder substitution on `contents`.
     pub substitute: bool,
 }
 

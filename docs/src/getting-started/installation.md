@@ -12,28 +12,6 @@ cargo install tiders-x402-server
 
 Once installed, see the [CLI Quick Start](./cli-quickstart.md) to get running.
 
-## Python SDK
-
-To embed the server in your own Python code, install the SDK instead of the CLI:
-
-```bash
-uv pip install tiders-x402-server-sdk
-```
-```python
-import tiders_x402_server
-```
-
-The python SDK includes all database backends (DuckDB, PostgreSQL, ClickHouse).
-
-Running the example:
-
-```bash
-cd examples/python
-uv run duckdb_server.py
-```
-
-*You need a virtual environment active. Use uv venv && source .venv/bin/activate*
-
 ## Rust SDK
 
 By default `tiders-x402-server` enables all three database backends and the CLI dependencies. If you're embedding it as a library and only need one backend, opt out of the defaults:
@@ -44,7 +22,6 @@ By default `tiders-x402-server` enables all three database backends and the CLI 
 | `postgresql` | PostgreSQL backend |
 | `clickhouse` | ClickHouse backend |
 | `cli` | CLI/YAML loader, file watcher, and related deps (default) |
-| `pyo3` | Python bindings (used by the SDK wheel) |
 
 ```toml
 [dependencies]
@@ -75,20 +52,9 @@ Build the CLI from source:
  cargo install --path server
  ```
 
-If you're modifying `tiders-x402-server` repo locally, you probably want to build the example against your local version.
+If you're modifying `tiders-x402-server` repo locally, you probably want to build the example against your local version:
 
-### Python
-
-Build the Python binding using maturin:
-
-```bash
-cd python
-maturin develop --uv   # builds the Rust extension and installs it into the active venv
-```
-
-### Rust
-
-Build the example with the local server:
+Build the example with the local repo:
 
 ```bash
 cargo build --config 'patch.crates-io.tiders-x402-server="../../server"'

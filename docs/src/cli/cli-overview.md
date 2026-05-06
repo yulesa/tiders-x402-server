@@ -4,7 +4,7 @@ The `tiders-x402-server` CLI runs a payment-enabled database API server from a Y
 
 ## Commands
 
-**`start`**
+### `start`
 
 Starts the server.
 
@@ -16,8 +16,33 @@ tiders-x402-server start [CONFIG] [--no-watch]
 |----------|-------------|
 | `CONFIG` | Path to the YAML config file. If omitted, auto-discovers a config in the current directory. |
 | `--no-watch` | Disable automatic config file watching (hot reload). |
+| `--env-file PATH` | Path to a `.env` file to load before reading the config. |
 
-**`validate`**
+### `dashboard`
+
+Scaffolds an Evidence dashboard project from the server config. Run this once to create the project, then build it with `npm install && npm run build`.
+
+```bash
+tiders-x402-server dashboard [CONFIG] [SLUG] [--force] [--env-file PATH]
+```
+
+| Argument | Description |
+|----------|-------------|
+| `CONFIG` | Path to the YAML config file. If omitted, auto-discovers a config in the current directory. |
+| `SLUG` | Dashboard slug to scaffold. If omitted, scaffolds every dashboard in `dashboards.entries`. |
+| `--force` | Overwrite managed files (templates, components, `connection.yaml`) in an existing project. User-owned files (`pages/*.md`, `sources/**/*.sql`) are always preserved. |
+| `--env-file PATH` | Path to a `.env` file to load before reading the config. |
+
+The scaffolded project is written to `{dashboards_root}/{slug}/` (default: `./dashboards/{slug}/`). After scaffolding:
+
+```bash
+cd dashboards/my-dashboard
+npm install && npm run build
+```
+
+Then start the server — it serves the built site at `/{slug}/`.
+
+### `validate`
 
 Validates the config file and tests database connectivity, then exits. Useful for CI or pre-deploy checks.
 

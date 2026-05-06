@@ -1,6 +1,6 @@
 # Payment Configuration
 
-The payment configuration module (`server/src/payment_config.rs`) is the central place where pricing rules are defined and x402 V2 payment requirements are generated. It determines how much each query costs and what payment options the server offers to clients.
+The payment configuration module (`server/src/payment/config.rs`) is the central place where pricing rules are defined and x402 V2 payment requirements are generated. It determines how much each query costs and what payment options the server offers to clients.
 
 ## GlobalPaymentConfig
 

@@ -1,6 +1,6 @@
 # Query Handler
 
-The query handler (`server/src/query_handler.rs`) is the Axum handler for the `POST /query` API endpoint. It is the core of the server logic: it receives SQL queries from clients, validates them, checks whether payment is required, and orchestrates the x402 V2 payment flow when needed.
+The query handler (`server/src/handler_api_query.rs`) is the Axum handler for the `POST /api/query` endpoint. It is the core of the server logic: it receives SQL queries from clients, validates them, checks whether payment is required, and orchestrates the x402 V2 payment flow when needed.
 
 The handler accepts a JSON body:
 
@@ -14,8 +14,8 @@ For paid tables, a successful request typically involves two steps. First, the c
 
 Every request goes through the same initial validation:
 
-1. **Parse and validate** the SQL query using `sqp_parser::analyze_query`.
-2. **Convert** the parsed query into executable DuckDB SQL via `duckdb_reader::create_duckdb_query`.
+1. **Parse and validate** the SQL query using `database::sql_parser::analyze_query`.
+2. **Convert** the parsed query into backend-specific SQL via the active `Database` impl's `create_sql_query` (DuckDB, PostgreSQL, or ClickHouse).
 3. **Check table existence** — return status 400 if the table is not in the configuration.
 4. **Check payment requirement** — if the table is free, execute immediately and return the data (Arrow IPC format).
 

@@ -185,6 +185,9 @@ async fn build_database(db_config: &super::config::DatabaseConfig) -> Result<Arc
     bail!("No database backend configured.")
 }
 
+/// Builds a [`FacilitatorClient`] from the YAML `facilitator:` block, applying
+/// the optional `timeout` and `headers` if provided. Used both at startup and
+/// during hot reload.
 pub fn build_facilitator(
     fac_config: &super::config::FacilitatorConfig,
 ) -> Result<Arc<FacilitatorClient>> {

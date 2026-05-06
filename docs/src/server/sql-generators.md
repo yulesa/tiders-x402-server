@@ -4,7 +4,7 @@ The SQL generator layer converts an `AnalyzedQuery` (from the [SQL Parser](./sql
 
 ## Shared
 
-The shared module (`server/src/sql_shared.rs`) contains logic that is identical across all backends:
+The shared module (`server/src/database/sql_shared.rs`) contains logic that is identical across all backends:
 
 - **`create_query`** — assembles the final SQL string from the `AnalyzedQuery` AST: `SELECT`, `FROM`, `WHERE`, `ORDER BY`, `LIMIT`, and `OFFSET` clauses. It accepts a `display_expr` callback so each backend can plug in its own expression renderer.
 - **`display_common_expr`** — renders standard SQL expressions that work the same everywhere: identifiers, literals, boolean predicates (`IS TRUE`, `IS NULL`, etc.), `IN`, `BETWEEN`, binary operators, `LIKE`/`ILIKE`/`SIMILAR TO`, `CAST`, `::`, math functions (`CEIL`, `FLOOR`), string functions (`POSITION`, `SUBSTRING`, `TRIM`, `OVERLAY`), nested/tuple/array/interval expressions. Returns `None` for dialect-specific expressions (`EXTRACT`, `AT TIME ZONE`, `TypedString`, `TRY_CAST`, `SafeCast`), letting each backend handle those.
@@ -12,7 +12,7 @@ The shared module (`server/src/sql_shared.rs`) contains logic that is identical 
 
 ## DuckDB
 
-The DuckDB generator (`server/src/sql_duckdb.rs`) calls `display_common_expr` first and only handles what falls through:
+The DuckDB generator (`server/src/database/sql_duckdb.rs`) calls `display_common_expr` first and only handles what falls through:
 
 - **`EXTRACT`** → `date_part('field', expr)` (DuckDB's preferred syntax).
 - **`AT TIME ZONE`** → standard `expr AT TIME ZONE 'tz'`.
@@ -24,7 +24,7 @@ This file also contains the test suite that exercises all expression types throu
 
 ## PostgreSQL 
 
-The PostgreSQL generator (`server/src/sql_postgresql.rs`) follows the same pattern — shared handler first, then Postgres-specific overrides:
+The PostgreSQL generator (`server/src/database/sql_postgresql.rs`) follows the same pattern — shared handler first, then Postgres-specific overrides:
 
 - **`EXTRACT`** → standard `EXTRACT(field FROM expr)`.
 - **`AT TIME ZONE`** → standard `expr AT TIME ZONE 'tz'`.
@@ -33,7 +33,7 @@ The PostgreSQL generator (`server/src/sql_postgresql.rs`) follows the same patte
 
 ## ClickHouse
 
-The ClickHouse generator (`server/src/sql_clickhouse.rs`) has the most overrides because ClickHouse's SQL dialect diverges further from standard SQL. Some overrides are checked *before* calling the shared handler to intercept expressions that would otherwise be handled differently:
+The ClickHouse generator (`server/src/database/sql_clickhouse.rs`) has the most overrides because ClickHouse's SQL dialect diverges further from standard SQL. Some overrides are checked *before* calling the shared handler to intercept expressions that would otherwise be handled differently:
 
 - **`SIMILAR TO`** → rejected (not supported).
 - **`POSITION`** → rewritten to `position(haystack, needle)` (ClickHouse uses reversed argument order).
@@ -46,7 +46,7 @@ The ClickHouse generator (`server/src/sql_clickhouse.rs`) has the most overrides
 
 ## Adding a New Backend
 
-To support a new database dialect, create a new `sql_<backend>.rs` file that:
+To support a new database dialect, create a new `database/sql_<backend>.rs` file that:
 
 1. Calls `create_query` with a backend-specific `display_expr` callback.
 2. In that callback, tries `display_common_expr` first.

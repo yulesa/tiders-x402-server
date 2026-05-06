@@ -4,9 +4,7 @@ The database layer is split into a shared trait and per-backend implementations.
 
 ## Trait
 
-Define in `database.rs`.
-
-The `Database` trait (`server/src/database.rs`) defines the async interface that every backend must implement:
+The `Database` trait (`server/src/database/mod.rs`) defines the async interface that every backend must implement:
 
 - **`execute_query`** — runs a SQL query and returns results as Arrow `RecordBatch`es.
 - **`execute_row_count_query`** — runs a `COUNT(*)` query and returns the count as a single number. Used during the estimation step to determine the price before payment.
@@ -17,17 +15,17 @@ This file also contains `serialize_batches_to_arrow_ipc`, a backend-agnostic hel
 
 ## DuckDB
 
-The DuckDB backend (`server/src/database_duckdb.rs`) wraps a `duckdb::Connection` behind `Arc<Mutex<…>>`. Since the DuckDB crate is synchronous, all operations use `tokio::task::spawn_blocking` to avoid blocking the async runtime.
+The DuckDB backend (`server/src/database/db_duckdb.rs`) wraps a `duckdb::Connection` behind `Arc<Mutex<…>>`. Since the DuckDB crate is synchronous, all operations use `tokio::task::spawn_blocking` to avoid blocking the async runtime.
 
 Construction:
 - **`DuckDbDatabase::new`** — from a pre-configured `Connection`.
-- **`DuckDbDatabase::from_path`** — opens a database file at the given path.
+- **`DuckDbDatabase::from_path`** — opens a database file at the given path. Defaults to read-only access mode so an external ingest pipeline can keep writing while the server reads.
 
 Schema introspection uses `SELECT * FROM table LIMIT 0` to get the Arrow schema directly from DuckDB's native Arrow support.
 
 ## PostgreSQL
 
-The PostgreSQL backend (`server/src/database_postgresql.rs`) uses `deadpool-postgres` for async connection pooling and `tokio-postgres` for query execution. Since Postgres does not return Arrow natively, this backend converts `tokio-postgres` rows into Arrow `RecordBatch`es column-by-column.
+The PostgreSQL backend (`server/src/database/db_postgresql.rs`) uses `deadpool-postgres` for async connection pooling and `tokio-postgres` for query execution. Since Postgres does not return Arrow natively, this backend converts `tokio-postgres` rows into Arrow `RecordBatch`es column-by-column.
 
 Construction:
 - **`PostgresqlDatabase::from_connection_string`** — parses a connection string, builds a pool (default 16 connections), and verifies connectivity.
@@ -38,17 +36,17 @@ The file includes a `pg_type_to_arrow` mapping that covers booleans, integers, f
 
 ## ClickHouse
 
-The ClickHouse backend (`server/src/database_clickhouse.rs`) uses the `clickhouse` crate, which is natively async. Queries request results in `FORMAT ArrowStream`, so the response arrives as Arrow IPC bytes that are decoded directly into `RecordBatch`es — no intermediate JSON step.
+The ClickHouse backend (`server/src/database/db_clickhouse.rs`) uses the `clickhouse` crate, which is natively async. Queries request results in `FORMAT ArrowStream`, so the response arrives as Arrow IPC bytes that are decoded directly into `RecordBatch`es — no intermediate JSON step.
 
 Construction:
 - **`ClickHouseDatabase::from_params`** — accepts URL plus optional user, password, database, access token, compression mode (`none` or `lz4`), custom settings, and HTTP headers.
 - **`ClickHouseDatabase::from_client`** — from a user-managed `clickhouse::Client`.
 
-Schema introspection uses `DESCRIBE TABLE` and maps ClickHouse types to Arrow via `ch_type_to_arrow`, handling `Nullable(…)` and `LowCardinality(…)` wrappers, decimal variants, enums, and date/time types.
+Schema introspection queries `system.columns` (filtered by `table` and `currentDatabase()`) and maps ClickHouse types to Arrow via `ch_type_to_arrow`, handling `Nullable(…)` and `LowCardinality(…)` wrappers, decimal variants, enums, and date/time types.
 
 ## Adding a New Backend
 
-To support a new database, create a `database_<backend>.rs` file that implements the four methods on the `Database` trait: executing queries, counting rows, retrieving table schemas, and generating backend-specific SQL. You will also need a corresponding SQL generator — see [SQL Generators](./sql-generators.md) for that side.
+To support a new database, create a `database/db_<backend>.rs` file that implements the four methods on the `Database` trait: executing queries, counting rows, retrieving table schemas, and generating backend-specific SQL. You will also need a corresponding SQL generator — see [SQL Generators](./sql-generators.md) for that side.
 
 Key design decisions to consider:
 

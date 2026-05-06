@@ -5,9 +5,10 @@
 # Getting Started
 
 - [Installation](./getting-started/installation.md)
+- [CLI Quick Start](./getting-started/cli-quickstart.md)
+- [Dashboards](./getting-started/dashboards.md)
 - [Server Overview](./getting-started/server-overview.md)
 - [Payment Flow](./getting-started/payment-flow.md)
-- [CLI Quick Start](./getting-started/cli-quickstart.md)
 
 # CLI Reference
 
@@ -28,7 +29,7 @@
 # Server Components
 
 - [Server Library](./server/lib.md)
-- [Root Handler](./server/root-handler.md)
+- [API Root Handler](./server/root-handler.md)
 - [Query Handler](./server/query-handler.md)
 - [Table Detail Handler](./server/table-detail-handler.md)
 - [SQL Parser](./server/sql-parser.md)
@@ -38,3 +39,4 @@
 - [Payment Configuration](./server/payment-config.md)
 - [Payment Processing](./server/payment-processing.md)
 - [Facilitator Client](./server/facilitator-client.md)
+- [Dashboards Module](./server/dashboards.md)

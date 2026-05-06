@@ -1,8 +1,9 @@
 //! Axum handler for the `GET /api/` endpoint.
 //!
-//! Returns a JSON overview of the server: identity, available endpoints,
-//! and per-table payment summaries. Intended as a machine-readable discovery
-//! document — pipe it through `jq` or open it in a browser JSON viewer.
+//! Returns a JSON discovery document describing the server: identity, available
+//! endpoints, and per-table payment summaries (one entry per registered table,
+//! sorted alphabetically). Intended for both humans (pipe through `jq` or open
+//! in a JSON viewer) and machine clients building dynamic UIs from the response.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
