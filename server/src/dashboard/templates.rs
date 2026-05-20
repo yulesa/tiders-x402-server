@@ -5,6 +5,64 @@ use std::path::{Path, PathBuf};
 use crate::cli::config::DatabaseConfig;
 use crate::dashboard::Dashboard;
 
+/// Which database flavor a scaffolded dashboard targets. Single source of
+/// truth for per-database strings substituted into templates (Evidence
+/// source name, datasource plugin id, etc.). Derive once from
+/// [`DatabaseConfig`] with [`DatasourceKind::from_database`] and pass
+/// downstream instead of N parallel `&str`s.
+#[derive(Debug, Clone, Copy)]
+pub enum DatasourceKind {
+    DuckDb,
+    Postgres,
+    ClickHouse,
+}
+
+impl DatasourceKind {
+    /// Pick the kind from a [`DatabaseConfig`]. Returns `None` if no
+    /// database backend is configured.
+    pub fn from_database(db: &DatabaseConfig) -> Option<Self> {
+        if db.duckdb.is_some() {
+            Some(Self::DuckDb)
+        } else if db.postgresql.is_some() {
+            Some(Self::Postgres)
+        } else if db.clickhouse.is_some() {
+            Some(Self::ClickHouse)
+        } else {
+            None
+        }
+    }
+
+    /// Evidence source name — schema prefix in page queries and the
+    /// directory name under `sources/`.
+    pub fn source_name(self) -> &'static str {
+        match self {
+            Self::DuckDb => "local_duckdb",
+            Self::Postgres => "pg",
+            Self::ClickHouse => "clickhouse",
+        }
+    }
+
+    /// npm package id of the Evidence datasource plugin, written into
+    /// `evidence.config.yaml` under `plugins.datasources`.
+    pub fn evidence_plugin(self) -> &'static str {
+        match self {
+            Self::DuckDb => "@evidence-dev/duckdb",
+            Self::Postgres => "@evidence-dev/postgres",
+            Self::ClickHouse => "evidence-connector-clickhouse",
+        }
+    }
+
+    /// `"<plugin>": "<semver>"` JSON line injected into `package.json`'s
+    /// `dependencies` so `npm install` pulls the right Evidence connector.
+    pub fn evidence_plugin_dependency(self) -> &'static str {
+        match self {
+            Self::DuckDb => "\"@evidence-dev/duckdb\": \"^2.0.1\"",
+            Self::Postgres => "\"@evidence-dev/postgres\": \"^1.0.10\"",
+            Self::ClickHouse => "\"evidence-connector-clickhouse\": \"^0.0.2\"",
+        }
+    }
+}
+
 static LANDING_PAGE_HTML: &str = include_str!("templates/landing_page.html");
 
 /// Renders a static `index.html` snapshot of the enabled dashboard list.
@@ -91,28 +149,43 @@ pub fn render_connection_files(db: &DatabaseConfig, project_dir: &Path) -> Vec<(
     }
 
     if let Some(pg) = &db.postgresql {
+        let parsed = parse_pg_connection_string(&pg.connection_string);
+        let get = |k: &str| parsed.get(k).map(String::as_str).unwrap_or("");
+        let database = parsed
+            .get("dbname")
+            .or_else(|| parsed.get("database"))
+            .map(String::as_str)
+            .unwrap_or("");
+        let host = get("host");
+        let port = get("port");
+        let user = get("user");
         let yaml = format!(
             "{CONNECTION_HEADER}\
              name: pg\n\
              type: postgres\n\
-             # Edit the values below to match your dashboard's read-only role.\n\
-             # The server's connection_string is shown for reference:\n\
-             #   {}\n\
-             options:\n  host: localhost\n  port: 5432\n  user: postgres\n  database: postgres\n  password: ${{PG_PASSWORD}}\n",
-            pg.connection_string
+             options:\n  \
+             host: {host}\n  \
+             port: {port}\n  \
+             user: {user}\n  \
+             database: {database}\n\
+             # The password is intentionally omitted. Evidence does not allow passing passwords through the connection file to avoid exposing them in the file system.\n\
+             # Evidence reads it from the EVIDENCE_SOURCE__pg__password env var. Set it in a .env file in this dashboard's directory or in the build-time environment.\n",
         );
         return vec![(PathBuf::from("sources/pg/connection.yaml"), yaml)];
     }
 
     if let Some(ch) = &db.clickhouse {
-        let user = ch.user.as_deref().unwrap_or("default");
-        let database = ch.database.as_deref().unwrap_or("default");
+        let username = ch.user.as_deref().unwrap_or("default");
+        let url = &ch.url;
         let yaml = format!(
             "{CONNECTION_HEADER}\
              name: clickhouse\n\
              type: clickhouse\n\
-             options:\n  url: {}\n  user: {user}\n  database: {database}\n  password: ${{CLICKHOUSE_PASSWORD}}\n",
-            ch.url
+             options:\n  \
+             url: {url}\n  \
+             username: {username}\n\
+             # The password is intentionally omitted. Evidence does not allow passing passwords through the connection file to avoid exposing them in the file system.\n\
+             # Evidence reads it from the EVIDENCE_SOURCE__clickhouse__password env var. Set it in a .env file in this dashboard's directory or in the build-time environment.\n",
         );
         return vec![(PathBuf::from("sources/clickhouse/connection.yaml"), yaml)];
     }
@@ -121,17 +194,48 @@ pub fn render_connection_files(db: &DatabaseConfig, project_dir: &Path) -> Vec<(
 }
 
 /// Generates one `sources/<source_name>/<table>.sql` file per table.
-/// Each file contains `select * from <table> limit 10` so `evidence sources`
-/// extracts a sample of every table into Parquet for the dashboard to query.
-pub fn render_sql_files(source_name: &str, tables: &[&str]) -> Vec<(PathBuf, String)> {
+/// Each file contains `select * from <qualified-table> limit 10` so
+/// `evidence sources` extracts a sample of every table into Parquet for the
+/// dashboard to query.
+pub fn render_sql_files(db: &DatabaseConfig, tables: &[&str]) -> Vec<(PathBuf, String)> {
+    let Some(datasource) = DatasourceKind::from_database(db) else {
+        return vec![];
+    };
+    let source_name = datasource.source_name();
+    let database = database_qualifier(db);
     tables
         .iter()
         .map(|table| {
             let path = PathBuf::from(format!("sources/{source_name}/{table}.sql"));
-            let sql = format!("select * from {table} limit 10\n");
+            let qualified = match &database {
+                Some(d) => format!("{d}.{table}"),
+                None => table.to_string(),
+            };
+            let sql = format!("select * from {qualified} limit 10\n");
             (path, sql)
         })
         .collect()
+}
+
+/// Database name used to qualify table references in generated `*.sql`
+/// files. DuckDB doesn't use a database qualifier; postgres pulls `dbname`
+/// from the connection string; clickhouse uses the configured `database`
+/// (falling back to `default`).
+fn database_qualifier(db: &DatabaseConfig) -> Option<String> {
+    if db.duckdb.is_some() {
+        return None;
+    }
+    if let Some(pg) = &db.postgresql {
+        let parsed = parse_pg_connection_string(&pg.connection_string);
+        return parsed
+            .get("dbname")
+            .or_else(|| parsed.get("database"))
+            .cloned();
+    }
+    if let Some(ch) = &db.clickhouse {
+        return Some(ch.database.clone().unwrap_or_else(|| "default".into()));
+    }
+    None
 }
 
 /// One embedded template file written to the dashboard project by the scaffolder.
@@ -228,19 +332,39 @@ pub const TEMPLATES: &[Template] = &[
 /// exist so the user's edits to `pages/index.md` survive re-runs.
 pub const STARTER_INDEX_MD: &str = include_str!("templates/pages/index.md");
 
-/// Fills `{{SLUG}}`, `{{SEED_TABLE}}`, and `{{SOURCE_NAME}}` placeholders in a template.
+/// Fills template placeholders: `{{SLUG}}`, `{{TITLE}}`, `{{SEED_TABLE}}`,
+/// `{{SOURCE_NAME}}`, and `{{DATASOURCE_PLUGIN}}`.
 pub fn render(
     contents: &str,
     slug: &str,
     title: &str,
     seed_table: &str,
-    source_name: &str,
+    datasource: DatasourceKind,
 ) -> String {
     contents
         .replace("{{SLUG}}", slug)
         .replace("{{TITLE}}", title)
         .replace("{{SEED_TABLE}}", seed_table)
-        .replace("{{SOURCE_NAME}}", source_name)
+        .replace("{{SOURCE_NAME}}", datasource.source_name())
+        .replace("{{DATASOURCE_PLUGIN}}", datasource.evidence_plugin())
+        .replace(
+            "{{DATASOURCE_PLUGIN_DEPENDENCY}}",
+            datasource.evidence_plugin_dependency(),
+        )
+}
+
+/// Parses a libpq-style `key=value key=value ...` postgres connection string
+/// into a map. Values may contain `${VAR}` references — those are preserved
+/// verbatim and resolved later by whoever consumes the YAML. Quoted values
+/// and escapes are not supported (the server config doesn't use them).
+fn parse_pg_connection_string(s: &str) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    for token in s.split_whitespace() {
+        if let Some((k, v)) = token.split_once('=') {
+            map.insert(k.to_string(), v.to_string());
+        }
+    }
+    map
 }
 
 /// Computes a relative path from directory `from` to file `to`.

@@ -275,7 +275,7 @@ fn run_dashboard(
     use crate::dashboard::config::ScaffoldInput;
     use crate::dashboard::scaffold::scaffold_dashboard_folder;
     use crate::dashboard::templates::{
-        render_connection_files, render_landing_page_file, render_sql_files,
+        DatasourceKind, render_connection_files, render_landing_page_file, render_sql_files,
     };
 
     let resolved = builder::resolve_dashboards(config);
@@ -311,11 +311,15 @@ fn run_dashboard(
     // All table names drive SQL file generation; the first also seeds pages/index.md.
     let all_tables: Vec<&str> = config.tables.iter().map(|t| t.name.as_str()).collect();
     let seed_table = all_tables.first().copied().unwrap_or("YOUR_TABLE");
-    let source_name = match &config.database {
-        db if db.duckdb.is_some() => "local_duckdb",
-        db if db.postgresql.is_some() => "pg",
-        db if db.clickhouse.is_some() => "clickhouse",
-        _ => "",
+    let datasource = match DatasourceKind::from_database(&config.database) {
+        Some(k) => k,
+        None => {
+            tracing::error!(
+                "No database backend configured. Set `database.duckdb`, \
+                 `database.postgresql`, or `database.clickhouse` in your config."
+            );
+            return ExitCode::FAILURE;
+        }
     };
 
     for d in targets {
@@ -331,14 +335,14 @@ fn run_dashboard(
 
         // Create pre-rendered files with a relative path and content`(project-relative path, content)`
         let mut rendered_files = render_connection_files(&config.database, &d.folder_path);
-        rendered_files.extend(render_sql_files(source_name, &all_tables));
+        rendered_files.extend(render_sql_files(&config.database, &all_tables));
 
         let input = ScaffoldInput {
             project_dir: &d.folder_path,
             slug: &d.slug,
             title: &d.title,
             seed_table,
-            source_name,
+            datasource,
             force,
             rendered_files,
         };

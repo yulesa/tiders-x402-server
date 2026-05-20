@@ -1,14 +1,14 @@
 # Query Handler
 
-The query handler (`server/src/handler_api_query.rs`) is the Axum handler for the `POST /api/query` endpoint. It is the core of the server logic: it receives SQL queries from clients, validates them, checks whether payment is required, and orchestrates the x402 V2 payment flow when needed.
+The query handler (`server/src/handler_api_query.rs`) is the Axum handler for the `GET /api/query` endpoint. It is the core of the server logic: it receives SQL queries from clients, validates them, checks whether payment is required, and orchestrates the x402 V2 payment flow when needed.
 
-The handler accepts a JSON body:
+The handler accepts the SQL via the `query` URL parameter:
 
-```json
-{ "query": "SELECT * FROM my_table LIMIT 10" }
+```
+GET /api/query?query=SELECT%20*%20FROM%20my_table%20LIMIT%2010
 ```
 
-For paid tables, a successful request typically involves two steps. First, the client submits a query without payment to discover the price. The server responds with a 402 containing the payment conditions — most importantly, the cost. Then the client resubmits the same query with a `Payment-Signature` header attached.
+For paid tables, a successful request typically involves two steps. First, the client submits a query without payment to discover the price. The server responds with a 402 containing the payment conditions — most importantly, the cost. The 402's `resource.url` echoes the full URL (including the query string), so the client can retry the same URL with a `Payment-Signature` header attached.
 
 ## Processing Flow
 

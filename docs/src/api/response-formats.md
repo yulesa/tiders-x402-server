@@ -2,7 +2,7 @@
 
 ## Arrow IPC (Success)
 
-Successful queries to `POST /api/query` return data in [Apache Arrow IPC streaming format](https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format).
+Successful queries to `GET /api/query` return data in [Apache Arrow IPC streaming format](https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format).
 
 ```
 Content-Type: application/vnd.apache.arrow.stream
@@ -15,7 +15,7 @@ Arrow IPC is a binary columnar format that is significantly more efficient than 
 ```typescript
 import * as arrow from 'apache-arrow';
 
-const response = await fetch("http://localhost:4021/api/query", { ... });
+const response = await fetch("http://localhost:4021/api/query?query=" + encodeURIComponent(sql));
 const arrayBuffer = await response.arrayBuffer();
 const table = arrow.tableFromIPC(arrayBuffer);
 
@@ -62,7 +62,7 @@ Payment-Required: <base64>
   "x402Version": 2,
   "error": "No crypto payment found...",
   "resource": {
-    "url": "http://localhost:4021/api/query",
+    "url": "http://localhost:4021/api/query?query=SELECT%20*%20FROM%20uniswap_v3_pool_swap%20LIMIT%202",
     "description": "Uniswap v3 pool swaps - 2 rows",
     "mimeType": "application/vnd.apache.arrow.stream"
   },

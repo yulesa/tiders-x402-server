@@ -18,7 +18,7 @@ The server is organized into the following modules under `server/src/`:
 |--------|---------|
 | `lib.rs` | Server bootstrap: builds the Axum router, mounts API + dashboard routes, installs tracing/OTLP, handles graceful shutdown |
 | `handler_api_root.rs` | `GET /api/` — JSON discovery document with server info, endpoints, and per-table summaries |
-| `handler_api_query.rs` | `POST /api/query` — main handler for query execution and the x402 payment flow |
+| `handler_api_query.rs` | `GET /api/query` — main handler for query execution and the x402 payment flow |
 | `handler_api_table_detail.rs` | `GET /api/table/{name}` — table schema and payment offers |
 | `cli/` | YAML config types (`config.rs`), YAML file loader and validation, env-var expansion and file watcher |
 | `dashboard/` | Dashboard config (`config.rs`), Axum sub-router (`routes.rs`), scaffolder (`scaffold.rs`), embedded Evidence templates (`templates.rs` + `templates/`) |
@@ -27,7 +27,7 @@ The server is organized into the following modules under `server/src/`:
 
 ## Request Lifecycle
 
-For a paid query against `POST /api/query`:
+For a paid query against `GET /api/query`:
 
 1. **Axum** receives the HTTP request, the routing layer matches `/api/*` to the API sub-router; everything else falls through to the dashboard sub-router.
 2. **`sql_parser`** parses the SQL string and rejects unsafe constructs.
@@ -42,4 +42,4 @@ When started via `tiders-x402-server start` (without `--no-watch`), a `notify`-b
 
 ## Observability
 
-The server emits structured logs via `tracing` and, when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, exports OpenTelemetry spans over OTLP/gRPC. Each `POST /api/query` request gets its own `api_query` span; facilitator calls (`/verify`, `/settle`) are wrapped in their own spans with success/error status. The service name defaults to `tiders-x402` and can be overridden with `OTEL_SERVICE_NAME`.
+The server emits structured logs via `tracing` and, when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, exports OpenTelemetry spans over OTLP/gRPC. Each `GET /api/query` request gets its own `api_query` span; facilitator calls (`/verify`, `/settle`) are wrapped in their own spans with success/error status. The service name defaults to `tiders-x402` and can be overridden with `OTEL_SERVICE_NAME`.

@@ -585,11 +585,11 @@
 
           <div class="mini-list">
             <strong>Through dashboards</strong>
-            <span>Each dashboard ships with a download button. Visitors connect a wallet, modify a pre-configured query, if necessary sign the x402 payment in-browser, and the resulted data is converted to a CSV file — no code required.</span>
+            <span>Each dashboard ships with a Tiders download button. Visitors connect a wallet, modify a pre-configured query, sign the x402 payment in-browser, and the resulted data is converted to a CSV file — no code required.</span>
           </div>
           <div class="mini-list">
             <strong>Through code</strong>
-            <span>Send a <code>POST /api/query</code> with a simple <code>SELECT</code> — <code>WHERE</code>, <code>ORDER BY</code>, and <code>LIMIT</code> are supported; Subqueries, <code>JOIN</code>, <code>CTEs</code>, <code>GROUP BY</code>, aggregates, and window functions are rejected (see the docs for the full grammar).</span>
+            <span>Send a <code>GET /api/query?query=…</code> with a simple <code>SELECT</code> — <code>WHERE</code>, <code>ORDER BY</code>, and <code>LIMIT</code> are supported; Subqueries, <code>JOIN</code>, <code>CTEs</code>, <code>GROUP BY</code>, aggregates, and window functions are rejected (see the docs for the full grammar).</span>
             <span>Wrap the call using any <a href="https://github.com/x402-foundation/x402" target="_blank" rel="noopener">x402 Protocol</a> client library and it handles pricing, settlement, and signing for you. Results stream back as Apache Arrow IPC.</span>
           </div>
 

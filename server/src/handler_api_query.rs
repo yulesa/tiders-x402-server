@@ -1,4 +1,4 @@
-//! Axum handler for the `POST /api/query` endpoint.
+//! Axum handler for the `GET /api/query` endpoint.
 //!
 //! Parses incoming SQL queries, checks whether the target table requires
 //! payment via the x402 protocol, and either returns results directly
@@ -11,9 +11,8 @@ use crate::database::sql_parser::{analyze_query, create_estimate_rows_query};
 use crate::payment::config::GlobalPaymentConfig;
 use crate::payment::processing::{settle_payment, verify_payment};
 use arrow::record_batch::RecordBatch;
-use axum::Json;
 use axum::body::Bytes;
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::IntoResponse;
 use http::Uri;
@@ -23,14 +22,14 @@ use tracing::instrument;
 use x402_types::proto::v2::{PaymentPayload, PaymentRequirements, VerifyResponse};
 use x402_types::util::Base64Bytes;
 
-/// JSON body for the `POST /api/query` endpoint.
+/// Query-string parameters for the `GET /api/query` endpoint.
 #[derive(Debug, Deserialize)]
 pub struct QueryRequest {
     /// The SQL query to execute against the database.
     pub query: String,
 }
 
-/// Main axum handler for the `POST /api/query` route.
+/// Main axum handler for the `GET /api/query` route.
 ///
 /// Workflow:
 /// 1. Parse and validate the SQL query, then render it in the active backend's dialect.
@@ -51,10 +50,14 @@ pub async fn query_handler(
     State(state): State<Arc<AppState>>,
     uri: Uri,
     headers: HeaderMap,
-    Json(query_req): Json<QueryRequest>,
+    Query(query_req): Query<QueryRequest>,
 ) -> Result<axum::response::Response, QueryError> {
-    // Extract the path from the request URI
-    let path = uri.path();
+    // The 402 `resource.url` must be the *exact* URL the client should retry
+    // against. Under GET the SQL lives in the query string, so include it.
+    let path = uri
+        .path_and_query()
+        .map(|pq| pq.as_str())
+        .unwrap_or(uri.path());
 
     // Parse and validate query first
     tracing::info!("Received query: {}", query_req.query);

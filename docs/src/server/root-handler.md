@@ -14,7 +14,7 @@ The API root handler (`server/src/handler_api_root.rs`) serves the `GET /api/` e
   "endpoints": {
     "GET /api/":             { "description": "..." },
     "GET /api/table/{name}": { "description": "...", "response_format": "application/json" },
-    "POST /api/query":       { "description": "...", "response_format": "application/vnd.apache.arrow.stream" }
+    "GET /api/query":        { "description": "...", "response_format": "application/vnd.apache.arrow.stream" }
   },
   "tables": [
     {

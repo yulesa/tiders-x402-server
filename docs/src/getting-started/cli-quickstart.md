@@ -2,6 +2,8 @@
 
 The fastest way to run a tiders-x402-server — no code required. Write a YAML config file, point the CLI at it, and the server is live.
 
+Tiders-x402-server assumes you already have a database populated with the data you want to sell. If you don't, the [Tiders ingestion tool](https://github.com/yulesa/tiders) can help you stand one up and load it with crypto data — see [Choosing a Database](https://yulesa.github.io/tiders-docs/getting_started/choosing_a_database.html) for guidance on picking a backend.
+
 ## 1. Install
 
 ```bash
@@ -84,29 +86,7 @@ tiders-x402-server validate
 
 On success it logs the number of registered tables; on failure it prints a descriptive error and exits non-zero.
 
-## 5. Dashboard
-
-Scaffold all dashboards defined in the YAML at once, or a specific one by slug:
-
-```bash
-tiders-x402-server dashboard          # scaffold all entries
-tiders-x402-server dashboard <slug>   # scaffold one
-```
-
-This copies a minimal [Evidence](https://evidence.dev/) project template into `<dashboards>/<slug>/`. From there, edit the files, mainly `<dashboards>/<slug>/pages/index.md`, to build your reports — the [Evidence docs](https://docs.evidence.dev/) cover the full authoring workflow.
-
-> **Note:** Data visible in the dashboard can be scraped freely without payment. Only expose data you are comfortable sharing publicly, and leave anything sensitive behind the paid API instead.
-
-Once the dashboard is ready, build it into a static site:
-
-```bash
-(cd <dashboards>/<slug> && npm install && npm run build)
-```
-
-The server will pick up and serve the built files automatically. Dashboards are static — they do not update live. Rebuild whenever the underlying data changes.
-
-
-## 6. Start the Server
+## 5. Start the Server
 
 ```bash
 # Auto-discovers the config file in the current directory
@@ -120,7 +100,7 @@ The CLI auto-discovers `.yaml`/`.yml` files in the current directory that contai
 
 By default the CLI watches the config file for changes and hot-reloads tables, pricing, facilitator settings, and dashboard configuration without restarting. Disable this with `--no-watch`.
 
-## 7. Verify
+## 6. Verify
 
 ```bash
 curl http://localhost:4021/api/
@@ -131,13 +111,33 @@ You should get a JSON discovery document listing your tables, pricing tiers, and
 To run a query:
 
 ```bash
-curl -X POST http://localhost:4021/api/query \
-  -H "Content-Type: application/json" \
-  -d '{"query": "SELECT * FROM my_table LIMIT 10"}'
+curl --get http://localhost:4021/api/query \
+  --data-urlencode "query=SELECT * FROM my_table LIMIT 10"
 # Returns 402 with payment options
 ```
 
 Use one of the [client scripts](https://github.com/yulesa/tiders-x402-server/tree/main/client-scripts) (Python or TypeScript) to handle the x402 payment flow end-to-end.
+
+## 7. Create the dashboards (optional)
+
+You can create dashboards before or after starting the server. Scaffold all dashboards defined in the YAML at once, or a specific one by slug:
+
+```bash
+tiders-x402-server dashboard          # scaffold all entries
+tiders-x402-server dashboard <slug>   # scaffold one
+```
+
+This copies a minimal [Evidence](https://evidence.dev/) project template into `<dashboards>/<slug>/`. From there, edit the files, mainly `<dashboards>/<slug>/pages/index.md`, to build your reports — the [Evidence docs](https://docs.evidence.dev/) cover the full dashboard authoring workflow.
+
+> **Note:** Data visible in the dashboard can be scraped freely without payment. Only expose data you are comfortable sharing publicly, and leave anything sensitive behind the paid API instead.
+
+Once the dashboard is ready, build it into a static site:
+
+```bash
+(cd <dashboards>/<slug> && npm install && npm run build)
+```
+
+The server will pick up and serve the built files automatically. Dashboards are static — they do not update live. Rebuild whenever the underlying data changes.
 
 ## Next Steps
 

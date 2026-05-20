@@ -17,7 +17,7 @@
 //!
 //! - `GET /` — landing page listing enabled dashboards.
 //! - `GET /api/` — server metadata and available data offers.
-//! - `POST /api/query` — the main endpoint where clients submit paid data queries.
+//! - `GET /api/query` — the main endpoint where clients submit paid data queries.
 //! - `GET /api/table/{name}` — schema and pricing for a single table.
 //! - `GET /<dashboard>/` — static Evidence dashboard, one per `dashboards:` entry.
 
@@ -34,7 +34,7 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 use axum::Router;
-use axum::routing::{get, post};
+use axum::routing::get;
 use dotenvy::dotenv;
 use opentelemetry::trace::{Status, TracerProvider};
 use tokio::signal;
@@ -166,7 +166,7 @@ pub async fn start_server(state: AppState) {
     // Layout:
     //   GET  /                  → landing_handler (only mounted when dashboards exist)
     //   GET  /api/              → discovery document
-    //   POST /api/query         → SQL query endpoint
+    //   GET  /api/query         → SQL query endpoint (SQL passed as `?query=...`)
     //   GET  /api/table/{name}  → table metadata
     //   *                       → DashboardSwap fallback (serves /<slug>/... for each dashboard)
     //
@@ -175,7 +175,7 @@ pub async fn start_server(state: AppState) {
     // without taking a lock or dropping in-flight requests.
     let api_router = Router::new()
         .route("/", get(api_root_handler))
-        .route("/query", post(query_handler))
+        .route("/query", get(query_handler))
         .route("/table/{name}", get(table_detail_handler));
 
     let dashboards_service = DashboardSwap(state.dashboard_router.clone());
@@ -195,7 +195,7 @@ pub async fn start_server(state: AppState) {
         TraceLayer::new_for_http()
             .make_span_with(|request: &axum::http::Request<_>| {
                 let is_query = request.uri().path() == "/api/query"
-                    && request.method() == axum::http::Method::POST;
+                    && request.method() == axum::http::Method::GET;
                 if is_query {
                     tracing::info_span!(
                         "api_query",

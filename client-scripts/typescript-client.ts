@@ -45,16 +45,11 @@ async function main() {
     console.log(await rootResponse.text());
     console.log("===================\n");
 
+    const sql = "SELECT * FROM uniswap_v3_pool_swap LIMIT 2;";
+    const queryUrl = `http://localhost:4021/api/query?query=${encodeURIComponent(sql)}`;
+
     // First, make a plain fetch to see the 402 payment request response
-    const initialResponse = await fetch("http://localhost:4021/query", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: "SELECT * FROM uniswap_v3_pool_swap LIMIT 2;"
-      })
-    });
+    const initialResponse = await fetch(queryUrl);
     console.log("=== Initial 402 Response ===");
     console.log("Status:", initialResponse.status);
     console.log("Headers:", Object.fromEntries(initialResponse.headers.entries()));
@@ -62,16 +57,8 @@ async function main() {
     console.log("Body:", initialBody);
     console.log("============================\n");
 
-    // Make a POST request with the query
-    const response = await fetchWithPay("http://localhost:4021/query", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: "SELECT * FROM uniswap_v3_pool_swap LIMIT 2;"
-      })
-    });
+    // Make a GET request with the query — x402-fetch handles the payment retry
+    const response = await fetchWithPay(queryUrl);
 
     if (!response.ok) {
       console.log('Response status:', response.status);

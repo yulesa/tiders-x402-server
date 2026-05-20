@@ -4,8 +4,8 @@
 //! configuration when hot-reloadable fields change. Logs warnings for
 //! fields that require a server restart.
 
-use std::path::Path;
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use arc_swap::ArcSwap;
 use axum::Router;
@@ -13,7 +13,7 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::RwLock;
 
 use crate::Database;
-use crate::dashboard::{DashboardsState, build_dashboard_router};
+use crate::dashboard::{Dashboard, DashboardsState, build_dashboard_router};
 use crate::payment::config::GlobalPaymentConfig;
 
 use super::builder::resolve_dashboards;
@@ -52,14 +52,14 @@ pub fn start_watcher(
     db: Arc<dyn Database>,
     dashboards: SharedDashboards,
     dashboard_router: SharedDashboardRouter,
-) -> Result<RecommendedWatcher, notify::Error> {
+) -> Result<Arc<Mutex<RecommendedWatcher>>, notify::Error> {
     let original_bind = original_config.server.bind_address.clone();
     let original_base_url = original_config.server.base_url.clone();
     let original_db_fingerprint = db_fingerprint(&original_config.database);
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(1);
 
-    let mut watcher = RecommendedWatcher::new(
+    let watcher = RecommendedWatcher::new(
         move |res: Result<Event, notify::Error>| {
             if let Ok(event) = res
                 && matches!(
@@ -73,15 +73,31 @@ pub fn start_watcher(
         },
         notify::Config::default(),
     )?;
+    let watcher: Arc<Mutex<notify::INotifyWatcher>> = Arc::new(Mutex::new(watcher));
 
     // Watch the parent directory to catch atomic renames (editors often
     // write to a temp file then rename).
     let watch_dir = config_path
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."));
-    watcher.watch(watch_dir, RecursiveMode::NonRecursive)?;
+    watcher
+        .lock()
+        .unwrap()
+        .watch(watch_dir, RecursiveMode::NonRecursive)?;
+
+    // Subscribe to each dashboard's folder/build paths so a fresh
+    // `npm run build` (which materializes `build/index.html`) wakes the
+    // reload loop and flips the route from the "unbuilt" placeholder to
+    // ServeDir.
+    let mut dashboard_paths: Vec<PathBuf> = Vec::new();
+    refresh_dashboard_watches(
+        &mut watcher.lock().unwrap(),
+        &mut dashboard_paths,
+        &resolve_dashboards(original_config).dashboards,
+    );
 
     let config_path_clone = config_path.to_path_buf();
+    let watcher_for_task = watcher.clone();
 
     // Spawn the reload loop
     tokio::spawn(async move {
@@ -121,6 +137,11 @@ pub fn start_watcher(
             let new_router = build_dashboard_router(&resolved.dashboards);
             dashboard_router.store(Arc::new(new_router));
             let enabled_count = resolved.dashboards.iter().filter(|d| d.enabled).count();
+            refresh_dashboard_watches(
+                &mut watcher_for_task.lock().unwrap(),
+                &mut dashboard_paths,
+                &resolved.dashboards,
+            );
             dashboards.store(Arc::new(resolved));
             tracing::info!("Dashboard routes reloaded ({enabled_count} enabled).");
 
@@ -158,6 +179,33 @@ pub fn start_watcher(
     });
 
     Ok(watcher)
+}
+
+/// Re-subscribes the filesystem watcher to each enabled dashboard's
+/// `folder_path` (and `build_path` when it exists). Events on these paths
+/// are funneled into the same debounce channel used for config-file
+/// changes, so a fresh `npm run build` triggers a router rebuild — that's
+/// what flips the route from the "unbuilt" placeholder to `ServeDir`.
+///
+/// Watches are non-recursive on purpose: `node_modules/` is huge and
+/// changes inside an existing `build/` are already served dynamically by
+/// `ServeDir`. The only routing-relevant transition is `build/index.html`
+/// appearing or disappearing, which surfaces as a direct-child event.
+fn refresh_dashboard_watches(
+    watcher: &mut RecommendedWatcher,
+    currently_watched: &mut Vec<PathBuf>,
+    dashboards: &[Dashboard],
+) {
+    for p in currently_watched.drain(..) {
+        let _ = watcher.unwatch(&p);
+    }
+    for d in dashboards.iter().filter(|d| d.enabled) {
+        for path in [&d.folder_path, &d.build_path] {
+            if path.is_dir() && watcher.watch(path, RecursiveMode::NonRecursive).is_ok() {
+                currently_watched.push(path.clone());
+            }
+        }
+    }
 }
 
 /// A rough fingerprint of the database config for change detection.

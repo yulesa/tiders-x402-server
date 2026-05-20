@@ -49,12 +49,12 @@ def main():
     print(root_response.text)
     print("===================\n")
 
-    query_payload = {"query": "SELECT * FROM uniswap_v3_pool_swap LIMIT 2;"}
+    query_params = {"query": "SELECT * FROM uniswap_v3_pool_swap LIMIT 2;"}
 
     # First, make a plain request to see the 402 payment required response
-    initial_response = requests.post(
-        "http://localhost:4021/query",
-        json=query_payload,
+    initial_response = requests.get(
+        "http://localhost:4021/api/query",
+        params=query_params,
     )
     print("=== Initial 402 Response ===")
     print("Status:", initial_response.status_code)
@@ -63,9 +63,9 @@ def main():
     print("============================\n")
 
     # Make a request with automatic payment handling
-    response = session.post(
-        "http://localhost:4021/query",
-        json=query_payload,
+    response = session.get(
+        "http://localhost:4021/api/query",
+        params=query_params,
     )
 
     if not response.ok:

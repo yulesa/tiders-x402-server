@@ -23,8 +23,7 @@ database:
     path: "../data/duckdb.db"
 
   # postgresql:
-  #   connection_string: "host=${PG_HOST} port=${PG_PORT} user=${PG_USER} password=${PG_PASSWORD} dbname={PG_DB}"
-  #   max_pool_size: 16
+    # connection_string: "host=${PG_HOST} port=${PG_PORT} user=${PG_USER} password=${PG_PASSWORD} dbname=${PG_DB}"
 
   # clickhouse:
   #   url: "http://${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}"

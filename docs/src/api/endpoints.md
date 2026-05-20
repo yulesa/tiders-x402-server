@@ -7,7 +7,7 @@ The server exposes the following HTTP endpoints:
 | `GET` | `/` | Dashboard landing page (HTML), only mounted when `dashboards:` is configured |
 | `GET` | `/{slug}/...` | Static files for an Evidence dashboard (one route per `dashboards:` entry) |
 | `GET` | `/api/` | JSON discovery document — server info, endpoints, table summaries |
-| `POST` | `/api/query` | Submit a SQL query (paywalled per the table's price tags) |
+| `GET` | `/api/query?query=…` | Submit a SQL query (paywalled per the table's price tags) |
 | `GET` | `/api/table/{name}` | Full schema and pricing for a single table; optionally paywalled via `MetadataPrice` |
 
 All paid endpoints follow the [x402 V2 protocol](./payment-protocol.md). The `Payment-Signature` header carries the base64-encoded `PaymentPayload`; the server replies with a `Payment-Required` header on 402 alongside a JSON body.
@@ -44,7 +44,7 @@ curl http://localhost:4021/api/
   "endpoints": {
     "GET /api/":              { "description": "This document." },
     "GET /api/table/{name}":  { "description": "...", "response_format": "application/json" },
-    "POST /api/query":        { "description": "...", "response_format": "application/vnd.apache.arrow.stream" }
+    "GET /api/query":         { "description": "...", "response_format": "application/vnd.apache.arrow.stream" }
   },
   "tables": [
     {
@@ -70,25 +70,24 @@ curl http://localhost:4021/api/
 
 ---
 
-## `POST /api/query`
+## `GET /api/query`
 
-Executes a SQL query against the database.
+Executes a SQL query against the database. The SQL is passed via the `query` URL parameter (URL-encoded).
 
 Queries must conform to a restricted SQL dialect ("Simplified SQL") whose AST permits only `SELECT` statements against a single table, with a limited set of `WHERE`, `ORDER BY`, and `LIMIT` expressions. JOINs, subqueries, GROUP BY, CTEs, window functions, and aggregates are rejected. See the [SQL Parser](../server/sql-parser.md) page for the full grammar.
 
 **Request**
 
 ```bash
-curl -X POST http://localhost:4021/api/query \
-  -H "Content-Type: application/json" \
-  -d '{"query": "SELECT * FROM my_table WHERE col1 = '\''value'\'' LIMIT 10"}'
+curl --get http://localhost:4021/api/query \
+  --data-urlencode "query=SELECT * FROM my_table WHERE col1 = 'value' LIMIT 10"
 ```
 
-**Request Body**
+**Query parameters**
 
-```json
-{ "query": "SELECT * FROM my_table WHERE col1 = 'value' LIMIT 10" }
-```
+| Name | Description |
+|------|-------------|
+| `query` | The SQL statement to execute, URL-encoded. |
 
 ### 200 OK — Arrow IPC
 
@@ -114,7 +113,7 @@ Payment-Required: <base64-encoded JSON payload>
   "x402Version": 2,
   "error": "No crypto payment found. Implement x402 protocol...",
   "resource": {
-    "url": "http://localhost:4021/api/query",
+    "url": "http://localhost:4021/api/query?query=SELECT%20*%20FROM%20uniswap_v3_pool_swap%20LIMIT%202",
     "description": "Uniswap v3 pool swaps - 2 rows",
     "mimeType": "application/vnd.apache.arrow.stream"
   },
@@ -134,7 +133,7 @@ Payment-Required: <base64-encoded JSON payload>
 
 ### Response Errors
 
-**400 Bad Request** — malformed JSON, invalid SQL, unsupported table, or undecodable payment header. Plain text body.
+**400 Bad Request** — missing/invalid `query` parameter, invalid SQL, unsupported table, or undecodable payment header. Plain text body.
 
 **500 Internal Server Error** — database, serialization, or facilitator error. Plain text body.
 
@@ -142,7 +141,6 @@ Payment-Required: <base64-encoded JSON payload>
 
 | Header | Direction | Description |
 |--------|-----------|-------------|
-| `Content-Type: application/json` | Request | Required for POST body |
 | `Payment-Required` | Response | Base64-encoded payment requirements on 402 |
 | `Payment-Signature` | Request | Base64-encoded `PaymentPayload` (Step 2 of the x402 flow) |
 | `Content-Type: application/vnd.apache.arrow.stream` | Response | Arrow IPC data on 200 |
@@ -182,7 +180,7 @@ The serialized `TablePaymentOffers`:
 }
 ```
 
-**Response (402 Payment Required)** — when the table has a `MetadataPrice` tag and no valid `Payment-Signature` is provided. Same body shape as the 402 from `POST /api/query`, but with `mimeType: "application/json"` and the `resource.url` pointing at the metadata endpoint.
+**Response (402 Payment Required)** — when the table has a `MetadataPrice` tag and no valid `Payment-Signature` is provided. Same body shape as the 402 from `GET /api/query`, but with `mimeType: "application/json"` and the `resource.url` pointing at the metadata endpoint.
 
 **Response (404 Not Found)**
 

@@ -100,9 +100,9 @@ pub async fn api_root_handler(State(state): State<Arc<AppState>>) -> impl IntoRe
         },
     );
     endpoints.insert(
-        "POST /api/query".to_string(),
+        "GET /api/query".to_string(),
         EndpointInfo {
-            description: "Submit a SELECT query (JSON body: {\"query\": \"SELECT …\"}). \
+            description: "Submit a SELECT query via the `query` URL parameter (e.g. `/api/query?query=SELECT%20…`). \
                           Paid tables respond with HTTP 402 — use an x402 client library \
                           (https://github.com/x402-foundation/x402) to handle payment automatically."
                 .to_string(),

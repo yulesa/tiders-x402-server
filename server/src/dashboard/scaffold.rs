@@ -79,7 +79,7 @@ pub fn scaffold_dashboard_folder(input: &ScaffoldInput<'_>) -> Result<ScaffoldRe
                 input.slug,
                 input.title,
                 input.seed_table,
-                input.source_name,
+                input.datasource,
             )
         } else {
             tpl.contents.to_string()
@@ -128,7 +128,7 @@ pub fn scaffold_dashboard_folder(input: &ScaffoldInput<'_>) -> Result<ScaffoldRe
             input.slug,
             input.title,
             input.seed_table,
-            input.source_name,
+            input.datasource,
         );
         write_file(&index_md_path, &starter)?;
         written.push(index_md_rel.to_string());
