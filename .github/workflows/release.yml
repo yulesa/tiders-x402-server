@@ -86,8 +86,9 @@ jobs:
           path: cli-python/dist
 
   publish-cli-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     needs: [publish-crates]
+    continue-on-error: true
     strategy:
       matrix:
         platform:
@@ -115,6 +116,7 @@ jobs:
     name: Publish CLI to PyPI (tiders-x402-server)
     runs-on: ubuntu-latest
     needs: [publish-cli-linux, publish-cli-macos, publish-cli-windows]
+    if: ${{ always() && needs.publish-cli-linux.result == 'success' && needs.publish-cli-macos.result == 'success' }}
     steps:
       - uses: actions/download-artifact@v5
         with:
