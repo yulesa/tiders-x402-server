@@ -73,7 +73,7 @@ pub fn start_watcher(
         },
         notify::Config::default(),
     )?;
-    let watcher: Arc<Mutex<notify::INotifyWatcher>> = Arc::new(Mutex::new(watcher));
+    let watcher: Arc<Mutex<RecommendedWatcher>> = Arc::new(Mutex::new(watcher));
 
     // Watch the parent directory to catch atomic renames (editors often
     // write to a temp file then rename).
