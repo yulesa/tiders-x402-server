@@ -11,6 +11,9 @@
 
 use std::path::{Path, PathBuf};
 
+#[cfg(feature = "cli")]
+use crate::dashboard::templates::DatasourceKind;
+
 /// Runtime dashboards state: the root directory and all configured dashboards.
 #[derive(Debug, Clone)]
 pub struct DashboardsState {
@@ -73,9 +76,10 @@ pub struct ScaffoldInput<'a> {
     /// First table from `tables:` — used as the default in the starter
     /// `pages/index.md` so a freshly scaffolded dashboard works out of the box.
     pub seed_table: &'a str,
-    /// Evidence source name — becomes the schema prefix in page queries
-    /// (e.g. `local_duckdb`, `pg`, `clickhouse`).
-    pub source_name: &'a str,
+    /// Database flavor this dashboard targets. Single source of truth for
+    /// per-database template strings (source name, Evidence datasource
+    /// plugin, etc.).
+    pub datasource: DatasourceKind,
     /// When true, allow overwriting a non-empty existing project directory.
     /// User-owned files (`pages/*.md`, `sources/**/*.sql`) are still preserved;
     /// modified managed files are backed up to `.old/` before being replaced.

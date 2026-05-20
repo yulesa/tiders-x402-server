@@ -32,7 +32,7 @@ The router is built in two layers:
 
 | Layer | Mounts | Description |
 |-------|--------|-------------|
-| API sub-router (`/api/*`) | `GET /api/`, `POST /api/query`, `GET /api/table/{name}` | Always mounted |
+| API sub-router (`/api/*`) | `GET /api/`, `GET /api/query`, `GET /api/table/{name}` | Always mounted |
 | Landing page (`GET /`) | `landing_handler` | Only mounted when at least one dashboard is configured |
 | Dashboard fallback service | everything else | A `tower::Service` that reads the current dashboard router from `arc-swap` and forwards the request. Lock-free, so config reloads don't block in-flight requests |
 
@@ -45,7 +45,7 @@ The server emits structured logs via `tracing` and supports OpenTelemetry export
 - Set `OTEL_EXPORTER_OTLP_ENDPOINT` to enable OTLP export. When unset, only console logging is active.
 - Set `OTEL_SERVICE_NAME` to override the service name (defaults to `tiders-x402`).
 
-`POST /api/query` requests are wrapped in a dedicated `api_query` span with method, URI, and HTTP status; all other requests fall back to a `http_request` debug span. Span status is set to `Status::error` when the response is 4xx/5xx and `Status::Ok` otherwise.
+`GET /api/query` requests are wrapped in a dedicated `api_query` span with method, URI, and HTTP status; all other requests fall back to a `http_request` debug span. Span status is set to `Status::error` when the response is 4xx/5xx and `Status::Ok` otherwise.
 
 ## Middleware
 
@@ -66,7 +66,7 @@ When the server receives Ctrl+C (or SIGTERM on Unix), it stops accepting new con
 | `database` | `database/` | `Database` trait, per-backend impls, SQL parser, SQL generators |
 | `payment` | `payment/` | Pricing model, payment config, verify/settle, facilitator client |
 | `handler_api_root` | `handler_api_root.rs` | `GET /api/` |
-| `handler_api_query` | `handler_api_query.rs` | `POST /api/query` |
+| `handler_api_query` | `handler_api_query.rs` | `GET /api/query` |
 | `handler_api_table_detail` | `handler_api_table_detail.rs` | `GET /api/table/{name}` |
 
 Top-level re-exports for SDK ergonomics: `Database`, `GlobalPaymentConfig`, `FacilitatorClient`, `PriceTag`, `PricingModel`, `TablePaymentOffers`.

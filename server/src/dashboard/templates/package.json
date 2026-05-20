@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@evidence-dev/core-components": "^5.4.2",
-    "@evidence-dev/duckdb": "^2.0.1",
+    {{DATASOURCE_PLUGIN_DEPENDENCY}},
     "@evidence-dev/evidence": "^40.1.8",
     "@wagmi/connectors": "^8.0.5",
     "@wagmi/core": "^3.4.6",

@@ -56,7 +56,7 @@ dashboards/
       index.md                # (edit) user-owned dashboard main page (created once, never overwritten)
     sources/                  # dashboard data sources referenced in the pages
       <source_name>/
-        connection.yaml       # generated from `database:` (DuckDB / PG / ClickHouse)
+        connection.yaml       # (edit) evidence database connection credetials: (DuckDB / PG / ClickHouse)
         <table>.sql           # (edit) database sourced sql files: `select * from <table> limit 10`
     components/               # Tiders custom components and libraries.
       ConnectButton.svelte

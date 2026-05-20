@@ -1,6 +1,8 @@
 # Payment Flow
 
-The server implements a two-step HTTP payment flow based on the [x402 protocol](https://www.x402.org/) (V2). The flow differs slightly depending on whether the table uses **per-row**, **fixed**, or **metadata** pricing.
+The server implements a two-step HTTP payment flow based on the [x402 protocol](https://www.x402.org/) (V2). The exact flow differs slightly depending on whether a table uses **per-row**, **fixed**, or **metadata** pricing. This document describes the flow from the server's side.
+
+Clients calling x402-gated APIs must also implement x402 logic to react to a `402 Payment Required` response. Out-of-the-box client implementations are available in the official [x402-foundation GitHub repository](https://github.com/x402-foundation/x402).
 
 ## Pricing Flow
 
@@ -8,7 +10,7 @@ The server implements a two-step HTTP payment flow based on the [x402 protocol](
 
 ## Step 1: Estimation
 
-When a client sends a query to `POST /api/query` (or `GET /api/table/{name}` for metadata) without a `Payment-Signature` header:
+When a client sends a query to `GET /api/query?query=…` (or `GET /api/table/{name}` for metadata) without a `Payment-Signature` header:
 
 1. The server parses and validates the SQL.
 2. For **per-row** tables: it wraps the query in `SELECT COUNT(*) FROM (...)` to estimate the row count, then computes the applicable pricing tiers.
@@ -22,7 +24,7 @@ When a client sends a query to `POST /api/query` (or `GET /api/table/{name}` for
   "x402Version": 2,
   "error": "No crypto payment found. Implement x402 protocol...",
   "resource": {
-    "url": "http://server:4021/api/query",
+    "url": "http://server:4021/api/query?query=SELECT%20*%20FROM%20uniswap_v3_pool_swap%20LIMIT%202",
     "description": "Uniswap v3 swaps - 2 rows",
     "mimeType": "application/vnd.apache.arrow.stream"
   },
