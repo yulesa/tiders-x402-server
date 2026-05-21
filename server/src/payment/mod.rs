@@ -6,6 +6,7 @@
 //! - [`processing`] — orchestrates `verify` + `settle` calls against the facilitator.
 //! - [`facilitator_client`] — thin HTTP client for the remote x402 facilitator.
 
+pub mod cdp_jwt;
 pub mod config;
 pub mod facilitator_client;
 pub mod price;

@@ -15,6 +15,7 @@ use x402_chain_eip155::chain::{ChecksummedAddress, Eip155TokenDeployment};
 use x402_types::networks::USDC;
 
 use crate::dashboard::{Dashboard, DashboardsState};
+use crate::payment::cdp_jwt::CdpJwtSigner;
 use crate::payment::config::GlobalPaymentConfig;
 use crate::payment::facilitator_client::FacilitatorClient;
 use crate::payment::price::{PriceTag, PricingModel, TablePaymentOffers, TokenAmount};
@@ -208,6 +209,12 @@ pub fn build_facilitator(
             header_map.insert(name, value);
         }
         client = client.with_headers(header_map);
+    }
+
+    if let Some(cdp) = &fac_config.cdp_auth {
+        let signer = CdpJwtSigner::try_new(cdp.key_id.clone(), &cdp.key_secret)
+            .map_err(|e| anyhow!("Invalid facilitator.cdp_auth: {e}"))?;
+        client = client.with_cdp_signer(Arc::new(signer));
     }
 
     Ok(Arc::new(client))

@@ -49,6 +49,23 @@ pub struct FacilitatorConfig {
     pub timeout: Option<u64>,
     /// Optional custom headers sent with every facilitator request.
     pub headers: Option<std::collections::HashMap<String, String>>,
+    /// Optional CDP JWT authentication. When set, each request to the
+    /// facilitator carries an `Authorization: Bearer <jwt>` header signed
+    /// with the provided Ed25519 secret API key.
+    pub cdp_auth: Option<CdpAuthConfig>,
+}
+
+/// Coinbase Developer Platform JWT auth credentials.
+///
+/// Both fields support `${VAR_NAME}` env-var substitution from the YAML loader.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CdpAuthConfig {
+    /// CDP API key ID (UUID).
+    pub key_id: String,
+    /// CDP Ed25519 secret API key, standard base64 of the 64-byte
+    /// `seed || public_key` blob shown in the CDP portal.
+    pub key_secret: String,
 }
 
 /// Database backend configuration. Exactly one variant must be specified.

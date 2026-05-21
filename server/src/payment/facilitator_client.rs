@@ -14,11 +14,14 @@
 use http::{HeaderMap, StatusCode};
 use reqwest::Client;
 use std::fmt::Display;
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::{Instrument, Span};
 use url::Url;
 use x402_types::facilitator::Facilitator;
 use x402_types::proto;
+
+use super::cdp_jwt::{CdpJwtError, CdpJwtSigner};
 
 /// HTTP client for communicating with a remote x402 facilitator.
 ///
@@ -40,6 +43,9 @@ pub struct FacilitatorClient {
     headers: HeaderMap,
     /// Optional request timeout
     timeout: Option<Duration>,
+    /// Optional CDP JWT signer. When set, every request carries a freshly
+    /// signed `Authorization: Bearer <jwt>` header bound to the request URI.
+    cdp_signer: Option<Arc<CdpJwtSigner>>,
 }
 
 impl Facilitator for FacilitatorClient {
@@ -113,6 +119,20 @@ pub enum FacilitatorClientError {
         #[source]
         source: reqwest::Error,
     },
+    #[error("Failed to sign CDP JWT: {context}: {source}")]
+    CdpJwt {
+        context: &'static str,
+        #[source]
+        source: CdpJwtError,
+    },
+    #[error("Request URL has no host: {context}: {url}")]
+    UrlMissingHost { context: &'static str, url: String },
+    #[error("CDP JWT contains invalid header characters: {context}: {source}")]
+    InvalidAuthHeader {
+        context: &'static str,
+        #[source]
+        source: http::header::InvalidHeaderValue,
+    },
 }
 
 impl FacilitatorClient {
@@ -180,6 +200,7 @@ impl FacilitatorClient {
             supported_url,
             headers: HeaderMap::new(),
             timeout: None,
+            cdp_signer: None,
         })
     }
 
@@ -195,6 +216,48 @@ impl FacilitatorClient {
         let mut this = self.clone();
         this.timeout = Some(timeout);
         this
+    }
+
+    /// Attaches a CDP JWT signer. When set, every request gets a freshly
+    /// signed `Authorization: Bearer <jwt>` header bound to its URI.
+    pub fn with_cdp_signer(&self, signer: Arc<CdpJwtSigner>) -> Self {
+        let mut this = self.clone();
+        this.cdp_signer = Some(signer);
+        this
+    }
+
+    /// Returns the configured CDP signer, if any.
+    pub fn cdp_signer(&self) -> Option<&Arc<CdpJwtSigner>> {
+        self.cdp_signer.as_ref()
+    }
+
+    /// Builds the `Authorization: Bearer <jwt>` header value for a given
+    /// request URL. Returns `Ok(None)` if no signer is configured.
+    fn cdp_auth_header(
+        &self,
+        method: &str,
+        url: &Url,
+        context: &'static str,
+    ) -> Result<Option<http::HeaderValue>, FacilitatorClientError> {
+        let Some(signer) = &self.cdp_signer else {
+            return Ok(None);
+        };
+        let host = url
+            .host_str()
+            .ok_or_else(|| FacilitatorClientError::UrlMissingHost {
+                context,
+                url: url.to_string(),
+            })?;
+        let path_and_query = match url.query() {
+            Some(q) => format!("{}?{}", url.path(), q),
+            None => url.path().to_string(),
+        };
+        let jwt = signer
+            .sign(method, host, &path_and_query)
+            .map_err(|e| FacilitatorClientError::CdpJwt { context, source: e })?;
+        let value = http::HeaderValue::from_str(&format!("Bearer {jwt}"))
+            .map_err(|e| FacilitatorClientError::InvalidAuthHeader { context, source: e })?;
+        Ok(Some(value))
     }
 
     /// Sends a `POST /verify` request to the facilitator.
@@ -220,6 +283,9 @@ impl FacilitatorClient {
         let mut req = self.client.get(self.supported_url.clone());
         for (key, value) in self.headers.iter() {
             req = req.header(key, value);
+        }
+        if let Some(auth) = self.cdp_auth_header("GET", &self.supported_url, "GET /supported")? {
+            req = req.header(http::header::AUTHORIZATION, auth);
         }
         if let Some(timeout) = self.timeout {
             req = req.timeout(timeout);
@@ -272,6 +338,9 @@ impl FacilitatorClient {
         let mut req = self.client.post(url.clone()).json(payload);
         for (key, value) in self.headers.iter() {
             req = req.header(key, value);
+        }
+        if let Some(auth) = self.cdp_auth_header("POST", url, context)? {
+            req = req.header(http::header::AUTHORIZATION, auth);
         }
         if let Some(timeout) = self.timeout {
             req = req.timeout(timeout);
