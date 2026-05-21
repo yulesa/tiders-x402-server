@@ -1,7 +1,7 @@
 # Example tiders-x402-server configuration.
 #
 # Run with:
-#   tiders-x402-server --config config.yaml
+#   tiders-x402-server start tiders-x402-server.yaml
 #
 # Environment variables can be referenced with ${VAR_NAME} syntax.
 # Set them in your shell or a .env file before starting the server.
