@@ -78,6 +78,36 @@ facilitator = FacilitatorClient("https://facilitator.x402.rs")
 |--------|------|--------|
 | Set custom headers | `facilitator.with_headers(header_map)` | `facilitator.set_headers({"Authorization": "Bearer ..."})` |
 | Set timeout | `facilitator.with_timeout(Duration::from_millis(5000))` | `facilitator.set_timeout(5000)` |
+| Attach CDP JWT signer | `facilitator.with_cdp_signer(Arc::new(signer))` | -- (not exposed to Python yet) |
+
+### Authentication
+
+Most public facilitators (e.g. `https://facilitator.x402.rs`) need no auth. For
+those that do:
+
+- **Static bearer / API-key header** — set it via `with_headers(...)`. The
+  header is sent verbatim on every request.
+- **CDP JWT** — the Coinbase Developer Platform facilitator requires a fresh
+  Ed25519 JWT bound to each request URI. Construct a `CdpJwtSigner` and attach
+  it with `with_cdp_signer(...)`:
+
+  ```rust
+  use std::sync::Arc;
+  use tiders_x402_server::payment::cdp_jwt::CdpJwtSigner;
+
+  let signer = CdpJwtSigner::try_new(
+      std::env::var("CDP_API_KEY_ID")?,
+      &std::env::var("CDP_API_KEY_SECRET")?,
+  )?;
+  let facilitator = FacilitatorClient::try_from(
+      "https://api.cdp.coinbase.com/platform/v2/x402",
+  )?
+  .with_cdp_signer(Arc::new(signer));
+  ```
+
+  The signer holds the decoded Ed25519 key once and produces a per-request JWT
+  (2-minute expiry, `iss: "cdp"`, `uris: ["<METHOD> <host><path>"]` claim).
+  See `payment::cdp_jwt` for the full type and error enum.
 
 ---
 
