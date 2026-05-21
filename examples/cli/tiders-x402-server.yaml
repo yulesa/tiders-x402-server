@@ -15,6 +15,9 @@ facilitator:
   # timeout: 30          # optional, request timeout in seconds
   # headers:             # optional custom headers
   #   X-Api-Key: "${FACILITATOR_API_KEY}"
+  # cdp_auth:              # Coinbase Developer Platform JWT auth
+  #   key_id: "${CDP_API_KEY_ID}"
+  #   key_secret: "${CDP_API_KEY_SECRET}"
 
 database:
   # Exactly one database backend must be specified.

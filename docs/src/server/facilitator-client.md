@@ -23,6 +23,7 @@ pub struct FacilitatorClient {
     client: Client,        // reqwest HTTP client (shared connection pool)
     headers: HeaderMap,    // optional custom headers
     timeout: Option<Duration>,
+    cdp_signer: Option<Arc<CdpJwtSigner>>, // optional CDP JWT signer
 }
 ```
 
@@ -48,6 +49,10 @@ The client supports optional customization after creation:
 let facilitator = facilitator.with_headers(header_map);
 let facilitator = facilitator.with_timeout(Duration::from_millis(5000));
 
+// CDP JWT auth — see "Authentication" below
+let signer = CdpJwtSigner::try_new(key_id, &key_secret_b64)?;
+let facilitator = facilitator.with_cdp_signer(Arc::new(signer));
+
 // Read back
 println!("{}", facilitator.base_url());
 println!("{}", facilitator.verify_url());
@@ -67,6 +72,35 @@ print(facilitator.settle_url)
 print(facilitator.timeout_ms)  # returns int or None
 ```
 
+## Authentication
+
+Most public facilitators (e.g. `https://facilitator.x402.rs`) require no
+authentication. For facilitators that do, two mechanisms are supported.
+
+**Static headers** — covers schemes like `Authorization: Bearer <api_key>` or
+`X-Api-Key: ...`. Attach them with `with_headers(...)`. The value is sent
+verbatim on every request.
+
+**CDP JWT** — the Coinbase Developer Platform facilitator at
+`https://api.cdp.coinbase.com/platform/v2/x402` rejects static bearer tokens.
+It requires a fresh Ed25519-signed JWT on every request, with a custom claim
+(`uris: ["<METHOD> <host><path>"]`) that binds the token to the specific
+endpoint being called. The `CdpJwtSigner` in `payment::cdp_jwt` produces these
+tokens; attach one with `with_cdp_signer(...)` and the client mints a new JWT
+per request automatically. CDP signing details:
+
+| Property | Value |
+|----------|-------|
+| Algorithm | EdDSA (Ed25519) |
+| Lifetime | 120 seconds |
+| Issuer claim | `cdp` |
+| URI claim | `uris: ["<METHOD> <host><path>?<query>"]` |
+| Header nonce | 16 random bytes (hex) |
+| Secret format | Standard base64 of 64-byte `seed \|\| public_key` |
+
+Both mechanisms compose: if both are set, custom headers are sent alongside
+the `Authorization: Bearer <jwt>` header.
+
 ## Facilitator Trait
 
 The client implements the `x402_types::facilitator::Facilitator` trait, which defines the `verify`, `settle`, and `supported` methods. This allows it to be used interchangeably with other facilitator implementations (e.g., a local one for testing).
@@ -82,6 +116,9 @@ Errors are captured with context about where the failure occurred:
 | `JsonDeserialization` | The facilitator returned a response that could not be parsed as JSON |
 | `HttpStatus` | The facilitator returned a non-200 status code |
 | `ResponseBodyRead` | The response body could not be read as text |
+| `CdpJwt` | The CDP JWT signer failed to produce a token (clock error, RNG failure, etc.) |
+| `UrlMissingHost` | The request URL had no host component, so a CDP JWT URI claim could not be built |
+| `InvalidAuthHeader` | The signed JWT contained characters not permitted in an HTTP header value |
 
 ## Telemetry
 

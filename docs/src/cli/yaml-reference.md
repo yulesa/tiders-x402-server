@@ -32,14 +32,51 @@ Required. Configuration for the x402 facilitator service that handles payment ve
 | `url` | string | yes | Facilitator endpoint (e.g., `"https://facilitator.x402.rs"`) |
 | `timeout` | integer | no | Request timeout in seconds |
 | `headers` | map | no | Custom HTTP headers sent with every facilitator request |
+| `cdp_auth` | map | no | Coinbase Developer Platform JWT auth (see below) |
 
 ```yaml
 facilitator:
   url: "https://facilitator.x402.rs"
   timeout: 30
   headers:
-    X-Api-Key: "${FACILITATOR_API_KEY}"
+    X-Custom-Header: "value"
 ```
+
+### Static bearer token / custom header
+
+Some facilitators (e.g. OpenZeppelin's relayer plugin) authenticate with a
+static `Authorization: Bearer <token>`. Use the `headers:` block:
+
+```yaml
+facilitator:
+  url: "https://relayer.example/x402"
+  headers:
+    Authorization: "Bearer ${RELAYER_API_KEY}"
+```
+
+### Coinbase Developer Platform (CDP) JWT auth
+
+The CDP facilitator at `https://api.cdp.coinbase.com/platform/v2/x402` does not
+accept static bearer tokens. It requires a fresh Ed25519-signed JWT on every
+request, bound to the request URI. Configure it with the `cdp_auth` block:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `key_id` | string | yes | CDP API key ID (UUID), as shown in the CDP portal |
+| `key_secret` | string | yes | CDP Ed25519 secret API key, standard base64 of the 64-byte `seed \|\| public_key` blob |
+
+```yaml
+facilitator:
+  url: "https://api.cdp.coinbase.com/platform/v2/x402"
+  cdp_auth:
+    key_id: "${CDP_API_KEY_ID}"
+    key_secret: "${CDP_API_KEY_SECRET}"
+```
+
+The server mints a short-lived (2-minute) JWT per `/verify` and `/settle` call
+and attaches it as `Authorization: Bearer <jwt>`. `cdp_auth` can coexist with
+the `headers:` block — any custom headers are sent alongside the bearer
+header.
 
 ---
 
