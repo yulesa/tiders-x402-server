@@ -38,6 +38,7 @@ use axum::routing::get;
 use dotenvy::dotenv;
 use opentelemetry::trace::{Status, TracerProvider};
 use tokio::signal;
+use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::layer::SubscriberExt;
@@ -181,8 +182,11 @@ pub async fn start_server(state: AppState) {
     let dashboards_service = DashboardSwap(state.dashboard_router.clone());
     let has_dashboards = !state.dashboards.load().dashboards.is_empty();
 
+    let assets_dir = state.dashboards.load().root.join("assets");
     let app = {
-        let base = Router::new().nest("/api", api_router);
+        let base = Router::new()
+            .nest("/api", api_router)
+            .nest_service("/assets", ServeDir::new(assets_dir));
         if has_dashboards {
             base.route("/", get(landing_handler))
         } else {

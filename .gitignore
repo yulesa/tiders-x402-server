@@ -63,3 +63,5 @@ docs/book
 
 # Example dashboards
 examples/cli/dashboards/
+
+_local/

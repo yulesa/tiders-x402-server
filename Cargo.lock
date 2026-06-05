@@ -4589,7 +4589,7 @@ dependencies = [
 
 [[package]]
 name = "tiders-x402-server"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "alloy-primitives",
  "anyhow",
