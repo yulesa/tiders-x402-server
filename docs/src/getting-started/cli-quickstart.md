@@ -2,7 +2,7 @@
 
 The CLI is the fastest way to run a tiders-x402-server — no code required. Write a YAML config file, point the CLI at it, and the server is live.
 
-If you just want to try the server, head to the CLI at `examples/CLI` and run the example.
+> **No data or infrastructure yet?** Check out **[tiders-stack](https://github.com/yulesa/tiders-stack)** — a complete end-to-end example that sets everything up from scratch (ingestion, database, server, dashboard, and paying client) in a single repo. It's the fastest way to see the full system in action before you bring your own data.
 
 Tiders-x402-server assumes you already have a database populated with the data you want to sell. If you don't, the [Tiders ingestion tool](https://github.com/yulesa/tiders) can help you stand one up and load it with crypto data — see [Choosing a Database](https://yulesa.github.io/tiders-docs/getting_started/choosing_a_database.html) for guidance on picking a backend.
 

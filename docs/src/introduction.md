@@ -16,6 +16,12 @@ Think of the dashboard feature as a vending machine for data: buyers browse the 
 
 ![Tiders x402 Server Components](resources/tiders_x402_server_components.png)
 
+## New Here? Start with the Full Stack Example
+
+> **[tiders-stack](https://github.com/yulesa/tiders-stack)** — a ready-to-run end-to-end example that wires up a complete Tiders environment from scratch: ingestion pipeline, database, server config, dashboard, and a paying client — all in one repo. **If you don't have data or infrastructure already set up, start there before continuing here.**
+
+---
+
 ## Three Ways to Use
 
 | Mode | How | When to use |
