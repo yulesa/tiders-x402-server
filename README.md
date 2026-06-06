@@ -22,7 +22,7 @@ Think of the dashboard feature as a vending machine for data: buyers browse the 
 
 ## New Here? Start with the Full Stack Example
 
-> **[tiders-stack](https://github.com/yulesa/tiders-stack)** — a ready-to-run end-to-end example that wires up a complete Tiders environment from scratch: ingestion pipeline, database, server config, dashboard, and a paying client — all in one repo. If you don't have data or infrastructure yet, **start here**.
+**[tiders-stack](https://github.com/yulesa/tiders-stack)** repo is a ready-to-run end-to-end example that wires up a complete Tiders environment from scratch: ingestion pipeline, database, server config, dashboard, and a paying client — all in one repo. If you don't have data or infrastructure yet, **start here**.
 
 ---
 
